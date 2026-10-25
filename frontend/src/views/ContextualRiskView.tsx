@@ -504,10 +504,13 @@ export const ContextualRiskView: React.FC<ContextualRiskViewProps> = ({
               {pathResults.paths.map((p, idx) => {
                 const isVerified = p.path_verification_status === 'VERIFIED';
                 const isMixed = p.path_verification_status === 'MIXED_EVIDENCE';
+                const isStale = p.path_verification_status === 'STALE';
                 const statusBg = isVerified
                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                   : isMixed
                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  : isStale
+                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                   : 'bg-purple-500/10 text-purple-400 border-purple-500/30';
 
                 return (

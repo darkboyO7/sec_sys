@@ -123,6 +123,34 @@ def list_risk_assessments(
     )
 
 
+@router.get("/projects/{project_id}/risk/assessments/{assessment_id}", response_model=RiskAssessmentRead)
+def get_risk_assessment_by_id(
+    project_id: str,
+    assessment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieve a specific contextual risk assessment by ID with strict dual parent-child project scoping.
+    """
+    verify_project_access(project_id, current_user, db)
+
+    assessment = (
+        db.query(RiskAssessment)
+        .filter(
+            RiskAssessment.id == assessment_id,
+            RiskAssessment.project_id == project_id,
+        )
+        .first()
+    )
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Risk assessment '{assessment_id}' not found in project '{project_id}'.",
+        )
+    return assessment
+
+
 @router.get("/projects/{project_id}/risk/findings/{finding_id}", response_model=RiskAssessmentRead)
 def get_or_assess_finding_risk(
     project_id: str,
@@ -159,6 +187,7 @@ def get_or_assess_finding_risk(
     return assessment
 
 
+@router.post("/projects/{project_id}/risk/recalculate/{finding_id}", response_model=RiskAssessmentRead)
 @router.post("/projects/{project_id}/risk/findings/{finding_id}/assess", response_model=RiskAssessmentRead)
 def recalculate_finding_risk(
     project_id: str,
@@ -169,7 +198,7 @@ def recalculate_finding_risk(
 ):
     """
     Force a fresh recalculation of a finding's contextual risk score and persist it.
-    Requires project membership.
+    Requires project membership and enforces dual parent-child scoping.
     """
     verify_project_access(project_id, current_user, db)
 
@@ -215,6 +244,7 @@ def recalculate_all_project_risks(
     return {"message": f"Successfully recalculated risk assessments for {count} findings.", "recalculated_count": count}
 
 
+@router.post("/projects/{project_id}/risk/attack-paths", response_model=AttackPathAnalysisResponse)
 @router.post("/projects/{project_id}/graph/paths/analyze", response_model=AttackPathAnalysisResponse)
 def analyze_attack_paths(
     project_id: str,
@@ -224,7 +254,8 @@ def analyze_attack_paths(
 ):
     """
     Execute bounded, cycle-safe attack path analysis through the project's knowledge graph.
-    Returns categorized paths (VERIFIED, MIXED_EVIDENCE, HYPOTHETICAL) with cumulative confidence.
+    Returns categorized paths (VERIFIED, MIXED_EVIDENCE, HYPOTHETICAL, STALE) with cumulative confidence.
+    Enforces project boundaries and parameter limits.
     """
     verify_project_access(project_id, current_user, db)
 
@@ -268,6 +299,35 @@ def list_remediation_recommendations(
     )
 
 
+@router.get("/projects/{project_id}/risk/remediations/{recommendation_id}", response_model=RemediationRecommendationRead)
+@router.get("/projects/{project_id}/remediations/{recommendation_id}", response_model=RemediationRecommendationRead)
+def get_remediation_recommendation_by_id(
+    project_id: str,
+    recommendation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieve a specific remediation recommendation by ID with dual parent-child project scoping.
+    """
+    verify_project_access(project_id, current_user, db)
+
+    rec = (
+        db.query(RemediationRecommendation)
+        .filter(
+            RemediationRecommendation.id == recommendation_id,
+            RemediationRecommendation.project_id == project_id,
+        )
+        .first()
+    )
+    if not rec:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Remediation recommendation '{recommendation_id}' not found in project '{project_id}'.",
+        )
+    return rec
+
+
 @router.get("/projects/{project_id}/remediations/findings/{finding_id}", response_model=RemediationRecommendationRead)
 def get_or_generate_finding_remediation(
     project_id: str,
@@ -294,6 +354,7 @@ def get_or_generate_finding_remediation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
+@router.post("/projects/{project_id}/risk/remediations/{recommendation_id}/review", response_model=RemediationRecommendationRead)
 @router.post("/projects/{project_id}/remediations/{recommendation_id}/review", response_model=RemediationRecommendationRead)
 def review_remediation_recommendation(
     project_id: str,

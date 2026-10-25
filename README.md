@@ -193,7 +193,12 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 50 automated tests covering asset inventory normalization, conservative reconciliation, ambiguity resolution, relational knowledge graph node & edge idempotency, cycle-safe bounded traversal, cross-project graph isolation, assessment-to-asset-to-graph auto-linkage, 13-state finding lifecycle transitions, deduplication fingerprinting, contradiction preservation, reopening, risk acceptance expiration sweeps, assessment state machines, boundary re-validation, cross-project isolation, and audit logging.*
+*Executes 76 automated tests covering:*
+- *Phase 5 & 5.1 Contextual Risk Intelligence & Security Audit: formula versioning (`v1.0.0`), deterministic factor decomposition, non-finite/NaN/inf CVSS rejection, CVSS vs. severity precedence rules, temporal freshness and timezone normalization, historical preservation on `FALSE_POSITIVE` / `VERIFIED_CLOSED`, residual risk tracking on `ACCEPTED_RISK`, recurrence penalties on `REOPENED`.*
+- *Evidence-Aware Attack Path Traversal: bounded DFS ($\le 4$ depth, $\le 10$ paths), cycle avoidance, classification into `VERIFIED` ($\ge 0.7$ confidence), `MIXED_EVIDENCE`, `HYPOTHETICAL`, and `STALE` paths with explicit missing evidence.*
+- *Defensive Remediation Governance: non-executing advisory playbooks, idempotency, Project LEAD / System ADMIN sign-off RBAC, mandatory justification, and finding lifecycle status invariance.*
+- *API Dual-Scoping: strict parent-child project boundary validation on all risk, path, and remediation endpoints, plus hard pagination limits (`le=100`).*
+- *Phases 1-4 Core: asset inventory normalization, conservative reconciliation, ambiguity resolution, relational knowledge graph node & edge idempotency, 13-state finding lifecycle transitions, deduplication fingerprinting, contradiction preservation, assessment state machines, execution boundary re-validation, cross-project isolation, and audit logging.*
 
 ### Running Frontend Tests (Vitest):
 ```powershell

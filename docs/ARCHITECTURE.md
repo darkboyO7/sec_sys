@@ -283,9 +283,10 @@ Each persisted `RiskAssessment` records:
 
 ### 9.3 Evidence-Aware Attack Path Analysis
 The Knowledge Graph engine includes a bounded, read-only path analysis service (`AttackPathAnalysisService`) that connects security entities exclusively through persisted graph relationships:
-- **`VERIFIED` Path**: Every relationship along the path has status `VERIFIED`.
-- **`MIXED_EVIDENCE` Path**: Path contains both `VERIFIED` and `INFERRED` relationships.
-- **`HYPOTHETICAL` Path**: Path contains `HYPOTHETICAL` or `STALE` relationships and requires empirical confirmation.
+- **`VERIFIED` Path**: Every relationship along the path has status `VERIFIED` AND confidence $\ge 0.7$.
+- **`MIXED_EVIDENCE` Path**: Path contains both `VERIFIED` and `INFERRED` relationships without stale/superseded edges.
+- **`STALE` Path**: Path contains one or more `STALE` or `SUPERSEDED` relationships; explicitly flagged with detailed missing evidence explaining expired edges.
+- **`HYPOTHETICAL` Path**: Path contains `HYPOTHETICAL` relationships or uncorroborated edges requiring empirical confirmation.
 - **Cycle Safety & Bounded Depth**: DFS search enforces depth bounds ($\le 4$) and candidate path caps ($\le 10$), maintaining path visited sets to cut cycles.
 - **Epistemic Disclaimer**: Graph adjacency represents potential exposure and relational topology, NOT confirmed breach or automated exploitability.
 
@@ -294,5 +295,24 @@ The remediation service (`RemediationPrioritizationService`) maps confirmed find
 - **Strict Non-Execution Guarantee**: Phase 5 operates exclusively in an advisory capacity. It never executes shell commands, alters firewall rules, modifies code repositories, or restarts services.
 - **Decoupled Verification**: A finding is never marked remediated simply because a recommendation was approved. The existing finding lifecycle requires independent scan verification (`REMEDIATED_PENDING_VERIFICATION` $\to$ `VERIFIED_CLOSED`).
 - **Governance & RBAC**: Reviewing and approving remediation playbooks (`APPROVED`, `DEFERRED`, `REJECTED`) is restricted to Project LEAD and System ADMIN roles, with mandatory justification logged to the immutable audit ledger.
+
+---
+
+## 10. Phase 5.1 Security Audit, Model Hardening & API Scoping
+
+### 10.1 Input Sanitization & Precedence Guarantees
+- **Non-Finite Value Rejection**: Scanner outputs containing `NaN`, `+inf`, `-inf`, or scores outside $[0.0, 10.0]$ are intercepted before score calculation. The engine falls back to the categorical severity base score and logs an explicit uncertainty entry in `missing_factors`.
+- **CVSS vs. Categorical Severity Precedence**: When CVSS quantitatively conflicts with triage severity (e.g. CVSS 9.8 marked `LOW`, or CVSS 1.2 marked `CRITICAL`), categorical bounds govern the floor/ceiling of the base score (`CRITICAL`: [80, 100], `HIGH`: [60, 89], `MEDIUM`: [35, 65], `LOW`: [10, 39], `INFO`: [0, 15]), and a discrepancy notice is logged in `contributing_factors`.
+- **Temporal & Timezone Safety**: All calculations enforce UTC-aware comparison. Future-dated timestamps beyond clock skew are clamped to fresh observations (0 days) with explicit notices rather than causing negative duration errors.
+
+### 10.2 Lifecycle & Historical Traceability
+- **Preservation on Neutralization**: When a finding transitions to `FALSE_POSITIVE` or `VERIFIED_CLOSED`, current operational risk score drops to 0.0, but the previous active assessment is preserved in `risk_assessments` as superseded (`is_superseded = True`, `superseded_at`), maintaining complete historical scoring telemetry and verification provenance (`verified_by_id`, `verification_notes`, `false_positive_reason`).
+- **Residual Risk Tracking for Risk Acceptance**: `ACCEPTED_RISK` findings do not zero out; they receive a 0.40 residual multiplier, and the approver ID, expiration date, and compensating controls are embedded into `input_snapshot` and `contributing_factors`.
+- **Formula Version Upgrades**: If `active_assessment.scoring_version != SCORING_VERSION`, the engine bypasses cache reuse and forces a recalculation, ensuring formula changes take effect immediately across all findings.
+
+### 10.3 API Dual Scoping & Boundary Clamping
+- **Dual Parent-Child Constraints**: Every endpoint accepting both a `{project_id}` and a child resource ID (`{assessment_id}`, `{recommendation_id}`, `{finding_id}`, `{start_node_id}`) enforces database-level dual validation (`resource.project_id == project_id`). Mismatched cross-project queries fail-closed with 404 Not Found.
+- **Pagination Protection**: All list endpoints enforce strict bounds (`limit: int = Query(50, ge=1, le=100)`, `offset: int = Query(0, ge=0)`). Requests exceeding limit bounds are rejected with 422 Unprocessable Entity.
+
 
 

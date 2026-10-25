@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
@@ -76,28 +77,55 @@ class ContextualRiskService:
         (score, priority, factor_breakdown, contributing_factors, missing_factors, input_snapshot)
         """
         current_time = now or utc_now()
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=timezone.utc)
         contributing_factors: List[str] = []
         missing_factors: List[str] = []
 
-        # 1. Base Severity Score
+        # 1. Base Severity Score & Precedence Rules
         raw_cvss = finding.cvss_score
         base_score = cls.SEVERITY_BASE_SCORES.get(finding.severity, 45.0)
-        if raw_cvss is not None and 0.0 <= raw_cvss <= 10.0:
-            # Anchor around CVSS if present, clamped to reasonable severity bounds
-            cvss_scaled = raw_cvss * 10.0
-            if finding.severity == FindingSeverity.CRITICAL:
-                base_score = max(80.0, min(100.0, cvss_scaled))
-            elif finding.severity == FindingSeverity.HIGH:
-                base_score = max(60.0, min(89.0, cvss_scaled))
-            elif finding.severity == FindingSeverity.MEDIUM:
-                base_score = max(35.0, min(65.0, cvss_scaled))
-            elif finding.severity == FindingSeverity.LOW:
-                base_score = max(10.0, min(39.0, cvss_scaled))
-            else:
-                base_score = min(15.0, cvss_scaled)
-            contributing_factors.append(
-                f"Base severity '{finding.severity.value}' anchored by CVSS score {raw_cvss:.1f} (base: {base_score:.1f})."
+
+        # Validate CVSS numeric validity: finite float in [0.0, 10.0]
+        is_valid_cvss = (
+            raw_cvss is not None
+            and isinstance(raw_cvss, (int, float))
+            and not math.isnan(raw_cvss)
+            and not math.isinf(raw_cvss)
+            and 0.0 <= raw_cvss <= 10.0
+        )
+
+        if raw_cvss is not None and not is_valid_cvss:
+            missing_factors.append(
+                f"CVSS score '{raw_cvss}' is non-finite or outside [0.0, 10.0]; defaulted to categorical severity '{finding.severity.value}'."
             )
+
+        if is_valid_cvss:
+            # Anchor around CVSS, with deterministic bounds per categorical severity
+            cvss_scaled = float(raw_cvss) * 10.0
+            if finding.severity == FindingSeverity.CRITICAL:
+                min_bound, max_bound = 80.0, 100.0
+            elif finding.severity == FindingSeverity.HIGH:
+                min_bound, max_bound = 60.0, 89.0
+            elif finding.severity == FindingSeverity.MEDIUM:
+                min_bound, max_bound = 35.0, 65.0
+            elif finding.severity == FindingSeverity.LOW:
+                min_bound, max_bound = 10.0, 39.0
+            else:  # INFO
+                min_bound, max_bound = 0.0, 15.0
+
+            base_score = max(min_bound, min(max_bound, cvss_scaled))
+
+            # Conflict detection
+            if cvss_scaled < min_bound or cvss_scaled > max_bound:
+                contributing_factors.append(
+                    f"Severity discrepancy detected: Finding severity '{finding.severity.value}' conflicts with CVSS score {raw_cvss:.1f}. "
+                    f"Categorical bounds [{min_bound:.0f}, {max_bound:.0f}] applied (base: {base_score:.1f})."
+                )
+            else:
+                contributing_factors.append(
+                    f"Base severity '{finding.severity.value}' anchored by CVSS score {raw_cvss:.1f} (base: {base_score:.1f})."
+                )
         else:
             contributing_factors.append(
                 f"Base severity '{finding.severity.value}' assigned default base score {base_score:.1f}."
@@ -159,10 +187,18 @@ class ContextualRiskService:
         if last_obs is not None:
             if last_obs.tzinfo is None:
                 last_obs = last_obs.replace(tzinfo=timezone.utc)
-            age_days = max(0, (current_time - last_obs).total_seconds() / 86400.0)
+            if last_obs > current_time:
+                age_days = 0.0
+                contributing_factors.append(
+                    f"Observation timestamp is future-dated ({last_obs.isoformat()}); treated as current fresh observation (0 days)."
+                )
+            else:
+                age_days = max(0.0, (current_time - last_obs).total_seconds() / 86400.0)
+
             if age_days <= 7:
                 fresh_mult = 1.0
-                contributing_factors.append(f"Observation is fresh ({age_days:.1f} days old): multiplier 1.00.")
+                if last_obs <= current_time:
+                    contributing_factors.append(f"Observation is fresh ({age_days:.1f} days old): multiplier 1.00.")
             elif age_days <= 30:
                 fresh_mult = 0.90
                 contributing_factors.append(f"Observation is moderately recent ({age_days:.1f} days old): multiplier 0.90.")
@@ -178,17 +214,39 @@ class ContextualRiskService:
 
         # 6. Lifecycle & Mitigating Controls Multiplier
         lifecycle_mult = cls.LIFECYCLE_MULTIPLIERS.get(finding.status, 1.0)
+        exp_iso = None
+        if finding.risk_accepted_expires_at:
+            exp_dt = finding.risk_accepted_expires_at
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            exp_iso = exp_dt.isoformat()
+
         if finding.status == FindingLifecycleStatus.ACCEPTED_RISK:
+            exp_str = exp_iso or "No expiration"
+            approver_str = finding.risk_accepted_by_id or "Authorized Lead/Admin"
+            ctrl_str = finding.compensating_controls or "Documented compensating controls"
             contributing_factors.append(
-                f"Active authorized risk acceptance with documented compensating controls: multiplier {lifecycle_mult:.2f}."
+                f"Active authorized risk acceptance (Approver: {approver_str}, Expires: {exp_str}, Controls: {ctrl_str}): "
+                f"residual risk multiplier {lifecycle_mult:.2f} applied."
             )
-        elif finding.status in (FindingLifecycleStatus.VERIFIED_CLOSED, FindingLifecycleStatus.FALSE_POSITIVE):
+        elif finding.status == FindingLifecycleStatus.VERIFIED_CLOSED:
+            v_actor = finding.verified_by_id or "Independent verification"
             contributing_factors.append(
-                f"Finding is resolved/dismissed ({finding.status.value}): risk score neutralized to 0.0."
+                f"Finding resolved and verified closed (VERIFIED_CLOSED by {v_actor}): current risk score neutralized to 0.0 while preserving audit history."
+            )
+        elif finding.status == FindingLifecycleStatus.FALSE_POSITIVE:
+            fp_actor = finding.false_positive_by_id or "Lead/Admin disposition"
+            contributing_factors.append(
+                f"Finding dismissed as false positive (FALSE_POSITIVE by {fp_actor}): current risk score neutralized to 0.0 while preserving audit history."
             )
         elif finding.status == FindingLifecycleStatus.REOPENED:
             contributing_factors.append(
-                f"Finding was previously closed but recurred on target (REOPENED): elevated urgency multiplier {lifecycle_mult:.2f}."
+                f"Finding was previously closed but recurred on target (REOPENED): recurrence penalty multiplier {lifecycle_mult:.2f} applied."
+            )
+        elif finding.status == FindingLifecycleStatus.REMEDIATED_PENDING_VERIFICATION:
+            contributing_factors.append(
+                f"Remediation deployed but pending independent verification (REMEDIATED_PENDING_VERIFICATION): "
+                f"reduced risk multiplier {lifecycle_mult:.2f} maintaining residual uncertainty."
             )
         else:
             contributing_factors.append(
@@ -230,7 +288,7 @@ class ContextualRiskService:
             "finding_id": finding.id,
             "finding_severity": finding.severity.value,
             "finding_confidence": finding.confidence.value,
-            "cvss_score": finding.cvss_score,
+            "cvss_score": finding.cvss_score if is_valid_cvss else None,
             "finding_status": finding.status.value,
             "last_observed_at": last_obs.isoformat() if last_obs else None,
             "asset_id": asset.id if asset else None,
@@ -238,6 +296,9 @@ class ContextualRiskService:
             "asset_type": asset.asset_type.value if asset else None,
             "has_exposure_edge": has_exposure_edge,
             "calculation_time": current_time.isoformat(),
+            "risk_accepted_expires_at": exp_iso,
+            "risk_accepted_by_id": finding.risk_accepted_by_id,
+            "compensating_controls": finding.compensating_controls,
         }
 
         return {
@@ -321,21 +382,27 @@ class ContextualRiskService:
 
         # If active assessment exists and not forcing recalculation, check if key inputs changed
         if active_assessment and not force_recalculate:
-            prev_snapshot = active_assessment.input_snapshot or {}
-            current_snapshot = calc["input_snapshot"]
-            # Compare key deterministic drivers
-            keys_to_compare = [
-                "finding_severity",
-                "finding_confidence",
-                "cvss_score",
-                "finding_status",
-                "asset_criticality",
-                "asset_type",
-                "has_exposure_edge",
-            ]
-            if all(prev_snapshot.get(k) == current_snapshot.get(k) for k in keys_to_compare):
-                # Inputs identical; return active assessment without duplicating
-                return active_assessment
+            # Formula version change mandates immediate recalculation
+            if active_assessment.scoring_version != cls.SCORING_VERSION:
+                force_recalculate = True
+            else:
+                prev_snapshot = active_assessment.input_snapshot or {}
+                current_snapshot = calc["input_snapshot"]
+                # Compare key deterministic drivers
+                keys_to_compare = [
+                    "scoring_version",
+                    "finding_severity",
+                    "finding_confidence",
+                    "cvss_score",
+                    "finding_status",
+                    "asset_criticality",
+                    "asset_type",
+                    "has_exposure_edge",
+                    "risk_accepted_expires_at",
+                ]
+                if all(prev_snapshot.get(k) == current_snapshot.get(k) for k in keys_to_compare):
+                    # Inputs identical; return active assessment without duplicating
+                    return active_assessment
 
         # Supersede existing active assessment
         if active_assessment:

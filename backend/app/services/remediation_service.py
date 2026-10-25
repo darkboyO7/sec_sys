@@ -272,6 +272,10 @@ class RemediationPrioritizationService:
         if not rec:
             raise ValueError(f"Remediation recommendation '{recommendation_id}' not found in project '{project_id}'.")
 
+        clean_notes = (review_notes or "").strip()
+        if len(clean_notes) < 3:
+            raise ValueError("Review justification is mandatory (minimum 3 characters required).")
+
         # Check role permission if approval is required
         if new_status == RecommendationStatus.APPROVED and rec.requires_approval:
             is_lead = (reviewer_role == ProjectRole.LEAD)
@@ -282,7 +286,7 @@ class RemediationPrioritizationService:
         rec.status = new_status
         rec.reviewed_by_id = reviewer.id
         rec.reviewed_at = utc_now()
-        rec.review_notes = (review_notes or "").strip()
+        rec.review_notes = clean_notes
 
         AuditService.log(
             db=db,

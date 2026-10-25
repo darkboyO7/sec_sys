@@ -450,7 +450,7 @@ export interface RiskSummary {
   unresolved_risk_count: number;
 }
 
-export type PathVerificationStatus = 'VERIFIED' | 'MIXED_EVIDENCE' | 'HYPOTHETICAL';
+export type PathVerificationStatus = 'VERIFIED' | 'MIXED_EVIDENCE' | 'HYPOTHETICAL' | 'STALE';
 
 export interface AttackPathNode {
   id: string;

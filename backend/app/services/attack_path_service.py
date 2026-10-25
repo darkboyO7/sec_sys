@@ -11,6 +11,7 @@ class PathVerificationStatus(str, enum.Enum):
     VERIFIED = "VERIFIED"
     MIXED_EVIDENCE = "MIXED_EVIDENCE"
     HYPOTHETICAL = "HYPOTHETICAL"
+    STALE = "STALE"
 
 
 class AttackPathAnalysisService:
@@ -67,6 +68,8 @@ class AttackPathAnalysisService:
             )
             if finding_node:
                 start_node_id = finding_node.id
+            else:
+                raise ValueError(f"Finding node for '{finding_id}' not found in project '{project_id}'.")
 
         # If start_node_id is provided, verify it belongs to project
         if start_node_id:
@@ -246,7 +249,13 @@ class AttackPathAnalysisService:
 
         # 1. Classify Path Verification Status
         statuses = [e.status for e in edges]
-        if all(s == RelationshipStatus.VERIFIED for s in statuses):
+        has_stale_or_superseded = any(s in (RelationshipStatus.STALE, RelationshipStatus.SUPERSEDED) for s in statuses)
+        all_verified = all(s == RelationshipStatus.VERIFIED for s in statuses)
+        all_high_conf = all(e.confidence >= 0.7 for e in edges)
+
+        if has_stale_or_superseded:
+            path_status = PathVerificationStatus.STALE
+        elif all_verified and all_high_conf:
             path_status = PathVerificationStatus.VERIFIED
         elif all(s in (RelationshipStatus.VERIFIED, RelationshipStatus.INFERRED) for s in statuses):
             path_status = PathVerificationStatus.MIXED_EVIDENCE
@@ -262,14 +271,25 @@ class AttackPathAnalysisService:
         # 3. Missing Evidence Extraction
         missing_evidence: List[str] = []
         for e in edges:
-            if e.status != RelationshipStatus.VERIFIED:
-                src = node_map.get(e.source_node_id)
-                tgt = node_map.get(e.target_node_id)
-                src_label = src.label if src else e.source_node_id[:8]
-                tgt_label = tgt.label if tgt else e.target_node_id[:8]
+            src = node_map.get(e.source_node_id)
+            tgt = node_map.get(e.target_node_id)
+            src_label = src.label if src else e.source_node_id[:8]
+            tgt_label = tgt.label if tgt else e.target_node_id[:8]
+
+            if e.status in (RelationshipStatus.STALE, RelationshipStatus.SUPERSEDED):
+                missing_evidence.append(
+                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' is {e.status.value}. "
+                    f"Evidence has expired or been superseded; fresh observation is required."
+                )
+            elif e.status != RelationshipStatus.VERIFIED:
                 missing_evidence.append(
                     f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' is {e.status.value}. "
                     f"Direct scanner observation or credential verification required."
+                )
+            elif e.confidence < 0.7:
+                missing_evidence.append(
+                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' has low confidence ({e.confidence:.2f}). "
+                    f"Additional corroboration required to confirm reachability."
                 )
 
         # 4. Narrative / Rationale
