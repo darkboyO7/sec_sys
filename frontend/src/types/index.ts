@@ -417,3 +417,103 @@ export interface GraphRelationshipCreate {
   evidence_reference?: string;
   properties?: Record<string, any>;
 }
+
+// Phase 5: Contextual Risk Intelligence, Attack Paths, and Remediation
+export type RiskPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFORMATIONAL';
+
+export interface RiskAssessment {
+  id: string;
+  project_id: string;
+  finding_id: string;
+  asset_id?: string | null;
+  score: number;
+  priority: RiskPriority;
+  scoring_version: string;
+  factor_breakdown: Record<string, any>;
+  contributing_factors: string[];
+  missing_factors: string[];
+  evidence_references: string[];
+  input_snapshot: Record<string, any>;
+  calculated_at: string;
+  is_superseded: boolean;
+  superseded_at?: string | null;
+  created_at: string;
+}
+
+export interface RiskSummary {
+  total_assessed: number;
+  by_priority: Record<string, number>;
+  average_score: number;
+  highest_score: number;
+  critical_count: number;
+  high_count: number;
+  unresolved_risk_count: number;
+}
+
+export type PathVerificationStatus = 'VERIFIED' | 'MIXED_EVIDENCE' | 'HYPOTHETICAL';
+
+export interface AttackPathNode {
+  id: string;
+  label: string;
+  category: string;
+  entity_type?: string | null;
+  properties: Record<string, any>;
+}
+
+export interface AttackPathRelationship {
+  id: string;
+  source_node_id: string;
+  target_node_id: string;
+  relationship_type: string;
+  status: string;
+  confidence: number;
+  provenance: string;
+}
+
+export interface AttackPath {
+  path_verification_status: PathVerificationStatus;
+  cumulative_confidence: number;
+  step_count: number;
+  narrative: string;
+  nodes: AttackPathNode[];
+  relationships: AttackPathRelationship[];
+  missing_evidence: string[];
+}
+
+export interface AttackPathAnalysisResponse {
+  project_id: string;
+  total_paths_found: number;
+  max_depth_evaluated: number;
+  truncated: boolean;
+  paths: AttackPath[];
+  methodology_disclaimer: string;
+}
+
+export type RecommendationStatus = 'PENDING_REVIEW' | 'APPROVED' | 'DEFERRED' | 'REJECTED';
+
+export interface RemediationRecommendation {
+  id: string;
+  project_id: string;
+  finding_id: string;
+  asset_id?: string | null;
+  title: string;
+  action_type: string;
+  description: string;
+  rationale: string;
+  qualitative_benefit: string;
+  estimated_risk_reduction?: number | null;
+  prerequisites: string[];
+  operational_impact: string;
+  rollback_procedure: string;
+  verification_criteria: string;
+  verification_test_profile?: string | null;
+  requires_approval: boolean;
+  approval_role: string;
+  status: RecommendationStatus;
+  reviewed_by_id?: string | null;
+  reviewed_at?: string | null;
+  review_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+

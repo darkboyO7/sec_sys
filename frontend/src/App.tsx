@@ -8,6 +8,7 @@ import { AssessmentJobsView } from './views/AssessmentJobsView';
 import { FindingLifecycleView } from './views/FindingLifecycleView';
 import { AssetInventoryView } from './views/AssetInventoryView';
 import { KnowledgeGraphView } from './views/KnowledgeGraphView';
+import { ContextualRiskView } from './views/ContextualRiskView';
 import { AuditLedgerView } from './views/AuditLedgerView';
 import { SystemHealthView } from './views/SystemHealthView';
 import { AuthModal } from './components/AuthModal';
@@ -233,6 +234,13 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'risk' && activeProject && (
+          <ContextualRiskView
+            currentProject={activeProject}
+            currentUserRole={currentUser?.system_role}
+          />
+        )}
+
         {activeTab === 'audit' && (
           <AuditLedgerView
             events={auditEvents}
@@ -251,7 +259,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {(activeTab === 'scopes' || activeTab === 'assessments' || activeTab === 'findings' || activeTab === 'assets' || activeTab === 'graph') && !activeProject && (
+        {(activeTab === 'scopes' || activeTab === 'assessments' || activeTab === 'findings' || activeTab === 'assets' || activeTab === 'graph' || activeTab === 'risk') && !activeProject && (
           <div className="py-12 text-center text-slate-400">
             Please authenticate and select an assessment project to proceed.
           </div>
@@ -259,7 +267,7 @@ export const App: React.FC = () => {
       </main>
 
       <footer className="border-t border-cyber-800 bg-cyber-900/80 py-4 px-6 text-center text-slate-500 text-xs font-mono">
-        VAPT Platform Phase 4: Asset Inventory & Universal Security Knowledge Graph · Windows-Native Control Plane
+        VAPT Platform Phase 5: Contextual Risk Intelligence, Attack Paths & Remediation · Windows-Native Control Plane
       </footer>
 
       {/* Modals */}

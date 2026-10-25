@@ -237,4 +237,62 @@ When an assessment job finishes execution, the pipeline runs graph integration *
 3. If `job.status == PARTIAL`: records an observation with `validation_status: "PARTIAL"`, and marks generated relationships with `status: RelationshipStatus.INFERRED`.
 4. If `job.status == COMPLETED`: appends an immutable `AssetObservation` (`validation_status: "VERIFIED"`), links canonical findings to the asset (`finding.asset_id = asset.id`), and generates corresponding graph nodes and verified edges (`OBSERVED_AT`, `AFFECTED_BY`, `VERIFIED_BY`, `ASSOCIATED_WITH`).
 
+---
+
+## 9. Contextual Risk Intelligence & Remediation Prioritization (Phase 5)
+
+### 9.1 Explainable Contextual Risk Engine (Version: `v1.0.0`)
+The platform calculates a deterministic, explainable Contextual Risk Score $S \in [0, 100]$ as an operational prioritization index (rather than an unvalidated probability of compromise):
+
+$$S = \text{round}\left(\min\left(100.0, \max\left(0.0, \text{BaseScore} \times \text{ConfidenceWeight} \times M_{\text{crit}} \times M_{\text{exp}} \times M_{\text{fresh}} \times M_{\text{mit}}\right)\right), 1\right)$$
+
+#### Factor Decomposition
+1. **Base Severity Score ($\text{BaseScore}$)**:
+   - Anchored to categorical vendor/scanner severity: `CRITICAL` (90.0), `HIGH` (70.0), `MEDIUM` (45.0), `LOW` (20.0), `INFO` (5.0).
+   - If a valid CVSS score ($0.0 \le \text{CVSS} \le 10.0$) is present, scales within the severity band ($\text{CVSS} \times 10.0$). The original finding severity is never overwritten.
+2. **Finding Confidence Weight ($\text{ConfidenceWeight}$)**:
+   - `CERTAIN`: 1.00 | `FIRM`: 0.85 | `TENTATIVE`: 0.65.
+3. **Asset Criticality Multiplier ($M_{\text{crit}}$)**:
+   - `CRITICAL`: 1.35 | `HIGH`: 1.15 | `MEDIUM`: 1.00 | `LOW`: 0.85 | `INFO`: 0.70. Default 1.00 if unlinked (explicitly flagged in `missing_factors`).
+4. **Network Exposure & Reachability Multiplier ($M_{\text{exp}}$)**:
+   - Internet-Facing / Exposed (`WEB_APP`, `API_ENDPOINT`, or graph `EXPOSES` edge): 1.25.
+   - Standard Internal Network Service (`SERVICE`, `HOST`, IP): 1.00.
+   - Isolated Backend / Datastore (`DATA_STORE`, `SOFTWARE_COMPONENT`, `SECURITY_CONTROL`): 0.85. Default 1.00 if exposure is unknown.
+5. **Evidence Freshness Decay ($M_{\text{fresh}}$)**:
+   - $\le 7$ days: 1.00 | $8–30$ days: 0.90 | $31–90$ days: 0.80 | $> 90$ days (stale): 0.70.
+6. **Lifecycle & Compensating Controls Multiplier ($M_{\text{mit}}$)**:
+   - `VERIFIED_CLOSED` / `FALSE_POSITIVE`: 0.00 (risk neutralized).
+   - `ACCEPTED_RISK` (with active compensating controls): 0.40.
+   - `REMEDIATED_PENDING_VERIFICATION`: 0.50 | `REMEDIATION_ATTEMPTED`: 0.75 | `REMEDIATION_APPROVED`: 0.90.
+   - `REOPENED`: 1.10 (elevated urgency due to recurring vulnerability).
+   - `CONFIRMED`: 1.05 | `DETECTED` / `NEEDS_VALIDATION`: 1.00.
+
+#### Priority Mapping
+- **CRITICAL**: $S \ge 80.0$
+- **HIGH**: $60.0 \le S < 80.0$
+- **MEDIUM**: $40.0 \le S < 60.0$
+- **LOW**: $15.0 \le S < 40.0$
+- **INFORMATIONAL**: $S < 15.0$
+
+### 9.2 Reproducibility & Frozen Input Snapshots
+Each persisted `RiskAssessment` records:
+- A frozen JSON `input_snapshot` of every variable used in the calculation.
+- An explicit list of `contributing_factors` explaining the principal drivers of the score.
+- An explicit list of `missing_factors` highlighting epistemic uncertainty (e.g. unlinked asset criticality, missing CVSS).
+- Recalculation is idempotent when inputs are unchanged; recalculations with new evidence supersede previous assessments (`is_superseded = True`, `superseded_at`), preserving an immutable historical audit trail.
+
+### 9.3 Evidence-Aware Attack Path Analysis
+The Knowledge Graph engine includes a bounded, read-only path analysis service (`AttackPathAnalysisService`) that connects security entities exclusively through persisted graph relationships:
+- **`VERIFIED` Path**: Every relationship along the path has status `VERIFIED`.
+- **`MIXED_EVIDENCE` Path**: Path contains both `VERIFIED` and `INFERRED` relationships.
+- **`HYPOTHETICAL` Path**: Path contains `HYPOTHETICAL` or `STALE` relationships and requires empirical confirmation.
+- **Cycle Safety & Bounded Depth**: DFS search enforces depth bounds ($\le 4$) and candidate path caps ($\le 10$), maintaining path visited sets to cut cycles.
+- **Epistemic Disclaimer**: Graph adjacency represents potential exposure and relational topology, NOT confirmed breach or automated exploitability.
+
+### 9.4 Non-Executing Remediation Decision Support
+The remediation service (`RemediationPrioritizationService`) maps confirmed findings to defensive corrective actions, operational impact assessments, rollback procedures, and independent verification criteria:
+- **Strict Non-Execution Guarantee**: Phase 5 operates exclusively in an advisory capacity. It never executes shell commands, alters firewall rules, modifies code repositories, or restarts services.
+- **Decoupled Verification**: A finding is never marked remediated simply because a recommendation was approved. The existing finding lifecycle requires independent scan verification (`REMEDIATED_PENDING_VERIFICATION` $\to$ `VERIFIED_CLOSED`).
+- **Governance & RBAC**: Reviewing and approving remediation playbooks (`APPROVED`, `DEFERRED`, `REJECTED`) is restricted to Project LEAD and System ADMIN roles, with mandatory justification logged to the immutable audit ledger.
+
 

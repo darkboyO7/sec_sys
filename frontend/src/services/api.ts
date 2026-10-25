@@ -27,6 +27,12 @@ import type {
   GraphNode,
   GraphRelationship,
   GraphRelationshipCreate,
+  RiskPriority,
+  RiskAssessment,
+  RiskSummary,
+  AttackPathAnalysisResponse,
+  RemediationRecommendation,
+  RecommendationStatus,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -436,6 +442,91 @@ class ApiService {
 
   async createGraphRelationship(projectId: string, data: GraphRelationshipCreate): Promise<GraphRelationship> {
     return this.request(`/projects/${projectId}/graph/relationships`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Phase 5: Contextual Risk Intelligence, Attack Paths, and Remediation
+  async getRiskSummary(projectId: string): Promise<RiskSummary> {
+    return this.request(`/projects/${projectId}/risk/summary`);
+  }
+
+  async listRiskAssessments(
+    projectId: string,
+    params?: {
+      priority?: RiskPriority;
+      assetId?: string;
+      includeSuperseded?: boolean;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<RiskAssessment[]> {
+    const query = new URLSearchParams();
+    if (params?.priority) query.append('priority', params.priority);
+    if (params?.assetId) query.append('asset_id', params.assetId);
+    if (params?.includeSuperseded !== undefined)
+      query.append('include_superseded', params.includeSuperseded.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/risk/assessments${qs ? `?${qs}` : ''}`);
+  }
+
+  async getFindingRisk(projectId: string, findingId: string): Promise<RiskAssessment> {
+    return this.request(`/projects/${projectId}/risk/findings/${findingId}`);
+  }
+
+  async recalculateFindingRisk(projectId: string, findingId: string): Promise<RiskAssessment> {
+    return this.request(`/projects/${projectId}/risk/findings/${findingId}/assess`, {
+      method: 'POST',
+    });
+  }
+
+  async recalculateAllProjectRisks(projectId: string): Promise<{ message: string; recalculated_count: number }> {
+    return this.request(`/projects/${projectId}/risk/recalculate`, {
+      method: 'POST',
+    });
+  }
+
+  async analyzeAttackPaths(
+    projectId: string,
+    data: {
+      start_node_id?: string;
+      target_node_id?: string;
+      finding_id?: string;
+      max_depth?: number;
+      max_paths?: number;
+    }
+  ): Promise<AttackPathAnalysisResponse> {
+    return this.request(`/projects/${projectId}/graph/paths/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listRemediations(
+    projectId: string,
+    params?: { status?: RecommendationStatus; limit?: number; offset?: number }
+  ): Promise<RemediationRecommendation[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status_filter', params.status);
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/remediations${qs ? `?${qs}` : ''}`);
+  }
+
+  async getFindingRemediation(projectId: string, findingId: string): Promise<RemediationRecommendation> {
+    return this.request(`/projects/${projectId}/remediations/findings/${findingId}`);
+  }
+
+  async reviewRemediation(
+    projectId: string,
+    recId: string,
+    data: { status: RecommendationStatus; review_notes: string }
+  ): Promise<RemediationRecommendation> {
+    return this.request(`/projects/${projectId}/remediations/${recId}/review`, {
       method: 'POST',
       body: JSON.stringify(data),
     });

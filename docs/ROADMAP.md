@@ -9,7 +9,8 @@ flowchart LR
     P1["Phase 1: Secure Foundation\n(Completed)"] --> P2["Phase 2: Assessment Orchestration & Evidence\n(Completed)"]
     P2 --> P3["Phase 3: Finding Validation & Lifecycle\n(Completed)"]
     P3 --> P4["Phase 4: Asset Inventory & Knowledge Graph\n(Completed)"]
-    P4 --> P5["Phase 5: Contextual Risk Engine\n(Next Target)"]
+    P4 --> P5["Phase 5: Contextual Risk Engine & Attack Paths\n(Completed)"]
+    P5 --> P6["Phase 6: Independent Remediation Verification\n(Next Target)"]
 ```
 
 ---
@@ -85,9 +86,30 @@ flowchart LR
 
 ---
 
-## Phase 5: Contextual Risk Engine
+## Phase 5: Contextual Risk Intelligence, Attack Paths, and Remediation Prioritization
+- **Status:** **Completed & Verified**
+- **Milestones:**
+  - [x] Dedicated, testable Contextual Risk Scoring Engine (`ContextualRiskService`, formula `v1.0.0`).
+  - [x] Bounded 0–100 prioritization index based on severity, confidence, asset criticality, exposure, evidence freshness decay, and lifecycle mitigating controls.
+  - [x] Preservation of original vendor severity and frozen input snapshots for historical reproducibility.
+  - [x] Explicit missing factor and uncertainty tracking without invented data.
+  - [x] Idempotent risk persistence and supersession tracking (`RiskAssessment` model & Alembic migration).
+  - [x] Evidence-Aware Attack Path Analysis (`AttackPathAnalysisService`) traversing persisted graph edges.
+  - [x] Epistemic path verification classification (`VERIFIED`, `MIXED_EVIDENCE`, `HYPOTHETICAL`).
+  - [x] Cycle avoidance and hard depth bounds (max depth 4, max paths 10).
+  - [x] Evidence-backed Remediation Prioritization (`RemediationPrioritizationService`) with defensive playbooks.
+  - [x] Operational impact, rollback procedures, prerequisites, and independent verification criteria.
+  - [x] Review & approval workflow requiring Project LEAD / System ADMIN roles.
+  - [x] Strict non-executing decision support: no shell commands, firewall modifications, or automated patch execution.
+  - [x] Complete REST API endpoints (`/api/v1/projects/{id}/risk/*`, `/graph/paths/*`, `/remediations/*`).
+  - [x] React 19 Contextual Risk Dashboard with KPI summaries, factor decomposition drawer, attack path explorer, and remediation sign-off modal.
+  - [x] 67 backend pytest tests passed; 6 frontend tests passed; production build verified.
+
+---
+
+## Phase 6: Independent Remediation Verification & Morph-State Simulation
 - **Target Horizon:** Next Target
 - **Key Deliverables:**
-  - [ ] Deterministic, versioned, explainable contextual risk engine.
-  - [ ] Multi-dimensional scoring (severity, exploitability evidence, exposure, business criticality, attack-path contribution, controls).
-  - [ ] Explicit uncertainty indicators without collapsing missing data to zero.
+  - [ ] Independent post-remediation re-testing workflows.
+  - [ ] Morph-State simulation engine in observe-only mode.
+  - [ ] Digital twin snapshotting for what-if security analysis.

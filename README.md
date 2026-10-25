@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1–4.1: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory & Hardened Knowledge Graph
+## Phase 1–5: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, & Contextual Risk Intelligence
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -43,6 +43,15 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
   - Bounded, cycle-safe BFS traversal with strict depth, node, and edge bounds, plus truncation signaling.
   - Execution outcome alignment: failed scans do not record misleading asset observations or verified edges; partial scans mark relationships as `INFERRED`.
   - Full React 19 visualizer with SVG layout, verification status styling, node inspector, and edge creator.
+- **Contextual Risk Intelligence & Prioritization (Phase 5):**
+  - Explainable Contextual Risk Engine (`ContextualRiskService`, formula `v1.0.0`) producing a bounded 0–100 prioritization index.
+  - Multi-dimensional decomposition: base severity, confidence weight, asset criticality, network reachability, evidence freshness decay, and lifecycle mitigating controls.
+  - Epistemic transparency: preserves original scanner severity and freezes complete input snapshots (`input_snapshot`) for historical reproducibility. Explicitly logs missing factors without inventing data.
+  - Bounded, evidence-aware attack path analysis (`AttackPathAnalysisService`) categorizing candidate paths as `VERIFIED`, `MIXED_EVIDENCE`, or `HYPOTHETICAL` with cumulative confidence ($\prod c_i$) and cycle avoidance.
+  - Advisory remediation decision support (`RemediationPrioritizationService`) with defensive playbooks, operational impact analysis, rollback procedures, and independent verification criteria.
+  - Role-gated remediation sign-off (`APPROVED`, `DEFERRED`, `REJECTED`) requiring Project LEAD / System ADMIN roles.
+  - Strict non-executing guarantee: never executes shell commands, alters firewall rules, or modifies production systems.
+  - React 19 Contextual Risk Dashboard with KPI counters, factor decomposition drawer, attack path explorer, and remediation approval modals.
 - **Immutable Audit Ledger:** All sensitive actions record actor attribution, client IP, outcome, and timestamp with automated credential scrubbing.
 - **Data Persistence:** Native Windows development uses SQLite 3 with `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`. The data layer is fully compatible with PostgreSQL in production via SQLAlchemy 2.0 and Alembic.
 

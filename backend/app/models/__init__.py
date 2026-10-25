@@ -31,6 +31,12 @@ from app.models.graph import (
     RelationshipType,
     RelationshipStatus,
 )
+from app.models.risk import (
+    RiskPriority,
+    RecommendationStatus,
+    RiskAssessment,
+    RemediationRecommendation,
+)
 
 __all__ = [
     "Base",
@@ -67,4 +73,8 @@ __all__ = [
     "GraphNodeCategory",
     "RelationshipType",
     "RelationshipStatus",
+    "RiskPriority",
+    "RecommendationStatus",
+    "RiskAssessment",
+    "RemediationRecommendation",
 ]

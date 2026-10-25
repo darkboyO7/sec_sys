@@ -1,7 +1,7 @@
 import React from 'react';
-import { LayoutDashboard, Target, PlayCircle, ShieldAlert, FileText, Activity, Server, Network } from 'lucide-react';
+import { LayoutDashboard, Target, PlayCircle, ShieldAlert, FileText, Activity, Server, Network, Flame } from 'lucide-react';
 
-export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'findings' | 'assets' | 'graph' | 'audit' | 'health';
+export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'findings' | 'assets' | 'graph' | 'risk' | 'audit' | 'health';
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -56,6 +56,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       id: 'graph' as NavigationTab,
       label: 'Security Knowledge Graph',
       icon: Network,
+    },
+    {
+      id: 'risk' as NavigationTab,
+      label: 'Risk & Attack Paths',
+      icon: Flame,
     },
     {
       id: 'audit' as NavigationTab,
