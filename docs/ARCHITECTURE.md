@@ -530,7 +530,48 @@ While local development uses SQLite in WAL mode with busy-handler timeouts, high
 
 ---
 
-## 13. Independent Security Audit, Concurrency Proof & Pre-Scanner Readiness (Phase 6B.1)
+## 14. Isolated Worker Process & IPC Execution Boundary (Phase 7A)
+
+### 14.1 Out-of-Process Execution Architecture
+In Phase 7A, scanner adapter execution is extracted out of the core FastAPI server into dedicated, supervised OS worker processes:
+- **Process Isolation**: Workers are spawned via `subprocess.Popen` with `shell=False` strictly.
+- **Dedicated Fault Domain**: Worker hangs, segmentation faults, unhandled exceptions, or out-of-memory events are contained within the worker process boundary without affecting the server or neighboring assessments.
+- **Execution Tracking**: The operating system process identifier is recorded in `assessment_jobs.worker_pid` via Alembic migration `a1b2c3d4e5f6`.
+
+### 14.2 Sanitized Child Environment & Secret Stripping
+To enforce the principle of least privilege, child worker processes do NOT inherit the full parent server environment:
+- **Secret Stripping**: `SECRET_KEY`, `DATABASE_URL`, `JWT_SECRET`, authentication tokens, and server credentials are systematically excluded from the child environment via `build_sanitized_env()`.
+- **Safe Environment Allowlist**: Child processes receive only essential operating system environment variables (`SYSTEMROOT`, `WINDIR`, `PATH`, `TEMP`, `TMP`, `PYTHONPATH`, `SYSTEMDRIVE`, `LOCALAPPDATA`, `COMSPEC`, `PATHEXT`, `HOMEDRIVE`, `HOMEPATH`, `USERPROFILE`, `NUMBER_OF_PROCESSORS`, `PROCESSOR_ARCHITECTURE`).
+
+### 14.3 Versioned JSON IPC Protocol (v1.0.0)
+Communication between the server control plane and the isolated worker process occurs exclusively over standard I/O streams using typed Pydantic contracts:
+- **`WorkerIPCRequest`**: Versioned (`"1.0.0"`), typed dispatch payload containing `job_id`, `project_id`, `worker_id`, `attempt_count`, `target_input`, `adapter_name`, `adapter_version`, `policy_version`, `config`, `timeout_seconds`, and `auth_context`.
+- **`WorkerIPCResponse`**: Versioned (`"1.0.0"`), typed execution payload returning `success`, `status_summary`, `failure_category`, `errors`, `findings`, `execution_duration_ms`, `is_simulated`, and `process_stats`.
+- **Identity & Provenance Validation**: The control plane independently verifies that the response `job_id`, `project_id`, `worker_id`, and `attempt_count` match the server's dispatched request. Any mismatch fails closed with `IPC_IDENTITY_MISMATCH`.
+- **Payload Clamping**: Worker output streams are strictly capped at 10MB (`WORKER_MAX_IPC_PAYLOAD_BYTES = 10485760`). Excessive streams trigger termination and fail closed with `WORKER_PAYLOAD_EXCEEDED`.
+
+### 14.4 Windows Process Tree Supervision & Teardown
+On Windows, child processes spawned by a worker do not automatically terminate if the parent process dies. Phase 7A guarantees complete process tree teardown:
+- **Graceful + Forceful Termination**: If a worker exceeds its timeout deadline (`timeout_seconds`) or cancellation is requested, `terminate_process_tree(pid)` executes `taskkill /F /T /PID <pid>`, eliminating the parent worker and all descendant child processes.
+- **Process Exit Verification**: The runner verifies that the process has fully exited and reaped before returning control to the caller. File handles (`stdin`, `stdout`, `stderr`) are safely closed in all code paths.
+
+### 14.5 Canonical Windows Win32 Process-Liveness Verification
+To avoid unreliable heuristic checks, process liveness on Windows is verified using canonical Win32 API calls (`ctypes.windll.kernel32.OpenProcess` with `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE` and `GetExitCodeProcess` checking against `STILL_ACTIVE = 259`). This accurately verifies that neither the worker nor its descendants remain active in the operating system.
+
+### 14.6 Security Property Verification Matrix
+
+| Property | Status | Evidence / Test |
+| :--- | :--- | :--- |
+| Subprocess Execution & PID Tracking | **Verified by automated test** | `test_subprocess_worker_execution_success` |
+| Environment Secret Sanitization | **Verified by automated test** | `test_environment_sanitization_strips_secrets` |
+| Worker Process Crash Fail-Closed (`WORKER_PROCESS_CRASHED`) | **Verified by automated test** | `test_subprocess_worker_crash_handling` |
+| Worker Timeout & Forceful Termination (`WORKER_PROCESS_TIMEOUT`) | **Verified by automated test** | `test_subprocess_worker_timeout_enforcement` |
+| Cooperative & Forceful Cancellation (`CANCELLED_BY_OPERATOR`) | **Verified by automated test** | `test_cooperative_and_forceful_cancellation` |
+| Stream Payload Size Bounding (`WORKER_PAYLOAD_EXCEEDED`) | **Verified by automated test** | `test_worker_payload_exceeded_fails_closed` |
+| IPC Identity & Provenance Verification (`IPC_IDENTITY_MISMATCH`) | **Verified by automated test** | `test_ipc_identity_mismatch_rejected` |
+| Windows Descendant Process Tree Elimination | **Verified by automated test** | `test_descendant_process_tree_termination` |
+| Live Network Probing & Exploit Execution | **Disabled / Strictly Prohibited** | Local deterministic fixtures only; real tools and active sockets disabled. |
+
 
 ### 13.1 Concurrency Audit & Defect Remediations
 An independent security and concurrency audit was executed on Phase 6B, identifying critical race conditions and boundary risks that were remediated and verified in Phase 6B.1:

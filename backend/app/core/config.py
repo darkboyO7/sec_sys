@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     AUDIT_LOG_STRICT: bool = True
     MAX_SCOPE_TARGETS_PER_PROJECT: int = 500
 
+    # Phase 7A: Execution Worker Subprocess Configuration
+    EXECUTION_MODE: str = "SUBPROCESS"  # "SUBPROCESS" or "IN_PROCESS"
+    WORKER_TIMEOUT_GRACE_PERIOD_SECONDS: int = 3
+    WORKER_MAX_IPC_PAYLOAD_BYTES: int = 10485760  # 10MB
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str, info) -> str:

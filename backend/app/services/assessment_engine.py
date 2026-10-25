@@ -19,6 +19,9 @@ from app.services.scanner_adapters.base import (
 from app.services.scanner_adapters.local_fixture_adapter import LocalFixtureAdapter
 from app.services.audit_service import AuditService
 from app.services.finding_deduplication_service import FindingDeduplicationService
+from app.core.config import settings
+from app.services.subprocess_worker_runner import SubprocessWorkerRunner
+from app.worker.ipc_schemas import WorkerIPCRequest
 
 
 class AssessmentExecutionEngine:
@@ -338,11 +341,43 @@ class AssessmentExecutionEngine:
 
         try:
             AssessmentStateMachine.record_heartbeat(job, now=now)
-            result = adapter.execute(
-                target=job.target_input,
-                config=job.config,
-                cancellation_check=check_cancellation,
-            )
+            if getattr(settings, "EXECUTION_MODE", "SUBPROCESS") == "SUBPROCESS":
+                runner = SubprocessWorkerRunner()
+                ipc_req = WorkerIPCRequest(
+                    job_id=job.id,
+                    project_id=job.project_id,
+                    worker_id=worker_id,
+                    attempt_count=execution_attempt,
+                    target_input=job.target_input,
+                    adapter_name=job.adapter_name,
+                    adapter_version=job.adapter_version,
+                    policy_version=job.policy_version,
+                    config=job.config or {},
+                    timeout_seconds=job.timeout_seconds,
+                    auth_context={
+                        "authorization_reference": job.authorization_reference,
+                        "scope_snapshot_digest": job.scope_snapshot_digest,
+                    },
+                )
+
+                def on_worker_spawn(pid: int) -> None:
+                    job.worker_pid = pid
+                    try:
+                        db.commit()
+                    except Exception:
+                        pass
+
+                result = runner.run_job(
+                    request=ipc_req,
+                    cancellation_check=check_cancellation,
+                    on_spawn=on_worker_spawn,
+                )
+            else:
+                result = adapter.execute(
+                    target=job.target_input,
+                    config=job.config,
+                    cancellation_check=check_cancellation,
+                )
         except Exception as e:
             AssessmentStateMachine.transition(
                 job=job,
@@ -468,7 +503,15 @@ class AssessmentExecutionEngine:
         }
 
         if not result.success:
-            if persisted_findings_count > 0:
+            if result.failure_category == "WORKER_PROCESS_TIMEOUT":
+                final_status = AssessmentStatus.TIMED_OUT
+                error_msg = f"Assessment timed out: {'; '.join(result.errors)}"
+                failure_cat = "WORKER_PROCESS_TIMEOUT"
+            elif result.failure_category == "CANCELLED_BY_OPERATOR":
+                final_status = AssessmentStatus.CANCELLED
+                error_msg = f"Assessment cancelled: {'; '.join(result.errors)}"
+                failure_cat = "CANCELLED_BY_OPERATOR"
+            elif persisted_findings_count > 0:
                 final_status = AssessmentStatus.PARTIAL
                 error_msg = f"Partial failure: {'; '.join(result.errors)}"
                 failure_cat = result.failure_category or "PARTIAL_MODULE_FAILURE"

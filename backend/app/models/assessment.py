@@ -59,6 +59,7 @@ class AssessmentJob(Base, TimestampMixin):
     idempotency_key = Column(String(100), nullable=True, index=True)
     idempotency_digest = Column(String(64), nullable=True, index=True)
     claimed_by = Column(String(100), nullable=True, index=True)
+    worker_pid = Column(Integer, nullable=True)
     lock_version = Column(Integer, default=1, nullable=False)
 
     progress_pct = Column(Integer, default=0, nullable=False)

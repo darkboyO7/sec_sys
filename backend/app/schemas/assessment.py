@@ -25,6 +25,7 @@ class AssessmentJobResponse(BaseModel):
     idempotency_key: Optional[str] = None
     idempotency_digest: Optional[str] = None
     claimed_by: Optional[str] = None
+    worker_pid: Optional[int] = None
     lock_version: int = 1
     progress_pct: int
     policy_version: str = "2026.1"
