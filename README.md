@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1–5: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, & Contextual Risk Intelligence
+## Phase 1–6A: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, Contextual Risk Intelligence, & Execution Boundary Governance
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -11,6 +11,15 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
 - **Fail-Closed Target Scoping:** Target registration and proof of authorization are strictly decoupled. A target registered in the system remains `PENDING` and cannot be scanned until an authorized lead records verified evidence (Rules of Engagement, approval ticket, expiry).
 - **Scope Exclusions:** Exclusions take absolute precedence over inclusions, ensuring critical infrastructure or third-party services are immediately rejected.
 - **Non-Invasive Scope Console:** In-memory pre-flight validator that checks candidate targets without initiating network probes or DNS traffic.
+- **Secure Assessment Execution Boundary & Governance (Phase 6A):**
+  - **Typed, Versioned Execution Contract:** Immutable job contract capturing job ID, project ID, principal, authorization reference/status, canonical scope snapshot & SHA-256 digest, policy version, adapter metadata, capabilities, timestamps, attempt count, failure categories, and evidence hashes.
+  - **Fail-Closed Preflight Boundary Re-Validation:** Independent scope re-evaluation immediately before worker claim; fails closed to `REJECTED` (`SCOPE_AUTHORIZATION_DENIED`) if scope is expired, revoked, or excluded.
+  - **Tampering Detection:** Scope snapshot cryptographic digest verification; tampering transitions job to `REJECTED` (`SCOPE_SNAPSHOT_TAMPERING_DETECTED`).
+  - **Bounded 11-State Finite State Machine:** `QUEUED`, `PREFLIGHT`, `READY`, `RUNNING`, `CANCELLATION_REQUESTED`, `CANCELLED`, `COMPLETED`, `PARTIAL`, `FAILED`, `REJECTED`, `TIMED_OUT`.
+  - **Worker Heartbeat Monitoring:** `heartbeat_at` live worker tracking; detects abandoned jobs exceeding 60s and transitions to `FAILED` (`WORKER_HEARTBEAT_LOST`).
+  - **Typed Scanner Adapter Protocol:** `BaseScannerAdapter` interface with central `AdapterRegistry`, capability discovery endpoint (`GET /assessments/adapters`), and preflight configuration checks.
+  - **Untrusted Evidence Boundary Sanitization:** Server-side enforcement rejecting `NaN`/`inf` CVSS, bounding evidence payload size to 64KB, capping findings count to 50, computing SHA-256 digests, and decoupling execution from automated finding closure.
+  - **Clean Host Benchmark Support:** `HARDENED_HOST_BASELINE` produces 0 findings with `COMPLETED` status, cleanly distinguished from failure.
 - **Deterministic Assessment Orchestration (Phase 2):**
   - Persistent finite state machine: `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, `TIMED_OUT`, `PARTIAL`.
   - Idempotency key support to prevent duplicate executions.
@@ -193,7 +202,8 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 76 automated tests covering:*
+*Executes 92 automated tests covering:*
+- *Phase 6A Secure Assessment Execution Boundary & Job Governance: typed execution contract, canonical scope snapshot & SHA-256 digest tampering detection, 11-state machine legal/illegal transition safety, worker heartbeat loss timeout detection (`WORKER_HEARTBEAT_LOST`), cancellation flow, hard pagination limit enforcement (`limit <= 100`), adapter capability registry discovery API, untrusted evidence boundary sanitization (`NaN`/`inf` CVSS rejection, 64KB payload truncation, finding clamp to 50), and clean host benchmark (`HARDENED_HOST_BASELINE`) zero-finding success decoupled from finding closures.*
 - *Phase 5 & 5.1 Contextual Risk Intelligence & Security Audit: formula versioning (`v1.0.0`), deterministic factor decomposition, non-finite/NaN/inf CVSS rejection, CVSS vs. severity precedence rules, temporal freshness and timezone normalization, historical preservation on `FALSE_POSITIVE` / `VERIFIED_CLOSED`, residual risk tracking on `ACCEPTED_RISK`, recurrence penalties on `REOPENED`.*
 - *Evidence-Aware Attack Path Traversal: bounded DFS ($\le 4$ depth, $\le 10$ paths), cycle avoidance, classification into `VERIFIED` ($\ge 0.7$ confidence), `MIXED_EVIDENCE`, `HYPOTHETICAL`, and `STALE` paths with explicit missing evidence.*
 - *Defensive Remediation Governance: non-executing advisory playbooks, idempotency, Project LEAD / System ADMIN sign-off RBAC, mandatory justification, and finding lifecycle status invariance.*

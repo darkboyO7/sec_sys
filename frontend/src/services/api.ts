@@ -8,6 +8,7 @@ import type {
   ReadinessResponse,
   AssessmentJob,
   AssessmentFinding,
+  AdapterCapability,
   VulnerabilityFinding,
   VulnerabilityFindingDetail,
   FindingStatsResponse,
@@ -207,9 +208,21 @@ class ApiService {
     });
   }
 
-  // Assessment Jobs & Findings (Phase 2)
-  async listAssessments(projectId: string): Promise<AssessmentJob[]> {
-    return this.request(`/projects/${projectId}/assessments/`);
+  // Assessment Jobs & Findings (Phase 2 & Phase 6A)
+  async listAdapterCapabilities(projectId: string): Promise<AdapterCapability[]> {
+    return this.request(`/projects/${projectId}/assessments/adapters`);
+  }
+
+  async listAssessments(
+    projectId: string,
+    params?: { status_filter?: string; offset?: number; limit?: number }
+  ): Promise<AssessmentJob[]> {
+    const qp = new URLSearchParams();
+    if (params?.status_filter) qp.append('status_filter', params.status_filter);
+    if (params?.offset !== undefined) qp.append('offset', String(params.offset));
+    if (params?.limit !== undefined) qp.append('limit', String(params.limit));
+    const qs = qp.toString();
+    return this.request(`/projects/${projectId}/assessments/${qs ? `?${qs}` : ''}`);
   }
 
   async createAssessment(
@@ -220,6 +233,7 @@ class ApiService {
       fixture_profile?: string;
       timeout_seconds?: number;
       idempotency_key?: string;
+      policy_version?: string;
     }
   ): Promise<AssessmentJob> {
     return this.request(`/projects/${projectId}/assessments/`, {

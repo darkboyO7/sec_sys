@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 from app.models.project import Project
 from app.models.scope import ScopeTarget, ScopeExclusion, TargetType, AuthorizationStatus
+from app.models.assessment import AssessmentStatus
 from app.models.user import User
 from app.services.assessment_engine import AssessmentExecutionEngine
 
@@ -169,8 +170,8 @@ def test_execution_boundary_revalidates_and_fails_closed(
 
     # 4. Worker boundary executes job: must fail closed because target was revoked!
     executed_job = AssessmentExecutionEngine.execute_job(db=db, job_id=job_id)
-    assert executed_job.status.value == "FAILED"
-    assert "Execution boundary scope denial" in executed_job.error_message
+    assert executed_job.status in (AssessmentStatus.FAILED, AssessmentStatus.REJECTED)
+    assert "execution boundary" in executed_job.error_message.lower()
 
 
 def test_cross_project_isolation(

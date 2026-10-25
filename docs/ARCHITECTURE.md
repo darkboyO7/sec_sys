@@ -314,5 +314,83 @@ The remediation service (`RemediationPrioritizationService`) maps confirmed find
 - **Dual Parent-Child Constraints**: Every endpoint accepting both a `{project_id}` and a child resource ID (`{assessment_id}`, `{recommendation_id}`, `{finding_id}`, `{start_node_id}`) enforces database-level dual validation (`resource.project_id == project_id`). Mismatched cross-project queries fail-closed with 404 Not Found.
 - **Pagination Protection**: All list endpoints enforce strict bounds (`limit: int = Query(50, ge=1, le=100)`, `offset: int = Query(0, ge=0)`). Requests exceeding limit bounds are rejected with 422 Unprocessable Entity.
 
+---
+
+## 11. Assessment Execution Boundary, Job Governance & Adapter Contracts (Phase 6A)
+
+```mermaid
+flowchart TD
+    subgraph Governance ["Job Governance Contract"]
+        JCreate["Job Submission (QUEUED)"] --> Snap["Compute Canonical Scope Snapshot & SHA-256 Digest"]
+        Snap --> Preflight["Preflight Re-Validation (PREFLIGHT)"]
+    end
+
+    subgraph BoundaryChecks ["Fail-Closed Boundary Checks"]
+        Preflight --> CheckScope{"Re-check Scope &\nAuthorizations"}
+        CheckScope -- Denied / Expired / Excluded --> Rej1["REJECTED\n(SCOPE_AUTHORIZATION_DENIED)"]
+        CheckScope -- Valid --> CheckHash{"Verify Scope Snapshot\nDigest Match"}
+        CheckHash -- Tampered --> Rej2["REJECTED\n(SCOPE_SNAPSHOT_TAMPERING_DETECTED)"]
+        CheckHash -- Verified --> CheckAdapter{"Adapter Registry &\nCapability Check"}
+        CheckAdapter -- Unapproved / Unsupported --> Rej3["REJECTED\n(UNSUPPORTED_ADAPTER)"]
+        CheckAdapter -- Valid --> CheckPol{"Policy Version Check\n(2026.1)"}
+        CheckPol -- Mismatch --> Rej4["REJECTED\n(POLICY_VERSION_MISMATCH)"]
+    end
+
+    subgraph ExecutionMachine ["Bounded Execution & Heartbeat"]
+        CheckPol -- Match --> Ready["READY"]
+        Ready --> Running["RUNNING (Worker Claim)"]
+        Running --> HB{"Heartbeat Lost\n(> 60s)"}
+        HB -- Yes --> FailHB["FAILED\n(WORKER_HEARTBEAT_LOST)"]
+        HB -- No --> CancelCheck{"Cancellation\nRequested?"}
+        CancelCheck -- Yes --> Canc["CANCELLED\n(CANCELLED_BY_OPERATOR)"]
+        CancelCheck -- No --> AdapterExec["Execute Local Adapter Fixture"]
+    end
+
+    subgraph EvidenceSanitization ["Untrusted Evidence Boundary"]
+        AdapterExec --> EvCheck["Clamp Findings (<= 50)\nSanitize Non-Finite CVSS (NaN/Inf)\nTruncate Payloads (<= 64KB)\nCompute Evidence SHA-256"]
+        EvCheck --> ZeroFindings{"Clean Host Benchmark\n(0 Findings)"}
+        ZeroFindings -- Yes --> CompClean["COMPLETED (Clean Scan)\nZero Auto-Closures"]
+        ZeroFindings -- No --> CompVuln["COMPLETED (Findings Ingested)\nCorrelate & Deduplicate"]
+    end
+```
+
+### 11.1 Immutable Execution Contract & Digest Verification
+Every assessment job instantiated in Phase 6A establishes an immutable, typed governance contract:
+- **Canonical Scope Snapshot**: Records normalized target, matched rule ID, target type, authorization evidence, and ROE expiration date serialized into canonical sorting-key JSON.
+- **Cryptographic Digest**: Generates a SHA-256 digest of the canonical snapshot.
+- **Preflight Tampering Detection**: Immediately prior to dispatch, the engine verifies that the digest matches the recorded snapshot. Discrepancies immediately transition the job to `REJECTED` with failure category `SCOPE_SNAPSHOT_TAMPERING_DETECTED`.
+
+### 11.2 Bounded 11-State Finite State Machine
+The state machine expands to 11 discrete, bounded states:
+- `QUEUED`: Job created and persisted with immutable contract.
+- `PREFLIGHT`: Worker boundary is verifying current authorization, snapshot integrity, and adapter capabilities.
+- `READY`: All preflight checks passed; job is ready for atomic worker claim.
+- `RUNNING`: Worker actively executing adapter fixture; records live heartbeats (`heartbeat_at`).
+- `CANCELLATION_REQUESTED`: Operator requested cancellation; adapter gracefully aborts.
+- `CANCELLED`: Terminal state confirming operational cancellation.
+- `COMPLETED`: Terminal state confirming successful execution (both clean scans and scans with findings).
+- `PARTIAL`: Terminal state indicating auxiliary module failures or non-fatal timeouts.
+- `FAILED`: Terminal operational failure (e.g. lost worker heartbeat or unhandled exception).
+- `REJECTED`: Terminal governance failure (preflight scope expiration, snapshot tampering, or unapproved adapter).
+- `TIMED_OUT`: Terminal state indicating execution exceeded `timeout_seconds`.
+
+Terminal states are strictly immutable; attempts to re-transition terminal jobs raise `InvalidStateTransitionException`.
+
+### 11.3 Typed Scanner Adapter Protocol & Registry
+All scanner adapters implement `BaseScannerAdapter`:
+- `name: str`, `version: str`, `declared_capabilities: List[str]`, `supported_profiles: List[str]`, `permitted_check_categories: List[str]`
+- Mandatory interface methods: `validate_config(config)`, `preflight_check(target, config)`, `execute(target, config, cancellation_token)`, `get_health()`.
+- Central `AdapterRegistry` provides dynamic capability lookup and health inspection via `GET /projects/{project_id}/assessments/adapters`.
+
+### 11.4 Untrusted Evidence Boundary Sanitization
+Findings and evidence generated by adapters pass through server-side normalization:
+- **Finite Float Enforcement**: CVSS scores containing `NaN`, `+inf`, or `-inf` are rejected or sanitized to `None`/0.0.
+- **Payload Clamping & Truncation**: Evidence payloads are strictly bounded to 64KB (65,536 bytes) with deterministic truncation notices.
+- **Finding Volume Clamping**: Single adapter runs are capped at 50 findings to prevent denial-of-service / memory exhaustion.
+- **Evidence Provenance & SHA-256**: Every evidence artifact computes a cryptographic SHA-256 digest over the truncated payload.
+- **Zero-Finding Clean Scans vs. Failures**: Hardened targets producing 0 findings (`HARDENED_HOST_BASELINE`) cleanly transition to `COMPLETED`, distinct from errors or unexecuted runs.
+- **Lifecycle Decoupling**: Assessment ingestion never automatically closes existing vulnerability findings. Verification and remediation closure remain governed by the formal finding lifecycle.
+
+
 
 

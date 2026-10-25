@@ -1,12 +1,13 @@
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Callable, Tuple
 from app.models.assessment import FindingSeverity, FindingConfidence
 from app.services.scanner_adapters.base import (
     BaseScannerAdapter,
     AdapterResult,
     RawAdapterFinding,
     RawAdapterEvidence,
+    AdapterRegistry,
 )
 
 
@@ -26,16 +27,111 @@ class LocalFixtureAdapter(BaseScannerAdapter):
     def version(self) -> str:
         return "1.0.0"
 
-    def execute(self, target: str, config: Dict[str, Any]) -> AdapterResult:
+    @property
+    def declared_capabilities(self) -> List[str]:
+        return [
+            "HTTP_HEADER_INSPECTION",
+            "TLS_PROTOCOL_AUDIT",
+            "FRAME_PROTECTION_CHECK",
+            "SQLI_SYNTHETIC_PROBE",
+            "BASELINE_HARDENING_EVALUATION",
+        ]
+
+    @property
+    def supported_profiles(self) -> List[str]:
+        return [
+            "WEB_APPLICATION_BASELINE",
+            "HARDENED_HOST_BASELINE",
+            "TLS_CONFIGURATION_CHECK",
+            "PARTIAL_FAILURE_PROFILE",
+            "SIMULATED_CRITICAL_EXPOSURE",
+            "SIMULATED_TIMEOUT",
+            "SIMULATED_ERROR",
+        ]
+
+    @property
+    def permitted_check_categories(self) -> List[str]:
+        return [
+            "CONFIGURATION",
+            "CRYPTOGRAPHY",
+            "INJECTION",
+            "INFORMATION_DISCLOSURE",
+        ]
+
+    def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        profile = config.get("fixture_profile", "WEB_APPLICATION_BASELINE")
+        if profile not in self.supported_profiles:
+            return False, f"Profile '{profile}' is not supported by adapter '{self.name}' (supported: {self.supported_profiles})."
+        return True, None
+
+    def preflight_check(self, target: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        valid, err = self.validate_config(config)
+        return {
+            "adapter": self.name,
+            "version": self.version,
+            "target": target,
+            "is_ready": valid,
+            "preflight_error": err,
+            "mode": "SIMULATED_FIXTURE",
+        }
+
+    def get_health(self) -> Dict[str, Any]:
+        return {
+            "status": "HEALTHY",
+            "driver": "in_process_deterministic_fixture",
+            "active_workers": 1,
+            "max_concurrency": 4,
+            "network_scanning_enabled": False,
+        }
+
+    def execute(
+        self,
+        target: str,
+        config: Dict[str, Any],
+        cancellation_check: Optional[Callable[[], bool]] = None,
+    ) -> AdapterResult:
         start_time = time.perf_counter()
         profile = config.get("fixture_profile", "WEB_APPLICATION_BASELINE")
 
+        # Periodically check cancellation
+        if cancellation_check and cancellation_check():
+            duration = (time.perf_counter() - start_time) * 1000
+            return AdapterResult(
+                adapter_name=self.name,
+                adapter_version=self.version,
+                target=target,
+                is_simulated=True,
+                success=False,
+                status_summary="Assessment execution halted by cancellation request.",
+                findings=[],
+                errors=["EXECUTION_CANCELLED: Operation aborted by operator"],
+                failure_category="CANCELLED_BY_OPERATOR",
+                execution_duration_ms=duration,
+            )
+
         findings: List[RawAdapterFinding] = []
         errors: List[str] = []
+        failure_category: Optional[str] = None
         status_summary = ""
 
-        # Check for simulated fault injection in config
-        if config.get("simulate_error") is True:
+        # Simulated timeout profile
+        if profile == "SIMULATED_TIMEOUT":
+            duration = (time.perf_counter() - start_time) * 1000
+            return AdapterResult(
+                adapter_name=self.name,
+                adapter_version=self.version,
+                target=target,
+                is_simulated=True,
+                success=False,
+                status_summary="Simulated adapter probe timeout.",
+                findings=[],
+                errors=["TIMEOUT: Simulated probe reached deadline."],
+                failure_category="TIMEOUT",
+                execution_duration_ms=duration,
+            )
+
+        # Simulated fault injection in config
+        if config.get("simulate_error") is True or profile == "SIMULATED_ERROR":
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
                 adapter_name=self.name,
@@ -46,10 +142,12 @@ class LocalFixtureAdapter(BaseScannerAdapter):
                 status_summary="Simulated adapter failure triggered by configuration flag.",
                 findings=[],
                 errors=["SIMULATED_INTERNAL_FAULT: Local fixture simulated driver error"],
+                failure_category="DRIVER_ERROR",
                 execution_duration_ms=duration,
             )
 
         if profile == "HARDENED_HOST_BASELINE":
+            # Baseline host security verified with ZERO findings
             status_summary = f"Evaluated target '{target}' against baseline security controls. Zero findings detected."
 
         elif profile == "TLS_CONFIGURATION_CHECK":
@@ -92,6 +190,7 @@ class LocalFixtureAdapter(BaseScannerAdapter):
         elif profile == "PARTIAL_FAILURE_PROFILE":
             status_summary = f"Partial assessment completion for '{target}'. Some auxiliary test suites failed."
             errors.append("TIMEOUT_SUB_MODULE: Auxiliary API endpoint probes timed out after 3000ms.")
+            failure_category = "PARTIAL_MODULE_FAILURE"
             findings.append(
                 RawAdapterFinding(
                     title="Information Disclosure via Server Header",
@@ -179,5 +278,10 @@ class LocalFixtureAdapter(BaseScannerAdapter):
             status_summary=status_summary,
             findings=findings,
             errors=errors,
+            failure_category=failure_category,
             execution_duration_ms=duration,
         )
+
+
+# Register default fixture adapter in global registry
+AdapterRegistry.register(LocalFixtureAdapter())

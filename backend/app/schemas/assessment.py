@@ -10,6 +10,7 @@ class AssessmentJobCreate(BaseModel):
     fixture_profile: Optional[str] = Field(default="WEB_APPLICATION_BASELINE", max_length=100)
     timeout_seconds: Optional[int] = Field(default=300, ge=10, le=3600)
     idempotency_key: Optional[str] = Field(default=None, max_length=100)
+    policy_version: Optional[str] = Field(default="2026.1", max_length=50)
     config: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
@@ -23,9 +24,19 @@ class AssessmentJobResponse(BaseModel):
     status: AssessmentStatus
     idempotency_key: Optional[str] = None
     progress_pct: int
+    policy_version: str = "2026.1"
+    authorization_reference: Optional[str] = None
+    authorization_status: str = "AUTHORIZED"
+    scope_snapshot: Dict[str, Any] = Field(default_factory=dict)
+    scope_snapshot_digest: Optional[str] = None
     queued_at: datetime
+    preflight_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
+    heartbeat_at: Optional[datetime] = None
+    cancellation_requested_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    failure_category: Optional[str] = None
+    attempt_count: int = 1
     timeout_seconds: int
     retry_count: int
     max_retries: int
@@ -39,6 +50,15 @@ class AssessmentJobResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AdapterCapabilityResponse(BaseModel):
+    name: str
+    version: str
+    declared_capabilities: List[str]
+    supported_profiles: List[str]
+    permitted_check_categories: List[str]
+    health: Dict[str, Any]
 
 
 class FindingEvidenceResponse(BaseModel):

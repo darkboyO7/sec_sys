@@ -3,7 +3,18 @@ export type ProjectRole = 'LEAD' | 'TESTER' | 'AUDITOR' | 'VIEWER';
 export type TargetType = 'IP_ADDRESS' | 'CIDR' | 'DOMAIN' | 'URL';
 export type AuthorizationStatus = 'PENDING' | 'AUTHORIZED' | 'REVOKED' | 'EXPIRED';
 
-export type AssessmentStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT' | 'PARTIAL';
+export type AssessmentStatus =
+  | 'QUEUED'
+  | 'PREFLIGHT'
+  | 'READY'
+  | 'RUNNING'
+  | 'CANCELLATION_REQUESTED'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'PARTIAL'
+  | 'FAILED'
+  | 'REJECTED'
+  | 'TIMED_OUT';
 export type FindingSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 export type FindingConfidence = 'CERTAIN' | 'FIRM' | 'TENTATIVE';
 
@@ -105,9 +116,19 @@ export interface AssessmentJob {
   status: AssessmentStatus;
   idempotency_key?: string | null;
   progress_pct: number;
+  policy_version: string;
+  authorization_reference?: string | null;
+  authorization_status: string;
+  scope_snapshot: Record<string, any>;
+  scope_snapshot_digest?: string | null;
   queued_at: string;
+  preflight_at?: string | null;
   started_at?: string | null;
+  heartbeat_at?: string | null;
+  cancellation_requested_at?: string | null;
   completed_at?: string | null;
+  failure_category?: string | null;
+  attempt_count: number;
   timeout_seconds: number;
   retry_count: number;
   max_retries: number;
@@ -118,6 +139,15 @@ export interface AssessmentJob {
   summary_stats: Record<string, any>;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdapterCapability {
+  name: string;
+  version: string;
+  declared_capabilities: string[];
+  supported_profiles: string[];
+  permitted_check_categories: string[];
+  health: Record<string, any>;
 }
 
 export interface AuditEvent {

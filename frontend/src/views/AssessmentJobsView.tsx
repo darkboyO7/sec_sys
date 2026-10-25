@@ -108,10 +108,28 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
             <CheckCircle2 className="w-3 h-3" /> COMPLETED
           </span>
         );
+      case 'READY':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+            <CheckCircle2 className="w-3 h-3" /> READY
+          </span>
+        );
+      case 'PREFLIGHT':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 animate-pulse">
+            <RefreshCw className="w-3 h-3 animate-spin" /> PREFLIGHT
+          </span>
+        );
       case 'RUNNING':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/30 animate-pulse">
             <RefreshCw className="w-3 h-3 animate-spin" /> RUNNING
+          </span>
+        );
+      case 'CANCELLATION_REQUESTED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 animate-pulse">
+            <Clock className="w-3 h-3 animate-spin" /> CANCEL REQ
           </span>
         );
       case 'QUEUED':
@@ -130,6 +148,12 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
             <Ban className="w-3 h-3" /> FAILED
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+            <Ban className="w-3 h-3" /> REJECTED
           </span>
         );
       case 'CANCELLED':
@@ -288,7 +312,7 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                           {new Date(j.queued_at).toLocaleTimeString()}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          {(j.status === 'QUEUED' || j.status === 'RUNNING') && (
+                          {['QUEUED', 'PREFLIGHT', 'READY', 'RUNNING'].includes(j.status) && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -335,6 +359,30 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                       : 'N/A'}
                   </div>
                 </div>
+              </div>
+
+              {/* Phase 6A Governance Contract Details */}
+              <div className="p-2.5 bg-cyber-900 rounded border border-cyber-800 text-[11px] font-mono space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Policy:</span>
+                  <span className="text-accent-cyan font-bold">{selectedJob.policy_version || '2026.1'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Auth Status:</span>
+                  <span className="text-emerald-400 font-bold">{selectedJob.authorization_status || 'AUTHORIZED'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Scope Digest:</span>
+                  <span className="text-slate-300 truncate max-w-[140px]" title={selectedJob.scope_snapshot_digest || ''}>
+                    {selectedJob.scope_snapshot_digest ? `${selectedJob.scope_snapshot_digest.substring(0, 12)}...` : 'N/A'}
+                  </span>
+                </div>
+                {selectedJob.failure_category && (
+                  <div className="flex justify-between pt-1 border-t border-cyber-800">
+                    <span className="text-rose-400 font-bold">Failure Category:</span>
+                    <span className="text-rose-300 font-bold">{selectedJob.failure_category}</span>
+                  </div>
+                )}
               </div>
 
               {selectedJob.error_message && (

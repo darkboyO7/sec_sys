@@ -7,12 +7,16 @@ from app.models.base import TimestampMixin, generate_uuid, utc_now
 
 class AssessmentStatus(str, enum.Enum):
     QUEUED = "QUEUED"
+    PREFLIGHT = "PREFLIGHT"
+    READY = "READY"
     RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+    CANCELLATION_REQUESTED = "CANCELLATION_REQUESTED"
     CANCELLED = "CANCELLED"
-    TIMED_OUT = "TIMED_OUT"
+    COMPLETED = "COMPLETED"
     PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    REJECTED = "REJECTED"
+    TIMED_OUT = "TIMED_OUT"
 
 
 class FindingSeverity(str, enum.Enum):
@@ -44,18 +48,30 @@ class AssessmentJob(Base, TimestampMixin):
     adapter_name = Column(String(100), default="local_fixture_adapter", nullable=False)
     adapter_version = Column(String(50), default="1.0.0", nullable=False)
 
+    # Phase 6A: Typed, versioned execution contract and scope boundary
+    policy_version = Column(String(50), default="2026.1", nullable=False)
+    authorization_reference = Column(String(255), nullable=True)
+    authorization_status = Column(String(50), default="AUTHORIZED", nullable=False)
+    scope_snapshot = Column(JSON, default=dict, nullable=False)
+    scope_snapshot_digest = Column(String(64), nullable=True, index=True)
+
     status = Column(Enum(AssessmentStatus), default=AssessmentStatus.QUEUED, nullable=False, index=True)
     idempotency_key = Column(String(100), nullable=True, index=True)
 
     progress_pct = Column(Integer, default=0, nullable=False)
     queued_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    preflight_at = Column(DateTime(timezone=True), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
+    heartbeat_at = Column(DateTime(timezone=True), nullable=True)
+    cancellation_requested_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     timeout_seconds = Column(Integer, default=300, nullable=False)
+    attempt_count = Column(Integer, default=1, nullable=False)
     retry_count = Column(Integer, default=0, nullable=False)
     max_retries = Column(Integer, default=2, nullable=False)
 
+    failure_category = Column(String(100), nullable=True, index=True)
     error_message = Column(Text, nullable=True)
     is_simulated = Column(Boolean, default=True, nullable=False)  # Crucial transparency: flags synthetic/fixture execution
     created_by_id = Column(String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)

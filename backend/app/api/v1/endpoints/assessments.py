@@ -15,9 +15,11 @@ from app.schemas.assessment import (
     AssessmentJobResponse,
     AssessmentFindingResponse,
     FindingEvidenceResponse,
+    AdapterCapabilityResponse,
 )
 from app.services.assessment_state_machine import AssessmentStateMachine
 from app.services.assessment_engine import AssessmentExecutionEngine
+from app.services.scanner_adapters.base import AdapterRegistry
 from app.services.scope_engine import ScopeEngine
 from app.services.audit_service import AuditService
 from app.api.deps import get_current_user, verify_project_access, get_client_ip
@@ -25,22 +27,38 @@ from app.api.deps import get_current_user, verify_project_access, get_client_ip
 router = APIRouter()
 
 
-@router.get("/projects/{project_id}/assessments/", response_model=List[AssessmentJobResponse])
-def list_assessments(
+@router.get("/projects/{project_id}/assessments/adapters", response_model=List[AdapterCapabilityResponse])
+def list_assessment_adapters(
     project_id: str,
-    status_filter: Optional[AssessmentStatus] = Query(None, description="Filter by assessment status"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    List all assessment execution jobs belonging to the specified project.
+    List registered and approved scanner adapters and their declared capabilities.
+    Strict project boundary isolation enforced.
+    """
+    verify_project_access(project_id, current_user, db)
+    return AdapterRegistry.list_capabilities()
+
+
+@router.get("/projects/{project_id}/assessments/", response_model=List[AssessmentJobResponse])
+def list_assessments(
+    project_id: str,
+    status_filter: Optional[AssessmentStatus] = Query(None, description="Filter by assessment status"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    limit: int = Query(50, ge=1, le=100, description="Limit for pagination (maximum 100)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    List all assessment execution jobs belonging to the specified project with bounded pagination.
     Strict project boundary isolation enforced.
     """
     verify_project_access(project_id, current_user, db)
     query = db.query(AssessmentJob).filter(AssessmentJob.project_id == project_id)
     if status_filter:
         query = query.filter(AssessmentJob.status == status_filter)
-    return query.order_by(AssessmentJob.queued_at.desc()).all()
+    return query.order_by(AssessmentJob.queued_at.desc()).offset(offset).limit(limit).all()
 
 
 @router.post("/projects/{project_id}/assessments/", response_model=AssessmentJobResponse, status_code=status.HTTP_201_CREATED)
@@ -53,7 +71,8 @@ def create_assessment_job(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Create a new assessment job with idempotency support and pre-flight scope validation.
+    Create a new assessment job with idempotency support, typed execution contract,
+    and pre-flight scope validation.
     """
     client_ip = get_client_ip(request)
     verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD, ProjectRole.TESTER])
@@ -83,7 +102,17 @@ def create_assessment_job(
             detail=f"Cannot initiate assessment: Target '{job_in.target_input}' is not authorized ({scope_eval['reason']})",
         )
 
-    # 3. Create persistent assessment job in QUEUED status
+    # 3. Compute immutable scope snapshot & digest
+    policy_ver = job_in.policy_version or "2026.1"
+    scope_snapshot, scope_snapshot_digest = AssessmentExecutionEngine.compute_scope_snapshot_and_digest(
+        scope_eval=scope_eval,
+        policy_version=policy_ver,
+    )
+    rule = scope_eval.get("matched_rule") or {}
+    auth_ref = rule.get("id") or scope_eval.get("rule_id") or "SCOPE-PREFLIGHT-RULE"
+    auth_status = "AUTHORIZED" if scope_eval.get("is_authorized") else "UNAUTHORIZED"
+
+    # 4. Create persistent assessment job in QUEUED status
     config = dict(job_in.config or {})
     if job_in.fixture_profile:
         config["fixture_profile"] = job_in.fixture_profile
@@ -96,8 +125,14 @@ def create_assessment_job(
         status=AssessmentStatus.QUEUED,
         idempotency_key=job_in.idempotency_key.strip() if job_in.idempotency_key else None,
         progress_pct=0,
+        policy_version=policy_ver,
+        authorization_reference=auth_ref,
+        authorization_status=auth_status,
+        scope_snapshot=scope_snapshot,
+        scope_snapshot_digest=scope_snapshot_digest,
+        attempt_count=1,
         timeout_seconds=job_in.timeout_seconds,
-        is_simulated=True,  # Phase 2 operates strictly in deterministic fixture simulation
+        is_simulated=True,  # Strict simulated fixture execution
         created_by_id=current_user.id,
         config=config,
         summary_stats={"status": "QUEUED"},
@@ -120,11 +155,14 @@ def create_assessment_job(
             "target_input": job.target_input,
             "adapter_name": job.adapter_name,
             "idempotency_key": job.idempotency_key,
+            "policy_version": job.policy_version,
+            "authorization_reference": job.authorization_reference,
+            "scope_snapshot_digest": job.scope_snapshot_digest,
             "is_simulated": job.is_simulated,
         },
     )
 
-    # 4. If auto_execute is True, immediately run through execution engine
+    # 5. If auto_execute is True, immediately run through execution engine
     if auto_execute:
         job = AssessmentExecutionEngine.execute_job(
             db=db,
@@ -177,12 +215,31 @@ def cancel_assessment_job(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment job not found")
 
-    try:
-        AssessmentStateMachine.transition(
-            job=job,
-            new_status=AssessmentStatus.CANCELLED,
-            error_message="Assessment cancelled by operator request.",
+    # Reject cancellation if already in a terminal state
+    if job.status in AssessmentStateMachine.TERMINAL_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel job in terminal state '{job.status.value}'",
         )
+
+    try:
+        if job.status == AssessmentStatus.RUNNING:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.CANCELLATION_REQUESTED,
+                error_message="Cancellation requested by operator.",
+            )
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.CANCELLED,
+                error_message="Assessment cancelled by operator request.",
+            )
+        else:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.CANCELLED,
+                error_message="Assessment cancelled by operator request.",
+            )
         db.commit()
         db.refresh(job)
     except Exception as e:
@@ -190,6 +247,21 @@ def cancel_assessment_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot cancel job in state '{job.status.value}': {str(e)}",
         )
+
+    AuditService.record_event(
+        db=db,
+        action="ASSESSMENT_JOB_CANCEL",
+        target_type="assessment_job",
+        target_id=job.id,
+        project_id=project_id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=client_ip,
+        details={"status": AssessmentStatus.CANCELLED.value},
+    )
+
+    return job
 
     AuditService.record_event(
         db=db,
