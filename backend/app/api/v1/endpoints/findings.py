@@ -94,6 +94,11 @@ def list_project_findings(
     """
     verify_project_access(project_id, current_user, db)
 
+    # Ensure any overdue accepted risks are reliably transitioned before query
+    expired = FindingLifecycleService.sweep_expired_accepted_risks(project_id, db)
+    if expired > 0:
+        db.commit()
+
     query = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.project_id == project_id)
 
     if status_filter:
@@ -137,6 +142,11 @@ def get_finding_statistics(
     severities, unresolved items, and contradictory evidence signals.
     """
     verify_project_access(project_id, current_user, db)
+
+    # Ensure any overdue accepted risks are reliably transitioned before aggregating
+    expired = FindingLifecycleService.sweep_expired_accepted_risks(project_id, db)
+    if expired > 0:
+        db.commit()
 
     findings = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.project_id == project_id).all()
 
@@ -226,6 +236,11 @@ def get_finding_detail(
     """
     verify_project_access(project_id, current_user, db)
 
+    # Ensure any overdue accepted risks are reliably transitioned
+    expired = FindingLifecycleService.sweep_expired_accepted_risks(project_id, db)
+    if expired > 0:
+        db.commit()
+
     finding = (
         db.query(VulnerabilityFinding)
         .filter(
@@ -257,6 +272,11 @@ def transition_finding(
     Validates legal state machine transitions and requires explicit rationale.
     """
     verify_project_access(project_id, current_user, db)
+
+    # Ensure any overdue accepted risks are reliably transitioned
+    expired = FindingLifecycleService.sweep_expired_accepted_risks(project_id, db)
+    if expired > 0:
+        db.commit()
 
     finding = (
         db.query(VulnerabilityFinding)
@@ -413,6 +433,11 @@ def propose_remediation(
     Transitions finding to REMEDIATION_PROPOSED.
     """
     verify_project_access(project_id, current_user, db)
+
+    # Ensure any overdue accepted risks are reliably transitioned
+    expired = FindingLifecycleService.sweep_expired_accepted_risks(project_id, db)
+    if expired > 0:
+        db.commit()
 
     finding = (
         db.query(VulnerabilityFinding)

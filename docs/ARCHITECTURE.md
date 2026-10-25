@@ -64,8 +64,8 @@ flowchart TD
 | **4. Scopes & Target Authorization** | Target registration (`PENDING`), explicit evidence-backed authorization (`AUTHORIZED`), scope exclusions, and fail-closed validation. | **Implemented & Verified** |
 | **5. Audit Logging** | Immutable security event logging with automated credential scrubbing and strict failure-mode enforcement. | **Implemented & Verified** |
 | **6. Assessment Orchestration & Evidence Pipeline** | Persistent job state machine, idempotency keys, deterministic local fixture adapter, finding persistence, and cryptographic SHA-256 evidence provenance. | **Implemented & Verified (Phase 2)** |
-| **7. Finding Lifecycle & Deduplication** | 13-state finding lifecycle, deduplication, revalidation, and risk acceptance. | *Target: Phase 3* |
-| **8. Asset Inventory & Knowledge Graph** | Asset graph topology, multi-hop relationship modeling, and choke-point discovery. | *Target: Phase 4* |
+| **7. Finding Lifecycle & Deduplication** | 13-state finding lifecycle, deduplication, revalidation, and risk acceptance. | **Implemented & Verified (Phase 3)** |
+| **8. Asset Inventory & Knowledge Graph** | Asset graph topology, multi-hop relationship modeling, and choke-point discovery. | **Implemented & Verified (Phase 4)** |
 | **9. Contextual Risk Engine** | Transparent, deterministic risk scoring combining severity, exposure, and asset criticality. | *Target: Phase 5* |
 
 ---
@@ -182,4 +182,57 @@ The platform implements deterministic SHA-256 fingerprinting based on normalized
 ### Risk Acceptance & False Positive Governance
 - **`ACCEPTED_RISK`**: Requires `ProjectRole.LEAD` or `SystemRole.ADMIN`, a mandatory future expiration date (<= 365 days), documented compensating controls, and comprehensive business rationale. Overdue accepted risks are automatically transitioned to `EXPIRED` during scheduled or automated sweeps.
 - **`FALSE_POSITIVE`**: Requires `ProjectRole.LEAD` or `SystemRole.ADMIN` with mandatory justification notes (>= 10 characters) explaining why the vulnerability does not exist or constitutes expected behavior.
+
+---
+
+## 7. Persistent Asset Inventory & Conservative Reconciliation
+
+### Separation of Authoritative State and Supporting Observations
+The platform strictly decouples current authoritative asset state (`assets`) from raw, time-stamped scanner outputs (`asset_observations`):
+- **`Asset`**: Represents the current reconciled identity of an infrastructure component, including its normalized `canonical_identifier`, `asset_type`, `criticality`, `status`, merged `attributes`, and ambiguity flags.
+- **`AssetObservation`**: Immutable append-only log capturing each scanner's raw attributes, observation timestamp, adapter version, cryptographic evidence hash, confidence rating, and assessment job reference. Conflicting observations never silently overwrite previous records; attribute changes are tracked chronologically in `_attribute_history`.
+
+### Type-Specific Canonical Normalization Rules
+1. **Web Apps & API Endpoints**: Normalizes URL scheme (`http`/`https`), strips default ports (80/443), strips trailing slashes, downcases hostname, and distinguishes URLs with API paths (`API_ENDPOINT`) from root web hosts (`WEB_APP`).
+2. **Services**: Formats scheme and port consistently (e.g., `tcp://host:port`), stripping protocol-specific trailing syntax.
+3. **IP Addresses**: Normalizes IPv4 addresses by stripping leading octet zeros (preventing CWE-1288 octal interpretation attacks) and formats IPv6 addresses using standard compressed notation (`ipaddress.ip_address.compressed`).
+4. **CIDR Blocks**: Normalizes network prefix and base address via `ipaddress.ip_network`.
+5. **Domains & Hostnames**: Normalizes to lowercase, strips trailing FQDN root dots, and distinguishes dotted domains from single-label hostnames.
+
+### Ambiguity Tracking & Resolution Governance
+If a target exhibits conflicting identity signals (e.g. dynamic IP reallocations, shared virtual hostnames, or unverified aliases), the entity is flagged with `is_ambiguous = True` and an explicit `ambiguity_reason`. Resolving ambiguity requires operator review with mandatory audit-logged `resolution_notes`, moving previous reasons into immutable `_resolution_history`.
+
+---
+
+## 8. Universal Security Knowledge Graph
+
+### Relational Graph Architecture
+Rather than introducing external, non-portable graph database engines, the Universal Security Knowledge Graph is engineered on relational database primitives (`graph_nodes`, `graph_relationships`) optimized for SQLite in local development and PostgreSQL in production:
+- **`GraphNode`**: Represents any security entity within a project context (`ASSET`, `SERVICE`, `APPLICATION`, `IDENTITY`, `ROLE`, `PERMISSION`, `VULNERABILITY`, `FINDING`, `EVIDENCE`, `SECURITY_CONTROL`, `DEPENDENCY`, `REMEDIATION`, `ASSESSMENT`). Unique constraint on `(project_id, category, entity_id)` guarantees idempotent creation.
+- **`GraphRelationship`**: Directed typed edges (`RUNS`, `DEPENDS_ON`, `AUTHENTICATES_TO`, `CAN_ACCESS`, `EXPOSES`, `AFFECTED_BY`, `MITIGATES`, `OBSERVED_AT`, `VERIFIED_BY`, `BELONGS_TO`, `ASSOCIATED_WITH`).
+
+### Verification States & Epistemic Confidence
+Each graph relationship maintains an explicit verification state and confidence score ($0.0 \le c \le 1.0$):
+- **`VERIFIED`**: Confirmed via direct assessment observation or signed proof.
+- **`INFERRED`**: Deduced via heuristic correlation or dependency analysis.
+- **`HYPOTHETICAL`**: Modeled what-if attack vector or simulated condition.
+- **`STALE`**: Historical observation whose validity window has elapsed.
+- **`SUPERSEDED`**: Replaced by subsequent higher-fidelity observations.
+
+### Cycle-Safe Bounded Traversal Algorithm
+Neighborhood graph queries (`GET /graph/nodes/{node_id}/neighborhood`) execute a bounded Breadth-First Search (BFS):
+1. Traversal maintains a `visited_nodes` registry preventing infinite loops on cyclic topologies ($A \to B \to C \to A$).
+2. Traversal strictly enforces `max_depth` (default 2, cap 4), `max_nodes` (cap 200), and `max_edges` (cap 300).
+3. If query limits are reached, traversal halts gracefully and returns `truncated = True`, preventing denial-of-service on densely connected graphs.
+
+### Strict Project Isolation
+Every graph query and relationship creation validates that both `source_node` and `target_node` reside within the authorized `project_id`. Cross-project relationship injection is rejected with fail-closed errors.
+
+### Assessment Integration
+When an assessment job finishes execution, the pipeline automatically:
+1. Reconciles the target asset in inventory.
+2. Appends an immutable `AssetObservation`.
+3. Links canonical findings to the asset (`finding.asset_id = asset.id`).
+4. Generates corresponding graph nodes (`ASSET`, `ASSESSMENT`, `FINDING`, `VULNERABILITY`) and edges (`OBSERVED_AT`, `AFFECTED_BY`, `VERIFIED_BY`, `ASSOCIATED_WITH`).
+
 

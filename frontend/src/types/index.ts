@@ -174,6 +174,7 @@ export interface FindingTransition {
 export interface VulnerabilityFinding {
   id: string;
   project_id: string;
+  asset_id?: string | null;
   fingerprint: string;
   target_value: string;
   title: string;
@@ -248,4 +249,171 @@ export interface FalsePositiveRequest {
 export interface ProposeRemediationRequest {
   remediation_notes: string;
   assigned_to_id?: string | null;
+}
+
+// --- Phase 4: Asset Inventory & Knowledge Graph Types ---
+
+export type AssetType =
+  | 'HOST'
+  | 'IP_ADDRESS'
+  | 'DOMAIN'
+  | 'HOSTNAME'
+  | 'SERVICE'
+  | 'SOFTWARE_COMPONENT'
+  | 'WEB_APP'
+  | 'API_ENDPOINT'
+  | 'CLOUD_RESOURCE'
+  | 'IDENTITY'
+  | 'DATA_STORE'
+  | 'SECURITY_CONTROL';
+
+export type AssetCriticality = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export type AssetStatus = 'ACTIVE' | 'INACTIVE' | 'DECOMMISSIONED' | 'UNDER_REVIEW';
+
+export interface AssetObservation {
+  id: string;
+  asset_id: string;
+  project_id: string;
+  assessment_job_id?: string | null;
+  observation_source: string;
+  adapter_version: string;
+  observed_at: string;
+  observed_attributes: Record<string, any>;
+  evidence_hash?: string | null;
+  confidence: number;
+  validation_status: string;
+  created_at: string;
+}
+
+export interface Asset {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  asset_type: AssetType;
+  name: string;
+  canonical_identifier: string;
+  environment: string;
+  criticality: AssetCriticality;
+  status: AssetStatus;
+  attributes: Record<string, any>;
+  source: string;
+  confidence: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  is_ambiguous: boolean;
+  ambiguity_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetDetail extends Asset {
+  observations: AssetObservation[];
+  finding_count: number;
+  graph_node_id?: string | null;
+  related_nodes_count: number;
+}
+
+export interface AssetCreateFixtureRequest {
+  asset_type: AssetType;
+  canonical_identifier: string;
+  name?: string;
+  environment?: string;
+  criticality?: AssetCriticality;
+  attributes?: Record<string, any>;
+  source?: string;
+  confidence?: number;
+  is_ambiguous?: boolean;
+  ambiguity_reason?: string;
+}
+
+export interface ResolveAmbiguityRequest {
+  resolution_notes: string;
+}
+
+export type GraphNodeCategory =
+  | 'ASSET'
+  | 'SERVICE'
+  | 'APPLICATION'
+  | 'IDENTITY'
+  | 'ROLE'
+  | 'PERMISSION'
+  | 'VULNERABILITY'
+  | 'FINDING'
+  | 'EVIDENCE'
+  | 'SECURITY_CONTROL'
+  | 'DEPENDENCY'
+  | 'REMEDIATION'
+  | 'ASSESSMENT';
+
+export type RelationshipType =
+  | 'RUNS'
+  | 'DEPENDS_ON'
+  | 'AUTHENTICATES_TO'
+  | 'CAN_ACCESS'
+  | 'EXPOSES'
+  | 'AFFECTED_BY'
+  | 'MITIGATES'
+  | 'OBSERVED_AT'
+  | 'VERIFIED_BY'
+  | 'BELONGS_TO'
+  | 'ASSOCIATED_WITH';
+
+export type RelationshipStatus =
+  | 'VERIFIED'
+  | 'INFERRED'
+  | 'HYPOTHETICAL'
+  | 'STALE'
+  | 'SUPERSEDED';
+
+export interface GraphNode {
+  id: string;
+  project_id: string;
+  category: GraphNodeCategory;
+  label: string;
+  entity_id?: string | null;
+  entity_type?: string | null;
+  properties: Record<string, any>;
+  created_at: string;
+}
+
+export interface GraphRelationship {
+  id: string;
+  project_id: string;
+  source_node_id: string;
+  target_node_id: string;
+  relationship_type: RelationshipType;
+  status: RelationshipStatus;
+  confidence: number;
+  provenance: string;
+  evidence_reference?: string | null;
+  properties: Record<string, any>;
+  observed_at: string;
+  created_at: string;
+}
+
+export interface GraphStats {
+  total_nodes: number;
+  total_edges: number;
+  nodes_by_category: Record<string, number>;
+  edges_by_type: Record<string, number>;
+}
+
+export interface GraphNeighborhoodResponse {
+  root_node_id: string;
+  max_depth: number;
+  nodes: GraphNode[];
+  relationships: GraphRelationship[];
+  truncated: boolean;
+}
+
+export interface GraphRelationshipCreate {
+  source_node_id: string;
+  target_node_id: string;
+  relationship_type: RelationshipType;
+  status?: RelationshipStatus;
+  confidence?: number;
+  provenance?: string;
+  evidence_reference?: string;
+  properties?: Record<string, any>;
 }

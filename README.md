@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1, 2 & 3: Secure Foundation, Assessment Orchestration & Finding Lifecycle
+## Phase 1–4: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory & Knowledge Graph
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -27,6 +27,18 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
   - Time-bounded `ACCEPTED_RISK` governance: requires Project LEAD / System ADMIN, mandatory future expiration date, and compensating controls.
   - Automated sweep mechanism transitioning overdue accepted risks to `EXPIRED`.
   - Full audit history: `FindingTransition` ledger and immutable audit events for every transition.
+- **Persistent Asset Inventory & Conservative Reconciliation (Phase 4):**
+  - Strict decoupling of current authoritative asset state (`assets`) from raw historical scanner outputs (`asset_observations`).
+  - Deterministic identifier normalization across Web Apps, API Endpoints, IPv4 (with octal zero stripping), IPv6 compression, CIDRs, Services, and Domains.
+  - Conflict-preserving attribute reconciliation tracking chronological changes in `_attribute_history`.
+  - Identity ambiguity tracking (`is_ambiguous`, `ambiguity_reason`) with audit-logged operator resolution governance.
+- **Universal Security Knowledge Graph (Phase 4):**
+  - PostgreSQL-compatible relational graph tables (`graph_nodes`, `graph_relationships`) with index-backed adjacency joins.
+  - 13 security entity categories (`ASSET`, `SERVICE`, `APPLICATION`, `IDENTITY`, `ROLE`, `PERMISSION`, `VULNERABILITY`, `FINDING`, `EVIDENCE`, `SECURITY_CONTROL`, `DEPENDENCY`, `REMEDIATION`, `ASSESSMENT`) and 11 relationship types.
+  - Epistemic verification statuses (`VERIFIED`, `INFERRED`, `HYPOTHETICAL`, `STALE`, `SUPERSEDED`) and confidence metrics ($0.0 \le c \le 1.0$).
+  - Bounded, cycle-safe BFS traversal with strict depth, node, and edge bounds, plus truncation signaling.
+  - Automatic assessment integration: assessments automatically reconcile assets, record observations, link findings, and generate graph nodes and edges.
+  - Full React 19 visualizer with SVG layout, verification status styling, node inspector, and edge creator.
 - **Immutable Audit Ledger:** All sensitive actions record actor attribution, client IP, outcome, and timestamp with automated credential scrubbing.
 - **Data Persistence:** Native Windows development uses SQLite 3 with `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`. The data layer is fully compatible with PostgreSQL in production via SQLAlchemy 2.0 and Alembic.
 
@@ -168,7 +180,7 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 41 automated tests covering 13-state finding lifecycle transitions, illegal transition rejection, deduplication fingerprinting, contradiction preservation, reopening, risk acceptance expiration sweeps, assessment state machines, boundary re-validation, cross-project isolation, and audit logging.*
+*Executes 50 automated tests covering asset inventory normalization, conservative reconciliation, ambiguity resolution, relational knowledge graph node & edge idempotency, cycle-safe bounded traversal, cross-project graph isolation, assessment-to-asset-to-graph auto-linkage, 13-state finding lifecycle transitions, deduplication fingerprinting, contradiction preservation, reopening, risk acceptance expiration sweeps, assessment state machines, boundary re-validation, cross-project isolation, and audit logging.*
 
 ### Running Frontend Tests (Vitest):
 ```powershell

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, ShieldAlert, CheckCircle2, Clock, Ban, FolderPlus, ArrowRight } from 'lucide-react';
+import { Target, ShieldAlert, CheckCircle2, Clock, Ban, FolderPlus, ArrowRight, Server, Network } from 'lucide-react';
 import type { Project, ScopeTarget, ScopeExclusion, AuditEvent } from '../types';
 import { ScopeValidationConsole } from '../components/ScopeValidationConsole';
 import { EmptyState } from '../components/EmptyState';
@@ -10,9 +10,12 @@ interface OverviewViewProps {
   exclusions: ScopeExclusion[];
   recentAudits: AuditEvent[];
   findingCount?: number;
+  assetCount?: number;
   onCreateProjectClick: () => void;
   onNavigateToScopes: () => void;
   onNavigateToFindings?: () => void;
+  onNavigateToAssets?: () => void;
+  onNavigateToGraph?: () => void;
   onNavigateToAudit: () => void;
 }
 
@@ -22,9 +25,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   exclusions,
   recentAudits,
   findingCount = 0,
+  assetCount = 0,
   onCreateProjectClick,
   onNavigateToScopes,
   onNavigateToFindings,
+  onNavigateToAssets,
+  onNavigateToGraph,
   onNavigateToAudit,
 }) => {
   if (!activeProject) {
@@ -64,7 +70,25 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onNavigateToAssets && (
+            <button
+              onClick={onNavigateToAssets}
+              className="px-3.5 py-2 rounded-lg bg-cyber-750 hover:bg-cyber-700 text-xs font-semibold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5"
+            >
+              <Server className="w-4 h-4 text-cyan-400" />
+              Assets ({assetCount})
+            </button>
+          )}
+          {onNavigateToGraph && (
+            <button
+              onClick={onNavigateToGraph}
+              className="px-3.5 py-2 rounded-lg bg-cyber-750 hover:bg-cyber-700 text-xs font-semibold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5"
+            >
+              <Network className="w-4 h-4 text-purple-400" />
+              Knowledge Graph
+            </button>
+          )}
           {onNavigateToFindings && (
             <button
               onClick={onNavigateToFindings}

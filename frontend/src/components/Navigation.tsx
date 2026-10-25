@@ -1,7 +1,7 @@
 import React from 'react';
-import { LayoutDashboard, Target, PlayCircle, ShieldAlert, FileText, Activity } from 'lucide-react';
+import { LayoutDashboard, Target, PlayCircle, ShieldAlert, FileText, Activity, Server, Network } from 'lucide-react';
 
-export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'findings' | 'audit' | 'health';
+export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'findings' | 'assets' | 'graph' | 'audit' | 'health';
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -9,6 +9,7 @@ interface NavigationProps {
   targetCount?: number;
   assessmentCount?: number;
   findingCount?: number;
+  assetCount?: number;
   auditCount?: number;
 }
 
@@ -18,6 +19,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   targetCount = 0,
   assessmentCount = 0,
   findingCount = 0,
+  assetCount = 0,
   auditCount = 0,
 }) => {
   const tabs = [
@@ -43,6 +45,17 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'Finding Lifecycle',
       icon: ShieldAlert,
       badge: findingCount > 0 ? findingCount : undefined,
+    },
+    {
+      id: 'assets' as NavigationTab,
+      label: 'Asset Inventory',
+      icon: Server,
+      badge: assetCount > 0 ? assetCount : undefined,
+    },
+    {
+      id: 'graph' as NavigationTab,
+      label: 'Security Knowledge Graph',
+      icon: Network,
     },
     {
       id: 'audit' as NavigationTab,

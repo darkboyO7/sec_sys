@@ -108,49 +108,63 @@ class FindingDeduplicationService:
                     has_contradictions=False,
                     contradiction_notes=[],
                 )
-                db.add(new_finding)
-                db.flush()
+                created_ok = True
+                try:
+                    with db.begin_nested():
+                        db.add(new_finding)
+                        db.flush()
+                except Exception:
+                    created_ok = False
+                    existing = (
+                        db.query(VulnerabilityFinding)
+                        .filter(
+                            VulnerabilityFinding.project_id == job.project_id,
+                            VulnerabilityFinding.fingerprint == fp,
+                        )
+                        .first()
+                    )
 
-                # Link raw observation to canonical finding
-                finding.canonical_finding_id = new_finding.id
+                if created_ok:
+                    # Link raw observation to canonical finding
+                    finding.canonical_finding_id = new_finding.id
 
-                # Create initial transition audit record
-                initial_transition = FindingTransition(
-                    finding_id=new_finding.id,
-                    from_status=FindingLifecycleStatus.DETECTED,
-                    to_status=initial_status,
-                    actor_id=job.created_by_id,
-                    reason=f"Initial discovery by scanner adapter '{job.adapter_name}' in assessment job {job.id}",
-                    metadata_snapshot={
-                        "job_id": job.id,
-                        "adapter": job.adapter_name,
-                        "severity": finding.severity.value,
-                        "confidence": finding.confidence.value,
-                        "cvss_score": finding.cvss_score,
-                    },
-                    created_at=now,
-                )
-                db.add(initial_transition)
+                    # Create initial transition audit record
+                    initial_transition = FindingTransition(
+                        finding_id=new_finding.id,
+                        from_status=FindingLifecycleStatus.DETECTED,
+                        to_status=initial_status,
+                        actor_id=job.created_by_id,
+                        reason=f"Initial discovery by scanner adapter '{job.adapter_name}' in assessment job {job.id}",
+                        metadata_snapshot={
+                            "job_id": job.id,
+                            "adapter": job.adapter_name,
+                            "severity": finding.severity.value,
+                            "confidence": finding.confidence.value,
+                            "cvss_score": finding.cvss_score,
+                        },
+                        created_at=now,
+                    )
+                    db.add(initial_transition)
 
-                AuditService.log(
-                    db=db,
-                    action="FINDING_DISCOVERED",
-                    actor_id=job.created_by_id,
-                    target_resource=f"finding:{new_finding.id}",
-                    project_id=job.project_id,
-                    client_ip=client_ip,
-                    details={
-                        "finding_id": new_finding.id,
-                        "title": new_finding.title,
-                        "target": new_finding.target_value,
-                        "severity": new_finding.severity.value,
-                        "status": new_finding.status.value,
-                        "job_id": job.id,
-                    },
-                )
-                canonical_findings.append(new_finding)
+                    AuditService.log(
+                        db=db,
+                        action="FINDING_DISCOVERED",
+                        actor_id=job.created_by_id,
+                        target_resource=f"finding:{new_finding.id}",
+                        project_id=job.project_id,
+                        client_ip=client_ip,
+                        details={
+                            "finding_id": new_finding.id,
+                            "title": new_finding.title,
+                            "target": new_finding.target_value,
+                            "severity": new_finding.severity.value,
+                            "status": new_finding.status.value,
+                            "job_id": job.id,
+                        },
+                    )
+                    canonical_findings.append(new_finding)
 
-            else:
+            if existing:
                 # Existing canonical finding found
                 finding.canonical_finding_id = existing.id
                 existing.occurrence_count += 1

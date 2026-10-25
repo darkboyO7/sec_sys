@@ -17,6 +17,16 @@ import type {
   ProposeRemediationRequest,
   FindingLifecycleStatus,
   FindingSeverity,
+  Asset,
+  AssetDetail,
+  AssetObservation,
+  AssetCreateFixtureRequest,
+  ResolveAmbiguityRequest,
+  GraphStats,
+  GraphNeighborhoodResponse,
+  GraphNode,
+  GraphRelationship,
+  GraphRelationshipCreate,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -332,6 +342,103 @@ class ApiService {
 
     const qs = query.toString();
     return this.request(`/audit/${qs ? `?${qs}` : ''}`);
+  }
+
+  // Phase 4: Asset Inventory
+  async listAssets(
+    projectId: string,
+    params: {
+      assetType?: string;
+      criticality?: string;
+      status?: string;
+      isAmbiguous?: boolean;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<Asset[]> {
+    const query = new URLSearchParams();
+    if (params.assetType) query.append('asset_type', params.assetType);
+    if (params.criticality) query.append('criticality', params.criticality);
+    if (params.status) query.append('status_filter', params.status);
+    if (params.isAmbiguous !== undefined) query.append('is_ambiguous', params.isAmbiguous.toString());
+    if (params.search) query.append('search', params.search);
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/assets${qs ? `?${qs}` : ''}`);
+  }
+
+  async getAsset(projectId: string, assetId: string): Promise<AssetDetail> {
+    return this.request(`/projects/${projectId}/assets/${assetId}`);
+  }
+
+  async listAssetObservations(
+    projectId: string,
+    assetId: string,
+    params: { limit?: number; offset?: number } = {}
+  ): Promise<AssetObservation[]> {
+    const query = new URLSearchParams();
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/assets/${assetId}/observations${qs ? `?${qs}` : ''}`);
+  }
+
+  async listAssetFindings(
+    projectId: string,
+    assetId: string,
+    params: { limit?: number; offset?: number } = {}
+  ): Promise<VulnerabilityFinding[]> {
+    const query = new URLSearchParams();
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.offset) query.append('offset', params.offset.toString());
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/assets/${assetId}/findings${qs ? `?${qs}` : ''}`);
+  }
+
+  async createFixtureAsset(projectId: string, data: AssetCreateFixtureRequest): Promise<Asset> {
+    return this.request(`/projects/${projectId}/assets/fixture`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async resolveAssetAmbiguity(projectId: string, assetId: string, data: ResolveAmbiguityRequest): Promise<AssetDetail> {
+    return this.request(`/projects/${projectId}/assets/${assetId}/resolve-ambiguity`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Phase 4: Universal Security Knowledge Graph
+  async getGraphStats(projectId: string): Promise<GraphStats> {
+    return this.request(`/projects/${projectId}/graph/stats`);
+  }
+
+  async getGraphNeighborhood(
+    projectId: string,
+    nodeId: string,
+    params: { depth?: number; maxNodes?: number; maxEdges?: number } = {}
+  ): Promise<GraphNeighborhoodResponse> {
+    const query = new URLSearchParams();
+    if (params.depth) query.append('depth', params.depth.toString());
+    if (params.maxNodes) query.append('max_nodes', params.maxNodes.toString());
+    if (params.maxEdges) query.append('max_edges', params.maxEdges.toString());
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/graph/nodes/${nodeId}/neighborhood${qs ? `?${qs}` : ''}`);
+  }
+
+  async getGraphNode(projectId: string, nodeId: string): Promise<GraphNode> {
+    return this.request(`/projects/${projectId}/graph/nodes/${nodeId}`);
+  }
+
+  async createGraphRelationship(projectId: string, data: GraphRelationshipCreate): Promise<GraphRelationship> {
+    return this.request(`/projects/${projectId}/graph/relationships`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 

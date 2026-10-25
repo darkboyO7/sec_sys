@@ -17,6 +17,20 @@ from app.models.finding import (
     VulnerabilityFinding,
     FindingTransition,
 )
+from app.models.asset import (
+    Asset,
+    AssetObservation,
+    AssetType,
+    AssetCriticality,
+    AssetStatus,
+)
+from app.models.graph import (
+    GraphNode,
+    GraphRelationship,
+    GraphNodeCategory,
+    RelationshipType,
+    RelationshipStatus,
+)
 
 __all__ = [
     "Base",
@@ -43,4 +57,14 @@ __all__ = [
     "FindingLifecycleStatus",
     "VulnerabilityFinding",
     "FindingTransition",
+    "Asset",
+    "AssetObservation",
+    "AssetType",
+    "AssetCriticality",
+    "AssetStatus",
+    "GraphNode",
+    "GraphRelationship",
+    "GraphNodeCategory",
+    "RelationshipType",
+    "RelationshipStatus",
 ]

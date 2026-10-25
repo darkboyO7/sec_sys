@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Enum, DateTime, Text, JSON
+from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Enum, DateTime, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -28,9 +28,13 @@ class VulnerabilityFinding(Base, TimestampMixin):
     Correlates multiple scanner/job observations without discarding contradictory evidence.
     """
     __tablename__ = "vulnerability_findings"
+    __table_args__ = (
+        UniqueConstraint("project_id", "fingerprint", name="uq_vulnerability_finding_project_fingerprint"),
+    )
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_id = Column(String(36), ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True)
     fingerprint = Column(String(64), nullable=False, index=True)  # SHA-256 hash for deterministic deduplication
 
     target_value = Column(String(500), nullable=False, index=True)
@@ -80,6 +84,7 @@ class VulnerabilityFinding(Base, TimestampMixin):
 
     # Relationships
     project = relationship("Project")
+    asset = relationship("Asset", back_populates="findings")
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     risk_accepted_by = relationship("User", foreign_keys=[risk_accepted_by_id])
     false_positive_by = relationship("User", foreign_keys=[false_positive_by_id])

@@ -95,6 +95,7 @@ class FindingLifecycleService:
             FindingLifecycleStatus.REOPENED,
             FindingLifecycleStatus.CONFIRMED,
             FindingLifecycleStatus.REMEDIATION_PROPOSED,
+            FindingLifecycleStatus.NEEDS_VALIDATION,
         },
         FindingLifecycleStatus.EXPIRED: {
             FindingLifecycleStatus.NEEDS_VALIDATION,

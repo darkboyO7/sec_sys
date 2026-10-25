@@ -8,8 +8,8 @@ This roadmap defines the multi-year trajectory for the VAPT Platform, transition
 flowchart LR
     P1["Phase 1: Secure Foundation\n(Completed)"] --> P2["Phase 2: Assessment Orchestration & Evidence\n(Completed)"]
     P2 --> P3["Phase 3: Finding Validation & Lifecycle\n(Completed)"]
-    P3 --> P4["Phase 4: Asset Inventory & Knowledge Graph\n(Next Target)"]
-    P4 --> P5["Phase 5: Contextual Risk Engine\n(Deterministic Scoring)"]
+    P3 --> P4["Phase 4: Asset Inventory & Knowledge Graph\n(Completed)"]
+    P4 --> P5["Phase 5: Contextual Risk Engine\n(Next Target)"]
 ```
 
 ---
@@ -67,17 +67,26 @@ flowchart LR
 ---
 
 ## Phase 4: Asset Inventory & Universal Security Knowledge Graph
-- **Target Horizon:** Months 6 - 9
-- **Key Deliverables:**
-  - [ ] Normalized asset records and time-stamped asset observations.
-  - [ ] PostgreSQL-compatible relational graph tables.
-  - [ ] Multi-hop relationship modeling (`RUNS`, `DEPENDS_ON`, `AUTHENTICATES_TO`, `CAN_ACCESS`, `EXPOSES`, `AFFECTED_BY`, `MITIGATES`).
-  - [ ] Asset identity reconciliation with ambiguity flags.
+- **Status:** **Completed & Verified**
+- **Milestones:**
+  - [x] Normalized typed asset entities and immutable time-stamped asset observations (`Asset` vs `AssetObservation`).
+  - [x] Type-specific canonical identifier normalizer (Web Apps, APIs, IPv4/IPv6, CIDRs, Services, Domains).
+  - [x] Conservative reconciliation tracking conflicting attributes in `_attribute_history` without overwriting data.
+  - [x] Identity ambiguity tracking (`is_ambiguous`, `ambiguity_reason`) with audit-logged resolution governance.
+  - [x] Universal Security Knowledge Graph on PostgreSQL-compatible relational primitives (`graph_nodes`, `graph_relationships`).
+  - [x] Typed nodes across 13 security categories and 11 relationship types.
+  - [x] Multi-state epistemic confidence and verification states (`VERIFIED`, `INFERRED`, `HYPOTHETICAL`, `STALE`, `SUPERSEDED`).
+  - [x] Bounded, cycle-safe BFS neighborhood traversal with strict depth, node, and edge limits, plus truncation signaling.
+  - [x] Strict project boundary isolation preventing cross-project graph connections.
+  - [x] Automatic assessment-to-asset reconciliation, observation recording, and graph node/relationship generation.
+  - [x] React 19 Asset Inventory view with filters, KPI counters, detail modal, ambiguity resolution, and fixture ingestion.
+  - [x] React 19 Knowledge Graph visualizer with SVG layout, verification status styling, node inspector, and edge creator.
+  - [x] 50 backend tests passed; 6 frontend tests passed; production build verified.
 
 ---
 
 ## Phase 5: Contextual Risk Engine
-- **Target Horizon:** Months 9 - 12
+- **Target Horizon:** Next Target
 - **Key Deliverables:**
   - [ ] Deterministic, versioned, explainable contextual risk engine.
   - [ ] Multi-dimensional scoring (severity, exploitability evidence, exposure, business criticality, attack-path contribution, controls).

@@ -6,6 +6,8 @@ import { OverviewView } from './views/OverviewView';
 import { ScopeManagementView } from './views/ScopeManagementView';
 import { AssessmentJobsView } from './views/AssessmentJobsView';
 import { FindingLifecycleView } from './views/FindingLifecycleView';
+import { AssetInventoryView } from './views/AssetInventoryView';
+import { KnowledgeGraphView } from './views/KnowledgeGraphView';
 import { AuditLedgerView } from './views/AuditLedgerView';
 import { SystemHealthView } from './views/SystemHealthView';
 import { AuthModal } from './components/AuthModal';
@@ -27,6 +29,8 @@ export const App: React.FC = () => {
   const [exclusions, setExclusions] = useState<ScopeExclusion[]>([]);
   const [assessmentJobs, setAssessmentJobs] = useState<AssessmentJob[]>([]);
   const [findingCount, setFindingCount] = useState<number>(0);
+  const [assetCount, setAssetCount] = useState<number>(0);
+  const [graphRootNodeId, setGraphRootNodeId] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [health, setHealth] = useState<{ status: string; version: string; environment: string; timestamp: string } | null>(null);
@@ -71,22 +75,25 @@ export const App: React.FC = () => {
       setExclusions([]);
       setAssessmentJobs([]);
       setFindingCount(0);
+      setAssetCount(0);
       setAuditEvents([]);
       return;
     }
     setLoading(true);
     try {
-      const [tList, eList, jList, fStats, auditRes] = await Promise.all([
+      const [tList, eList, jList, fStats, aList, auditRes] = await Promise.all([
         api.listScopeTargets(activeProject.id),
         api.listScopeExclusions(activeProject.id),
         api.listAssessments(activeProject.id),
         api.getFindingStats(activeProject.id).catch(() => ({ total: 0 })),
+        api.listAssets(activeProject.id).catch(() => []),
         api.getAuditLedger({ projectId: activeProject.id, limit: 50 }),
       ]);
       setTargets(tList);
       setExclusions(eList);
       setAssessmentJobs(jList);
       setFindingCount((fStats as any).total || 0);
+      setAssetCount(aList.length);
       setAuditEvents(auditRes.items);
     } catch (err) {
       console.error('Failed to load project scope data:', err);
@@ -163,6 +170,7 @@ export const App: React.FC = () => {
         targetCount={targets.length}
         assessmentCount={assessmentJobs.length}
         findingCount={findingCount}
+        assetCount={assetCount}
         auditCount={auditEvents.length}
       />
 
@@ -174,9 +182,12 @@ export const App: React.FC = () => {
             exclusions={exclusions}
             recentAudits={auditEvents}
             findingCount={findingCount}
+            assetCount={assetCount}
             onCreateProjectClick={() => setIsCreateProjectOpen(true)}
             onNavigateToScopes={() => setActiveTab('scopes')}
             onNavigateToFindings={() => setActiveTab('findings')}
+            onNavigateToAssets={() => setActiveTab('assets')}
+            onNavigateToGraph={() => setActiveTab('graph')}
             onNavigateToAudit={() => setActiveTab('audit')}
           />
         )}
@@ -205,6 +216,23 @@ export const App: React.FC = () => {
           <FindingLifecycleView currentProject={activeProject} />
         )}
 
+        {activeTab === 'assets' && activeProject && (
+          <AssetInventoryView
+            currentProject={activeProject}
+            onNavigateToGraph={(nodeId) => {
+              if (nodeId) setGraphRootNodeId(nodeId);
+              setActiveTab('graph');
+            }}
+          />
+        )}
+
+        {activeTab === 'graph' && activeProject && (
+          <KnowledgeGraphView
+            currentProject={activeProject}
+            initialNodeId={graphRootNodeId}
+          />
+        )}
+
         {activeTab === 'audit' && (
           <AuditLedgerView
             events={auditEvents}
@@ -223,7 +251,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {(activeTab === 'scopes' || activeTab === 'assessments' || activeTab === 'findings') && !activeProject && (
+        {(activeTab === 'scopes' || activeTab === 'assessments' || activeTab === 'findings' || activeTab === 'assets' || activeTab === 'graph') && !activeProject && (
           <div className="py-12 text-center text-slate-400">
             Please authenticate and select an assessment project to proceed.
           </div>
@@ -231,7 +259,7 @@ export const App: React.FC = () => {
       </main>
 
       <footer className="border-t border-cyber-800 bg-cyber-900/80 py-4 px-6 text-center text-slate-500 text-xs font-mono">
-        VAPT Platform Phase 3: Finding Validation & Lifecycle Pipeline · Windows-Native Control Plane
+        VAPT Platform Phase 4: Asset Inventory & Universal Security Knowledge Graph · Windows-Native Control Plane
       </footer>
 
       {/* Modals */}
