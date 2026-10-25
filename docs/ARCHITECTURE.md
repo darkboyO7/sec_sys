@@ -1,10 +1,10 @@
-# VAPT Platform — Architecture & Design Document (Phase 1)
+# VAPT Platform — Architecture & Design Document (Phase 1 & 2)
 
 ## 1. Executive Summary
 
-The VAPT (Vulnerability Assessment and Penetration Testing) Platform is an enterprise cybersecurity intelligence and operational testing control plane. The system is engineered as a **Modular Monolith** for Phase 1, prioritizing high cohesion, strong tenant/project boundaries, non-invasive scope validation, and verifiable proof-of-authorization.
+The VAPT (Vulnerability Assessment and Penetration Testing) Platform is an enterprise cybersecurity intelligence and operational testing control plane. The system is engineered as a **Modular Monolith** for Phase 1 & 2, prioritizing high cohesion, strong tenant/project boundaries, non-invasive scope validation, verifiable proof-of-authorization, and a deterministic assessment orchestration pipeline.
 
-Future scanner workers, exploitation engines, and AI-driven analysis tools are strictly segregated behind an isolated message and execution boundary, remaining dormant until explicit authorization, resource limits, and worker sandboxing are verified.
+Future live scanner workers, exploitation engines, and AI-driven analysis tools are strictly segregated behind an isolated execution boundary, remaining dormant until explicit authorization, resource limits, and worker sandboxing are verified.
 
 ---
 
@@ -12,9 +12,10 @@ Future scanner workers, exploitation engines, and AI-driven analysis tools are s
 
 ```mermaid
 flowchart TD
-    subgraph UI ["Client Layer (Browser)"]
-        ReactDashboard["React 19 + TypeScript + Vite Dashboard"]
+    subgraph UI ["Client Layer (React 19 + TypeScript + Vite)"]
+        Dashboard["Mission Overview"]
         ScopeConsole["Scope Validation & Governance Console"]
+        AssessmentConsole["Assessment Orchestration Console"]
         AuditViewer["Immutable Audit Feed"]
     end
 
@@ -23,116 +24,92 @@ flowchart TD
         AuthMiddleware["JWT Authentication & RBAC Filter"]
         AuditService["Audit Logger & Redaction Engine"]
         ScopeEngine["Non-Invasive Scope Evaluation Engine"]
-        ProjectService["Project & Member Isolation Engine"]
+        AssessmentEngine["Assessment Execution Boundary Engine"]
+        StateMachine["Assessment State Machine (QUEUED -> RUNNING -> COMPLETED)"]
     end
 
-    subgraph Persistence ["Persistence Layer"]
-        DB[(Database Engine\nSQLite WAL in Dev / PostgreSQL in Prod)]
+    subgraph AdapterLayer ["Scanner Adapter Boundary"]
+        LocalAdapter["LocalFixtureAdapter\n(Deterministic Synthetic Fixtures)"]
+        RawScannerWorkers[["Live Network Scanners\n(STRICTLY DISABLED)"]]
+    end
+
+    subgraph Persistence ["Persistence Layer (SQLite WAL in Dev / PostgreSQL in Prod)"]
+        DB[(Database Engine)]
         AuditLedger[(Audit Event Ledger)]
-    end
-
-    subgraph WorkerBoundary ["Isolated Worker Boundary (Future Phases)"]
-        WorkerQueue[["Assessment Job Queue (Isolated)"]]
-        ScannerWorker[["Scanner Execution Container (Disabled)"]]
+        Findings[(Assessment Findings & Cryptographic Evidence)]
     end
 
     UI -->|HTTPS / REST API| API_Gateway
     API_Gateway --> AuthMiddleware
-    AuthMiddleware --> ProjectService
-    ProjectService --> ScopeEngine
+    AuthMiddleware --> ScopeEngine
     ScopeEngine --> Persistence
+    API_Gateway --> AssessmentEngine
+    AssessmentEngine -->|Mandatory Pre-Flight Scope Re-Validation| ScopeEngine
+    AssessmentEngine --> StateMachine
+    AssessmentEngine --> LocalAdapter
+    LocalAdapter --> Findings
     API_Gateway --> AuditService
     AuditService --> AuditLedger
-    ScopeEngine -.->|Pre-Flight Proof Check| WorkerQueue
-    WorkerQueue -.->|Isolated Execution| ScannerWorker
 ```
 
 ---
 
 ## 3. Core Architectural Modules
 
-| Module | Purpose | Phase 1 Status |
+| Module | Purpose | Phase Status |
 | :--- | :--- | :--- |
-| **1. Core & Lifecycle** | Configuration management (`pydantic-settings`), request context tracking, liveness (`/health`) and readiness (`/ready`) probes. | **Implemented & Tested** |
-| **2. Auth & Identity** | Bcrypt password hashing (cost factor 12), short-lived JWT token issuance, RBAC (`ADMIN`, `SECURITY_LEAD`, `SECURITY_TESTER`, `AUDITOR`, `VIEWER`). | **Implemented & Tested** |
-| **3. Organizations & Projects** | Multi-tenant project hierarchy, project roles (`LEAD`, `TESTER`), and project-level boundary isolation. | **Implemented & Tested** |
-| **4. Scopes & Target Authorization** | Target registration (`PENDING`), explicit evidence-backed authorization (`AUTHORIZED`), scope exclusions, and fail-closed validation. | **Implemented & Tested** |
-| **5. Audit Logging** | Immutable security event logging with automated credential scrubbing and strict failure-mode enforcement. | **Implemented & Tested** |
-| **6. Scanner Adapters & Workers** | Job queue, containerized scanner runners (Nmap, nuclei, zap, etc.). | *Deferred to Phase 2 (Workers remain disabled)* |
-| **7. Findings & Evidence Provenance** | Vulnerability findings, reproduction payloads, cryptographic evidence hashes. | *Deferred to Phase 2* |
-| **8. Security Knowledge Graph** | Attack surface relationships, asset discovery links. | *Deferred to Phase 3* |
-| **9. AI Integration Guardrails** | Policy-governed LLM agents with restricted deterministic tool execution. | *Deferred to Phase 4* |
+| **1. Core & Lifecycle** | Configuration management (`pydantic-settings`), request context tracking, liveness (`/health`) and readiness (`/ready`) probes. | **Implemented & Verified** |
+| **2. Auth & Identity** | Bcrypt password hashing (cost factor 12), short-lived JWT token issuance, RBAC (`ADMIN`, `SECURITY_LEAD`, `SECURITY_TESTER`, `AUDITOR`, `VIEWER`). | **Implemented & Verified** |
+| **3. Organizations & Projects** | Multi-tenant project hierarchy, project roles (`LEAD`, `TESTER`), and project-level boundary isolation. | **Implemented & Verified** |
+| **4. Scopes & Target Authorization** | Target registration (`PENDING`), explicit evidence-backed authorization (`AUTHORIZED`), scope exclusions, and fail-closed validation. | **Implemented & Verified** |
+| **5. Audit Logging** | Immutable security event logging with automated credential scrubbing and strict failure-mode enforcement. | **Implemented & Verified** |
+| **6. Assessment Orchestration & Evidence Pipeline** | Persistent job state machine, idempotency keys, deterministic local fixture adapter, finding persistence, and cryptographic SHA-256 evidence provenance. | **Implemented & Verified (Phase 2)** |
+| **7. Finding Lifecycle & Deduplication** | 13-state finding lifecycle, deduplication, revalidation, and risk acceptance. | *Target: Phase 3* |
+| **8. Asset Inventory & Knowledge Graph** | Asset graph topology, multi-hop relationship modeling, and choke-point discovery. | *Target: Phase 4* |
+| **9. Contextual Risk Engine** | Transparent, deterministic risk scoring combining severity, exposure, and asset criticality. | *Target: Phase 5* |
 
 ---
 
-## 4. Scope Governance & Fail-Closed Validation Engine
+## 4. Assessment State Machine & Execution Boundary
 
-A foundational premise of this platform is that **no target can ever be scanned without explicit, recorded proof of authorization**.
+Assessment jobs follow a strict, deterministic finite state machine:
 
 ```mermaid
-flowchart TD
-    Start["Candidate Target Input\n(IP, CIDR, Domain, or URL)"] --> Normalize["ScopeEngine.normalize_target()\nSyntactic Parsing & Canonicalization"]
-    Normalize --> ExclusionCheck{"Does candidate match\nANY Scope Exclusion?"}
-    
-    ExclusionCheck -- YES --> RejectExcl["DENIED: Status EXCLUDED\nImmediate Fail-Closed"]
-    ExclusionCheck -- NO --> TargetCheck{"Does candidate match\nANY Scope Target?"}
-    
-    TargetCheck -- NO --> RejectNotInScope["DENIED: Status NOT_IN_SCOPE\nFail-Closed"]
-    TargetCheck -- YES --> StatusCheck{"What is Scope Target\nauthorization_status?"}
-    
-    StatusCheck -- PENDING --> RejectPending["DENIED: Status PENDING_APPROVAL\nRegistration is NOT Authorization"]
-    StatusCheck -- REVOKED --> RejectRevoked["DENIED: Status REVOKED\nExplicitly Revoked with Reason"]
-    StatusCheck -- EXPIRED --> RejectExpired["DENIED: Status EXPIRED\nAuthorization Window Elapsed"]
-    StatusCheck -- AUTHORIZED --> ExpiryCheck{"Has expires_at\npassed?"}
-    
-    ExpiryCheck -- YES --> RejectExpired
-    ExpiryCheck -- NO --> Allow["PERMITTED: Status AUTHORIZED\nReturns Matched Rule & ROE Evidence"]
+stateDiagram-v2
+    [*] --> QUEUED : Job Created (Idempotent)
+    QUEUED --> RUNNING : Execution Boundary Scope Check Passed
+    QUEUED --> CANCELLED : Operator Request
+    QUEUED --> FAILED : Pre-flight Scope Re-Validation Failed
+    RUNNING --> COMPLETED : All Fixture Tests Passed
+    RUNNING --> PARTIAL : Tests Passed with Auxiliary Warnings/Errors
+    RUNNING --> FAILED : Unhandled Adapter Exception
+    RUNNING --> TIMED_OUT : Execution Exceeded timeout_seconds
+    RUNNING --> CANCELLED : Operator Request
+    COMPLETED --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
+    TIMED_OUT --> [*]
+    PARTIAL --> [*]
 ```
 
-### Precedence Rules
-1. **Scope Exclusions take absolute precedence**: Even if an entire subnet (e.g., `10.0.0.0/16`) is authorized, an exclusion for `10.0.1.1` immediately rejects any evaluation of that specific host.
-2. **Registration != Authorization**: Creating a target sets status to `PENDING`. It requires a distinct operation (`/authorize`) with documented Rules of Engagement (ROE) evidence and approver attribution.
-3. **Fail-Closed by Default**: Any target not matching a verified, active rule is rejected with `NOT_IN_SCOPE`.
+### Pre-Flight Execution Invariant
+Before any adapter runs, the `AssessmentExecutionEngine`:
+1. Re-evaluates `ScopeEngine.validate_target_in_scope()` against the database.
+2. If authorization expired, was revoked, or an exclusion was added while the job was queued, the job transitions immediately to `FAILED` with an explicit reason, and an `ASSESSMENT_EXECUTION_DENIED` audit event is emitted.
+3. Network scanning is strictly disabled. The adapter interface dispatches solely to approved adapters (default: `LocalFixtureAdapter`).
 
 ---
 
-## 5. Data Persistence & Portability (SQLite WAL vs PostgreSQL)
+## 5. Audit Logging & Tamper-Evident Distinction
 
-### Local Development Architecture (Native Windows)
-- Engine: **SQLite 3**
-- Pragma Configuration:
-  - `PRAGMA foreign_keys = ON;` (Strict referential integrity)
-  - `PRAGMA journal_mode = WAL;` (Concurrent reader performance without locking)
-  - `PRAGMA synchronous = NORMAL;`
+### Implemented Model: Structured Transactional Append-Only Ledger
+The platform currently implements an **append-only relational audit ledger**:
+- Immutable rows stored in `audit_events`.
+- Transactional integrity tied to database transactions (`AUDIT_LOG_STRICT=True`).
+- Client IP, actor ID, action, outcome, and timestamp recorded.
+- Automated recursive scrubbing of all credentials and sensitive keys.
 
-### Production Architecture (PostgreSQL)
-All SQLAlchemy 2.0 models and Alembic migrations are designed for seamless PostgreSQL deployment:
-1. **Primary Keys:** RFC 4122 UUID strings (36 characters) portable across SQLite and PostgreSQL.
-2. **Timestamps:** UTC timezone-aware DateTime (`DateTime(timezone=True)`).
-3. **JSON Metadata:** SQLAlchemy generic `JSON` column mapping to SQLite JSON functions locally and `JSONB` on PostgreSQL.
-4. **Migrations:** Managed through Alembic (`alembic upgrade head`) with offline and online migration execution.
-
-To transition to PostgreSQL in production:
-```bash
-# Update .env
-DATABASE_URL="postgresql+psycopg2://vapt_user:secure_password@localhost:5432/vapt_db"
-# Run migrations
-alembic upgrade head
-```
-
----
-
-## 6. Audit Logging Integrity Guarantees
-
-Every sensitive security event records:
-- `actor_id` & `actor_email` (Attribution)
-- `action` (Taxonomy: `AUTH_LOGIN`, `PROJECT_CREATE`, `SCOPE_TARGET_AUTHORIZE`, etc.)
-- `target_type` & `target_id` (Entity under operation)
-- `timestamp` (UTC)
-- `ip_address` (Network origin)
-- `outcome` (`SUCCESS`, `DENIED`, `FAILURE`)
-- `details` (Structured context)
-
-**Credential Redaction Filter:**
-The `AuditService` recursively inspects all detail dictionaries and scrubs keys matching `password`, `token`, `secret`, `authorization`, `cookie`, `key`, and `credentials`, replacing values with `[REDACTED]`.
-If `AUDIT_LOG_STRICT=True` is set in configuration, any database failure during audit event creation triggers an automatic transaction rollback and exception raise, preventing sensitive state mutations from executing without an audit record.
+### Architectural Boundary: Cryptographic Tamper-Evidence
+An append-only ledger differs from a cryptographically tamper-evident or tamper-proof system:
+- In the current Phase 1/2 model, an attacker with direct, administrative SQL database access could theoretically alter historical rows.
+- Future phases (Phase 8) will introduce **Merkle trees and cryptographic hash-chaining** (`previous_record_hash`) anchored to external, independent timestamping authorities to establish verifiable mathematical tamper-evidence.

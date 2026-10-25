@@ -3,6 +3,10 @@ export type ProjectRole = 'LEAD' | 'TESTER' | 'AUDITOR' | 'VIEWER';
 export type TargetType = 'IP_ADDRESS' | 'CIDR' | 'DOMAIN' | 'URL';
 export type AuthorizationStatus = 'PENDING' | 'AUTHORIZED' | 'REVOKED' | 'EXPIRED';
 
+export type AssessmentStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT' | 'PARTIAL';
+export type FindingSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+export type FindingConfidence = 'CERTAIN' | 'FIRM' | 'TENTATIVE';
+
 export interface User {
   id: string;
   email: string;
@@ -63,6 +67,57 @@ export interface ScopeValidationResult {
   matched_rule?: Record<string, any> | null;
   matched_exclusion?: Record<string, any> | null;
   evaluated_at: string;
+}
+
+export interface FindingEvidence {
+  id: string;
+  finding_id: string;
+  evidence_type: string;
+  payload: string;
+  sha256_hash: string;
+  observed_at: string;
+}
+
+export interface AssessmentFinding {
+  id: string;
+  job_id: string;
+  project_id: string;
+  target_value: string;
+  title: string;
+  description: string;
+  severity: FindingSeverity;
+  confidence: FindingConfidence;
+  vuln_id?: string | null;
+  cvss_score?: number | null;
+  is_simulated: boolean;
+  reproduction_steps: string;
+  created_at: string;
+  evidence_items?: FindingEvidence[];
+}
+
+export interface AssessmentJob {
+  id: string;
+  project_id: string;
+  target_id?: string | null;
+  target_input: string;
+  adapter_name: string;
+  adapter_version: string;
+  status: AssessmentStatus;
+  idempotency_key?: string | null;
+  progress_pct: number;
+  queued_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  timeout_seconds: number;
+  retry_count: number;
+  max_retries: number;
+  error_message?: string | null;
+  is_simulated: boolean;
+  created_by_id: string;
+  config: Record<string, any>;
+  summary_stats: Record<string, any>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AuditEvent {

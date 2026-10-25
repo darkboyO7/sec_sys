@@ -45,11 +45,14 @@ describe('ApiService', () => {
       timestamp: '2026-10-25T00:00:00Z',
     };
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => mockHealth,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockHealth,
+      })
+    );
 
     const health = await api.getHealth();
     expect(health.status).toBe('ok');
@@ -69,11 +72,14 @@ describe('ApiService', () => {
       evaluated_at: '2026-10-25T00:00:00Z',
     };
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => mockValidation,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockValidation,
+      })
+    );
 
     const res = await api.validateTarget('proj-123', '192.168.1.1');
     expect(res.is_authorized).toBe(false);
@@ -83,6 +89,45 @@ describe('ApiService', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ target: '192.168.1.1' }),
+      })
+    );
+  });
+
+  it('handles assessment orchestration API endpoints correctly', async () => {
+    const mockJob = {
+      id: 'job-999',
+      project_id: 'proj-123',
+      target_input: 'api.bank.corp',
+      adapter_name: 'local_fixture_adapter',
+      status: 'COMPLETED',
+      is_simulated: true,
+      findings_count: 2,
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockJob,
+      })
+    );
+
+    const createdJob = await api.createAssessment('proj-123', {
+      target_input: 'api.bank.corp',
+      fixture_profile: 'WEB_APPLICATION_BASELINE',
+    });
+
+    expect(createdJob.id).toBe('job-999');
+    expect(createdJob.status).toBe('COMPLETED');
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/projects/proj-123/assessments/',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          target_input: 'api.bank.corp',
+          fixture_profile: 'WEB_APPLICATION_BASELINE',
+        }),
       })
     );
   });

@@ -4,12 +4,13 @@ import { Navigation } from './components/Navigation';
 import type { NavigationTab } from './components/Navigation';
 import { OverviewView } from './views/OverviewView';
 import { ScopeManagementView } from './views/ScopeManagementView';
+import { AssessmentJobsView } from './views/AssessmentJobsView';
 import { AuditLedgerView } from './views/AuditLedgerView';
 import { SystemHealthView } from './views/SystemHealthView';
 import { AuthModal } from './components/AuthModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { api } from './services/api';
-import type { User, Project, ScopeTarget, ScopeExclusion, AuditEvent, ReadinessResponse } from './types';
+import type { User, Project, ScopeTarget, ScopeExclusion, AssessmentJob, AuditEvent, ReadinessResponse } from './types';
 
 export const App: React.FC = () => {
   // Navigation & Modals
@@ -23,6 +24,7 @@ export const App: React.FC = () => {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [targets, setTargets] = useState<ScopeTarget[]>([]);
   const [exclusions, setExclusions] = useState<ScopeExclusion[]>([]);
+  const [assessmentJobs, setAssessmentJobs] = useState<AssessmentJob[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [health, setHealth] = useState<{ status: string; version: string; environment: string; timestamp: string } | null>(null);
@@ -51,7 +53,6 @@ export const App: React.FC = () => {
       const list = await api.listProjects();
       setProjects(list);
       if (list.length > 0) {
-        // Keep current or select first
         setActiveProject((prev) => (prev && list.some((p) => p.id === prev.id) ? prev : list[0]));
       } else {
         setActiveProject(null);
@@ -61,23 +62,26 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch Project Scopes & Audit
+  // Fetch Project Scopes, Assessments & Audit
   const loadProjectData = useCallback(async () => {
     if (!activeProject || !api.getToken()) {
       setTargets([]);
       setExclusions([]);
+      setAssessmentJobs([]);
       setAuditEvents([]);
       return;
     }
     setLoading(true);
     try {
-      const [tList, eList, auditRes] = await Promise.all([
+      const [tList, eList, jList, auditRes] = await Promise.all([
         api.listScopeTargets(activeProject.id),
         api.listScopeExclusions(activeProject.id),
+        api.listAssessments(activeProject.id),
         api.getAuditLedger({ projectId: activeProject.id, limit: 50 }),
       ]);
       setTargets(tList);
       setExclusions(eList);
+      setAssessmentJobs(jList);
       setAuditEvents(auditRes.items);
     } catch (err) {
       console.error('Failed to load project scope data:', err);
@@ -112,11 +116,12 @@ export const App: React.FC = () => {
       setActiveProject(null);
       setTargets([]);
       setExclusions([]);
+      setAssessmentJobs([]);
       setAuditEvents([]);
     }
   }, [currentUser, loadProjects]);
 
-  // Load Scope data on Active Project Change
+  // Load Scope and Assessment data on Active Project Change
   useEffect(() => {
     loadProjectData();
   }, [activeProject, loadProjectData]);
@@ -128,8 +133,11 @@ export const App: React.FC = () => {
     setActiveProject(null);
     setTargets([]);
     setExclusions([]);
+    setAssessmentJobs([]);
     setAuditEvents([]);
   };
+
+  const authorizedTargets = targets.filter((t) => t.authorization_status === 'AUTHORIZED');
 
   return (
     <div className="min-h-screen bg-cyber-900 text-slate-100 flex flex-col font-sans selection:bg-accent-cyan/30">
@@ -148,6 +156,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onTabChange={(t) => setActiveTab(t)}
         targetCount={targets.length}
+        assessmentCount={assessmentJobs.length}
         auditCount={auditEvents.length}
       />
 
@@ -174,10 +183,14 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'scopes' && !activeProject && (
-          <div className="py-12 text-center text-slate-400">
-            Please authenticate and select an assessment project to manage scopes.
-          </div>
+        {activeTab === 'assessments' && activeProject && (
+          <AssessmentJobsView
+            project={activeProject}
+            authorizedTargets={authorizedTargets}
+            jobs={assessmentJobs}
+            onRefresh={loadProjectData}
+            loading={loading}
+          />
         )}
 
         {activeTab === 'audit' && (
@@ -197,10 +210,16 @@ export const App: React.FC = () => {
             loading={loading}
           />
         )}
+
+        {(activeTab === 'scopes' || activeTab === 'assessments') && !activeProject && (
+          <div className="py-12 text-center text-slate-400">
+            Please authenticate and select an assessment project to proceed.
+          </div>
+        )}
       </main>
 
       <footer className="border-t border-cyber-800 bg-cyber-900/80 py-4 px-6 text-center text-slate-500 text-xs font-mono">
-        VAPT Platform Phase 1: Secure Foundation · Modular Control Plane · Native Windows Architecture
+        VAPT Platform Phase 2: Assessment Orchestration & Evidence Pipeline · Windows-Native Control Plane
       </footer>
 
       {/* Modals */}

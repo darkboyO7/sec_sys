@@ -6,6 +6,8 @@ import type {
   ScopeValidationResult,
   AuditEvent,
   ReadinessResponse,
+  AssessmentJob,
+  AssessmentFinding,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -178,6 +180,45 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ target }),
     });
+  }
+
+  // Assessment Jobs & Findings (Phase 2)
+  async listAssessments(projectId: string): Promise<AssessmentJob[]> {
+    return this.request(`/projects/${projectId}/assessments/`);
+  }
+
+  async createAssessment(
+    projectId: string,
+    data: {
+      target_input: string;
+      adapter_name?: string;
+      fixture_profile?: string;
+      timeout_seconds?: number;
+      idempotency_key?: string;
+    }
+  ): Promise<AssessmentJob> {
+    return this.request(`/projects/${projectId}/assessments/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAssessment(projectId: string, jobId: string): Promise<AssessmentJob> {
+    return this.request(`/projects/${projectId}/assessments/${jobId}`);
+  }
+
+  async cancelAssessment(projectId: string, jobId: string): Promise<AssessmentJob> {
+    return this.request(`/projects/${projectId}/assessments/${jobId}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  async listAssessmentFindings(projectId: string, jobId: string): Promise<AssessmentFinding[]> {
+    return this.request(`/projects/${projectId}/assessments/${jobId}/findings`);
+  }
+
+  async getAssessmentFinding(projectId: string, jobId: string, findingId: string): Promise<AssessmentFinding> {
+    return this.request(`/projects/${projectId}/assessments/${jobId}/findings/${findingId}`);
   }
 
   // Audit Ledger

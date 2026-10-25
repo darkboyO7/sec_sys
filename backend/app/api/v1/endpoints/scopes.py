@@ -123,15 +123,6 @@ def authorize_scope_target(
     client_ip = get_client_ip(request)
     verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
 
-    # Enforce role: only LEAD or ADMIN / SECURITY_LEAD
-    if current_user.system_role not in (SystemRole.ADMIN, SystemRole.SECURITY_LEAD):
-        # Check if project LEAD
-        membership = (
-            db.query(User)
-            .filter(User.id == current_user.id)
-            .first()
-        )
-
     scope_target = (
         db.query(ScopeTarget)
         .filter(ScopeTarget.project_id == project_id, ScopeTarget.id == target_id)

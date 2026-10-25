@@ -4,6 +4,14 @@ from app.models.user import User, SystemRole
 from app.models.project import Project, ProjectMember, ProjectRole
 from app.models.scope import ScopeTarget, ScopeExclusion, TargetType, AuthorizationStatus
 from app.models.audit import AuditEvent
+from app.models.assessment import (
+    AssessmentJob,
+    AssessmentFinding,
+    FindingEvidence,
+    AssessmentStatus,
+    FindingSeverity,
+    FindingConfidence,
+)
 
 __all__ = [
     "Base",
@@ -21,4 +29,10 @@ __all__ = [
     "TargetType",
     "AuthorizationStatus",
     "AuditEvent",
+    "AssessmentJob",
+    "AssessmentFinding",
+    "FindingEvidence",
+    "AssessmentStatus",
+    "FindingSeverity",
+    "FindingConfidence",
 ]
