@@ -8,6 +8,15 @@ import type {
   ReadinessResponse,
   AssessmentJob,
   AssessmentFinding,
+  VulnerabilityFinding,
+  VulnerabilityFindingDetail,
+  FindingStatsResponse,
+  FindingTransitionRequest,
+  AcceptRiskRequest,
+  FalsePositiveRequest,
+  ProposeRemediationRequest,
+  FindingLifecycleStatus,
+  FindingSeverity,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -219,6 +228,91 @@ class ApiService {
 
   async getAssessmentFinding(projectId: string, jobId: string, findingId: string): Promise<AssessmentFinding> {
     return this.request(`/projects/${projectId}/assessments/${jobId}/findings/${findingId}`);
+  }
+
+  // Finding Lifecycle & Deduplication (Phase 3)
+  async listFindings(
+    projectId: string,
+    params?: {
+      status?: FindingLifecycleStatus;
+      severity?: FindingSeverity;
+      target?: string;
+      has_contradictions?: boolean;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<VulnerabilityFinding[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.severity) query.append('severity', params.severity);
+    if (params?.target) query.append('target', params.target);
+    if (params?.has_contradictions !== undefined)
+      query.append('has_contradictions', params.has_contradictions.toString());
+    if (params?.search) query.append('search', params.search);
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.offset) query.append('offset', params.offset.toString());
+
+    const qs = query.toString();
+    return this.request(`/projects/${projectId}/findings${qs ? `?${qs}` : ''}`);
+  }
+
+  async getFindingStats(projectId: string): Promise<FindingStatsResponse> {
+    return this.request(`/projects/${projectId}/findings/stats`);
+  }
+
+  async getFindingDetail(projectId: string, findingId: string): Promise<VulnerabilityFindingDetail> {
+    return this.request(`/projects/${projectId}/findings/${findingId}`);
+  }
+
+  async transitionFinding(
+    projectId: string,
+    findingId: string,
+    data: FindingTransitionRequest
+  ): Promise<VulnerabilityFindingDetail> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/transition`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async acceptFindingRisk(
+    projectId: string,
+    findingId: string,
+    data: AcceptRiskRequest
+  ): Promise<VulnerabilityFindingDetail> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/accept-risk`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async markFindingFalsePositive(
+    projectId: string,
+    findingId: string,
+    data: FalsePositiveRequest
+  ): Promise<VulnerabilityFindingDetail> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/false-positive`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async proposeFindingRemediation(
+    projectId: string,
+    findingId: string,
+    data: ProposeRemediationRequest
+  ): Promise<VulnerabilityFindingDetail> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/propose-remediation`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async sweepExpiredRisks(projectId: string): Promise<{ status: string; expired_count: number }> {
+    return this.request(`/projects/${projectId}/findings/sweep-expired-risks`, {
+      method: 'POST',
+    });
   }
 
   // Audit Ledger

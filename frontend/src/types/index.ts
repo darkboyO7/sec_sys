@@ -144,3 +144,108 @@ export interface ReadinessResponse {
     details: Record<string, any>;
   };
 }
+
+export type FindingLifecycleStatus =
+  | 'DETECTED'
+  | 'NEEDS_VALIDATION'
+  | 'CONFIRMED'
+  | 'FALSE_POSITIVE'
+  | 'INCONCLUSIVE'
+  | 'REMEDIATION_PROPOSED'
+  | 'REMEDIATION_APPROVED'
+  | 'REMEDIATION_ATTEMPTED'
+  | 'REMEDIATED_PENDING_VERIFICATION'
+  | 'VERIFIED_CLOSED'
+  | 'REOPENED'
+  | 'ACCEPTED_RISK'
+  | 'EXPIRED';
+
+export interface FindingTransition {
+  id: string;
+  finding_id: string;
+  from_status: FindingLifecycleStatus;
+  to_status: FindingLifecycleStatus;
+  actor_id?: string | null;
+  reason: string;
+  metadata_snapshot: Record<string, any>;
+  created_at: string;
+}
+
+export interface VulnerabilityFinding {
+  id: string;
+  project_id: string;
+  fingerprint: string;
+  target_value: string;
+  title: string;
+  description: string;
+  status: FindingLifecycleStatus;
+  severity: FindingSeverity;
+  confidence: FindingConfidence;
+  vuln_id?: string | null;
+  cvss_score?: number | null;
+  is_simulated: boolean;
+  reproduction_steps: string;
+  first_detected_at: string;
+  last_observed_at: string;
+  occurrence_count: number;
+  has_contradictions: boolean;
+  contradiction_notes: Array<Record<string, any>>;
+  assigned_to_id?: string | null;
+  remediation_notes?: string | null;
+  risk_accepted_at?: string | null;
+  risk_accepted_by_id?: string | null;
+  risk_accepted_reason?: string | null;
+  risk_accepted_expires_at?: string | null;
+  compensating_controls?: string | null;
+  false_positive_at?: string | null;
+  false_positive_by_id?: string | null;
+  false_positive_reason?: string | null;
+  verified_at?: string | null;
+  verified_by_id?: string | null;
+  verification_job_id?: string | null;
+  verification_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VulnerabilityFindingDetail extends VulnerabilityFinding {
+  transitions: FindingTransition[];
+  observation_job_ids: string[];
+  evidence_count: number;
+}
+
+export interface FindingStatsResponse {
+  total: number;
+  by_status: Record<string, number>;
+  by_severity: Record<string, number>;
+  unresolved_count: number;
+  reopened_count: number;
+  accepted_risk_count: number;
+  contradiction_count: number;
+}
+
+export interface FindingTransitionRequest {
+  to_status: FindingLifecycleStatus;
+  reason: string;
+  expires_at?: string | null;
+  compensating_controls?: string | null;
+  verification_job_id?: string | null;
+  verification_notes?: string | null;
+  remediation_notes?: string | null;
+  assigned_to_id?: string | null;
+}
+
+export interface AcceptRiskRequest {
+  reason: string;
+  expires_at: string;
+  compensating_controls: string;
+}
+
+export interface FalsePositiveRequest {
+  reason: string;
+}
+
+export interface ProposeRemediationRequest {
+  remediation_notes: string;
+  assigned_to_id?: string | null;
+}

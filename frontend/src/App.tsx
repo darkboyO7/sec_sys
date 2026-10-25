@@ -5,6 +5,7 @@ import type { NavigationTab } from './components/Navigation';
 import { OverviewView } from './views/OverviewView';
 import { ScopeManagementView } from './views/ScopeManagementView';
 import { AssessmentJobsView } from './views/AssessmentJobsView';
+import { FindingLifecycleView } from './views/FindingLifecycleView';
 import { AuditLedgerView } from './views/AuditLedgerView';
 import { SystemHealthView } from './views/SystemHealthView';
 import { AuthModal } from './components/AuthModal';
@@ -25,6 +26,7 @@ export const App: React.FC = () => {
   const [targets, setTargets] = useState<ScopeTarget[]>([]);
   const [exclusions, setExclusions] = useState<ScopeExclusion[]>([]);
   const [assessmentJobs, setAssessmentJobs] = useState<AssessmentJob[]>([]);
+  const [findingCount, setFindingCount] = useState<number>(0);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [health, setHealth] = useState<{ status: string; version: string; environment: string; timestamp: string } | null>(null);
@@ -68,20 +70,23 @@ export const App: React.FC = () => {
       setTargets([]);
       setExclusions([]);
       setAssessmentJobs([]);
+      setFindingCount(0);
       setAuditEvents([]);
       return;
     }
     setLoading(true);
     try {
-      const [tList, eList, jList, auditRes] = await Promise.all([
+      const [tList, eList, jList, fStats, auditRes] = await Promise.all([
         api.listScopeTargets(activeProject.id),
         api.listScopeExclusions(activeProject.id),
         api.listAssessments(activeProject.id),
+        api.getFindingStats(activeProject.id).catch(() => ({ total: 0 })),
         api.getAuditLedger({ projectId: activeProject.id, limit: 50 }),
       ]);
       setTargets(tList);
       setExclusions(eList);
       setAssessmentJobs(jList);
+      setFindingCount((fStats as any).total || 0);
       setAuditEvents(auditRes.items);
     } catch (err) {
       console.error('Failed to load project scope data:', err);
@@ -157,6 +162,7 @@ export const App: React.FC = () => {
         onTabChange={(t) => setActiveTab(t)}
         targetCount={targets.length}
         assessmentCount={assessmentJobs.length}
+        findingCount={findingCount}
         auditCount={auditEvents.length}
       />
 
@@ -167,8 +173,10 @@ export const App: React.FC = () => {
             targets={targets}
             exclusions={exclusions}
             recentAudits={auditEvents}
+            findingCount={findingCount}
             onCreateProjectClick={() => setIsCreateProjectOpen(true)}
             onNavigateToScopes={() => setActiveTab('scopes')}
+            onNavigateToFindings={() => setActiveTab('findings')}
             onNavigateToAudit={() => setActiveTab('audit')}
           />
         )}
@@ -193,6 +201,10 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'findings' && activeProject && (
+          <FindingLifecycleView currentProject={activeProject} />
+        )}
+
         {activeTab === 'audit' && (
           <AuditLedgerView
             events={auditEvents}
@@ -211,7 +223,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {(activeTab === 'scopes' || activeTab === 'assessments') && !activeProject && (
+        {(activeTab === 'scopes' || activeTab === 'assessments' || activeTab === 'findings') && !activeProject && (
           <div className="py-12 text-center text-slate-400">
             Please authenticate and select an assessment project to proceed.
           </div>
@@ -219,7 +231,7 @@ export const App: React.FC = () => {
       </main>
 
       <footer className="border-t border-cyber-800 bg-cyber-900/80 py-4 px-6 text-center text-slate-500 text-xs font-mono">
-        VAPT Platform Phase 2: Assessment Orchestration & Evidence Pipeline · Windows-Native Control Plane
+        VAPT Platform Phase 3: Finding Validation & Lifecycle Pipeline · Windows-Native Control Plane
       </footer>
 
       {/* Modals */}

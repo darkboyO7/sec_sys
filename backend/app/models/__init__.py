@@ -12,6 +12,11 @@ from app.models.assessment import (
     FindingSeverity,
     FindingConfidence,
 )
+from app.models.finding import (
+    FindingLifecycleStatus,
+    VulnerabilityFinding,
+    FindingTransition,
+)
 
 __all__ = [
     "Base",
@@ -35,4 +40,7 @@ __all__ = [
     "AssessmentStatus",
     "FindingSeverity",
     "FindingConfidence",
+    "FindingLifecycleStatus",
+    "VulnerabilityFinding",
+    "FindingTransition",
 ]

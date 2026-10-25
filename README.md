@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1 & 2: Secure Foundation & Assessment Orchestration
+## Phase 1, 2 & 3: Secure Foundation, Assessment Orchestration & Finding Lifecycle
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -18,7 +18,16 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
   - Pluggable adapter interface (`BaseScannerAdapter`). Phase 2 operates strictly with `LocalFixtureAdapter` on deterministic synthetic fixtures.
   - Active network scanning, arbitrary shell execution, and autonomous remediation remain strictly disabled.
   - Cryptographic evidence provenance: every raw evidence artifact computes and stores a SHA-256 digest.
-- **Immutable Audit Ledger:** All sensitive actions (login, project creation, target registration, scope authorization, scope revocation, exclusion management, assessment dispatch/cancel) record actor attribution, client IP, outcome, and timestamp with automated credential scrubbing.
+- **Finding Validation & 13-State Lifecycle Pipeline (Phase 3):**
+  - Strict 13-state deterministic lifecycle: `DETECTED`, `NEEDS_VALIDATION`, `CONFIRMED`, `FALSE_POSITIVE`, `INCONCLUSIVE`, `REMEDIATION_PROPOSED`, `REMEDIATION_APPROVED`, `REMEDIATION_ATTEMPTED`, `REMEDIATED_PENDING_VERIFICATION`, `VERIFIED_CLOSED`, `REOPENED`, `ACCEPTED_RISK`, `EXPIRED`.
+  - Deterministic SHA-256 finding fingerprinting and deduplication correlation engine.
+  - Non-destructive contradictory evidence handling: preserves divergent scanner observations and confidence without silent data loss.
+  - Automated reopening: if a closed or remediated finding is re-detected on target, it automatically transitions to `REOPENED`.
+  - Reviewer sign-off provenance: `FALSE_POSITIVE` requires Project LEAD / System ADMIN and mandatory justification (>= 10 chars).
+  - Time-bounded `ACCEPTED_RISK` governance: requires Project LEAD / System ADMIN, mandatory future expiration date, and compensating controls.
+  - Automated sweep mechanism transitioning overdue accepted risks to `EXPIRED`.
+  - Full audit history: `FindingTransition` ledger and immutable audit events for every transition.
+- **Immutable Audit Ledger:** All sensitive actions record actor attribution, client IP, outcome, and timestamp with automated credential scrubbing.
 - **Data Persistence:** Native Windows development uses SQLite 3 with `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`. The data layer is fully compatible with PostgreSQL in production via SQLAlchemy 2.0 and Alembic.
 
 ---
@@ -159,7 +168,7 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 28 automated tests covering state machine transitions, timeout handling, idempotency, boundary re-validation, cross-project isolation, scope exclusions, evidence hashing, and audit logging.*
+*Executes 41 automated tests covering 13-state finding lifecycle transitions, illegal transition rejection, deduplication fingerprinting, contradiction preservation, reopening, risk acceptance expiration sweeps, assessment state machines, boundary re-validation, cross-project isolation, and audit logging.*
 
 ### Running Frontend Tests (Vitest):
 ```powershell
@@ -167,7 +176,7 @@ Set-Location frontend
 npm run test
 Set-Location ..
 ```
-*Executes frontend unit tests covering token storage, request routing, scope validation, and assessment orchestration API client.*
+*Executes 6 frontend unit tests covering token storage, request routing, scope validation, assessment orchestration, finding stats, and state machine transition requests.*
 
 ### Running Frontend Production Build:
 ```powershell

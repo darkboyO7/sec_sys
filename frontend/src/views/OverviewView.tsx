@@ -9,8 +9,10 @@ interface OverviewViewProps {
   targets: ScopeTarget[];
   exclusions: ScopeExclusion[];
   recentAudits: AuditEvent[];
+  findingCount?: number;
   onCreateProjectClick: () => void;
   onNavigateToScopes: () => void;
+  onNavigateToFindings?: () => void;
   onNavigateToAudit: () => void;
 }
 
@@ -19,8 +21,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   targets,
   exclusions,
   recentAudits,
+  findingCount = 0,
   onCreateProjectClick,
   onNavigateToScopes,
+  onNavigateToFindings,
   onNavigateToAudit,
 }) => {
   if (!activeProject) {
@@ -61,6 +65,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onNavigateToFindings && (
+            <button
+              onClick={onNavigateToFindings}
+              className="px-3.5 py-2 rounded-lg bg-cyber-750 hover:bg-cyber-700 text-xs font-semibold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5"
+            >
+              <ShieldAlert className="w-4 h-4 text-amber-400" />
+              Findings ({findingCount})
+            </button>
+          )}
           <button
             onClick={onNavigateToScopes}
             className="px-3.5 py-2 rounded-lg bg-cyber-750 hover:bg-cyber-700 text-xs font-semibold text-slate-200 hover:text-white transition-colors flex items-center gap-1.5"

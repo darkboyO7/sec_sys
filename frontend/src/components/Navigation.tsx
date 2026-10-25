@@ -1,13 +1,14 @@
 import React from 'react';
-import { LayoutDashboard, Target, PlayCircle, FileText, Activity } from 'lucide-react';
+import { LayoutDashboard, Target, PlayCircle, ShieldAlert, FileText, Activity } from 'lucide-react';
 
-export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'audit' | 'health';
+export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'findings' | 'audit' | 'health';
 
 interface NavigationProps {
   activeTab: NavigationTab;
   onTabChange: (tab: NavigationTab) => void;
   targetCount?: number;
   assessmentCount?: number;
+  findingCount?: number;
   auditCount?: number;
 }
 
@@ -16,6 +17,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   onTabChange,
   targetCount = 0,
   assessmentCount = 0,
+  findingCount = 0,
   auditCount = 0,
 }) => {
   const tabs = [
@@ -35,6 +37,12 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'Assessment Jobs',
       icon: PlayCircle,
       badge: assessmentCount > 0 ? assessmentCount : undefined,
+    },
+    {
+      id: 'findings' as NavigationTab,
+      label: 'Finding Lifecycle',
+      icon: ShieldAlert,
+      badge: findingCount > 0 ? findingCount : undefined,
     },
     {
       id: 'audit' as NavigationTab,

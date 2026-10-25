@@ -126,7 +126,11 @@ def create_assessment_job(
 
     # 4. If auto_execute is True, immediately run through execution engine
     if auto_execute:
-        job = AssessmentExecutionEngine.execute_job(db=db, job_id=job.id)
+        job = AssessmentExecutionEngine.execute_job(
+            db=db,
+            job_id=job.id,
+            client_ip=get_client_ip(request),
+        )
 
     return job
 

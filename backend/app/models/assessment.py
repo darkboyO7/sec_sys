@@ -92,12 +92,14 @@ class AssessmentFinding(Base):
 
     is_simulated = Column(Boolean, default=True, nullable=False)
     reproduction_steps = Column(Text, default="", nullable=False)
+    canonical_finding_id = Column(String(36), ForeignKey("vulnerability_findings.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     job = relationship("AssessmentJob", back_populates="findings")
     project = relationship("Project")
     evidence_items = relationship("FindingEvidence", back_populates="finding", cascade="all, delete-orphan")
+    canonical_finding = relationship("VulnerabilityFinding", back_populates="observations")
 
 
 class FindingEvidence(Base):

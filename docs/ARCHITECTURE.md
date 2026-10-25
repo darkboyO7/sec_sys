@@ -113,3 +113,73 @@ The platform currently implements an **append-only relational audit ledger**:
 An append-only ledger differs from a cryptographically tamper-evident or tamper-proof system:
 - In the current Phase 1/2 model, an attacker with direct, administrative SQL database access could theoretically alter historical rows.
 - Future phases (Phase 8) will introduce **Merkle trees and cryptographic hash-chaining** (`previous_record_hash`) anchored to external, independent timestamping authorities to establish verifiable mathematical tamper-evidence.
+
+---
+
+## 6. Finding Validation & 13-State Lifecycle Pipeline
+
+### State Machine Architecture
+Findings adhere to a strict, finite 13-state lifecycle model governing discovery, validation, triage, remediation, independent verification, and closure. Direct jumps across boundaries (e.g., `DETECTED` straight to `VERIFIED_CLOSED`) are strictly forbidden.
+
+```mermaid
+stateDiagram-v2
+    [*] --> DETECTED : Ingested from Assessment Job
+    [*] --> NEEDS_VALIDATION : Tentative Initial Confidence
+    
+    DETECTED --> CONFIRMED : Operator / Lead Verification
+    DETECTED --> NEEDS_VALIDATION : Ambiguous Evidence
+    DETECTED --> FALSE_POSITIVE : Reviewer Sign-off (>= 10 chars)
+    DETECTED --> INCONCLUSIVE : Insufficient Evidence
+    DETECTED --> ACCEPTED_RISK : Authorized by Lead with Controls
+
+    NEEDS_VALIDATION --> CONFIRMED : Verified Valid
+    NEEDS_VALIDATION --> FALSE_POSITIVE : Refuted with Evidence
+    NEEDS_VALIDATION --> INCONCLUSIVE : Ambiguity Persists
+    NEEDS_VALIDATION --> ACCEPTED_RISK : Accepted with Controls
+
+    CONFIRMED --> REMEDIATION_PROPOSED : Engineering Plan Created
+    CONFIRMED --> ACCEPTED_RISK : Risk Acceptance Authorized
+    CONFIRMED --> FALSE_POSITIVE : Re-evaluated
+    CONFIRMED --> NEEDS_VALIDATION : Conflicting Signal Observed
+
+    REMEDIATION_PROPOSED --> REMEDIATION_APPROVED : Security Lead Sign-off
+    REMEDIATION_PROPOSED --> CONFIRMED : Plan Rejected
+    REMEDIATION_PROPOSED --> ACCEPTED_RISK : Risk Accepted
+
+    REMEDIATION_APPROVED --> REMEDIATION_ATTEMPTED : Patch Deployed
+    REMEDIATION_APPROVED --> REMEDIATION_PROPOSED : Plan Revised
+
+    REMEDIATION_ATTEMPTED --> REMEDIATED_PENDING_VERIFICATION : Deployed to Target Environment
+    REMEDIATION_ATTEMPTED --> CONFIRMED : Patch Failed Integration
+
+    REMEDIATED_PENDING_VERIFICATION --> VERIFIED_CLOSED : Independent Scan Confirmed Gone
+    REMEDIATED_PENDING_VERIFICATION --> REOPENED : Re-scan Found Issue Present
+
+    VERIFIED_CLOSED --> REOPENED : Subsequent Scan Observed Target Vulnerable
+
+    REOPENED --> CONFIRMED : Triaged
+    REOPENED --> REMEDIATION_PROPOSED : New Remediation Planned
+    REOPENED --> ACCEPTED_RISK : Risk Acceptance Re-authorized
+
+    ACCEPTED_RISK --> EXPIRED : Expiration Date Elapsed
+    ACCEPTED_RISK --> REOPENED : New Critical Exposure Observed
+    ACCEPTED_RISK --> CONFIRMED : Risk Acceptance Revoked
+
+    EXPIRED --> NEEDS_VALIDATION : Requires Mandatory Re-evaluation
+    EXPIRED --> ACCEPTED_RISK : Re-authorized with New Expiration
+    EXPIRED --> REMEDIATION_PROPOSED : Remediation Initiated
+
+    FALSE_POSITIVE --> REOPENED : New Proof-of-Concept Emerges
+    INCONCLUSIVE --> CONFIRMED : Conclusive Evidence Obtained
+```
+
+### Finding Deduplication & Correlation
+The platform implements deterministic SHA-256 fingerprinting based on normalized target value, normalized vulnerability identifier (e.g., `CVE-2026-1049` or `CWE-89`), and sanitized title.
+1. **Recurring Observations**: When subsequent assessment executions encounter an existing finding, `occurrence_count` increments and `last_observed_at` updates without creating duplicate canonical records.
+2. **Automated Reopening**: If a vulnerability is re-observed on a target that was previously marked `VERIFIED_CLOSED` or `REMEDIATED_PENDING_VERIFICATION`, the state machine automatically transitions the finding to `REOPENED` and generates an audit record.
+3. **Contradictory Evidence Preservation**: If scanner observations diverge in severity or confidence across jobs (e.g., Scanner A reports `CRITICAL` / `CERTAIN` while Scanner B reports `LOW` / `TENTATIVE`), the engine flags `has_contradictions = True` and appends detailed contradiction provenance without overwriting historical evidence.
+
+### Risk Acceptance & False Positive Governance
+- **`ACCEPTED_RISK`**: Requires `ProjectRole.LEAD` or `SystemRole.ADMIN`, a mandatory future expiration date (<= 365 days), documented compensating controls, and comprehensive business rationale. Overdue accepted risks are automatically transitioned to `EXPIRED` during scheduled or automated sweeps.
+- **`FALSE_POSITIVE`**: Requires `ProjectRole.LEAD` or `SystemRole.ADMIN` with mandatory justification notes (>= 10 characters) explaining why the vulnerability does not exist or constitutes expected behavior.
+

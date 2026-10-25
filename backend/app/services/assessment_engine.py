@@ -12,6 +12,7 @@ from app.services.assessment_state_machine import AssessmentStateMachine
 from app.services.scope_engine import ScopeEngine
 from app.services.scanner_adapters.local_fixture_adapter import LocalFixtureAdapter
 from app.services.audit_service import AuditService
+from app.services.finding_deduplication_service import FindingDeduplicationService
 
 
 class AssessmentExecutionEngine:
@@ -31,6 +32,7 @@ class AssessmentExecutionEngine:
         db: Session,
         job_id: str,
         now: Optional[datetime] = None,
+        client_ip: Optional[str] = None,
     ) -> AssessmentJob:
         if now is None:
             now = datetime.now(timezone.utc)
@@ -128,6 +130,7 @@ class AssessmentExecutionEngine:
         # Step 6: Ingest Findings and Evidence Provenance
         persisted_findings_count = 0
         persisted_evidence_count = 0
+        persisted_findings_list = []
 
         for raw_finding in result.findings:
             finding = AssessmentFinding(
@@ -147,6 +150,7 @@ class AssessmentExecutionEngine:
             db.add(finding)
             db.flush()  # Acquire finding.id
             persisted_findings_count += 1
+            persisted_findings_list.append(finding)
 
             for raw_ev in raw_finding.evidence_items:
                 # Compute SHA-256 digest of payload for cryptographic provenance
@@ -160,6 +164,15 @@ class AssessmentExecutionEngine:
                 )
                 db.add(evidence)
                 persisted_evidence_count += 1
+
+        # Phase 3: Deduplicate and correlate into canonical VulnerabilityFindings
+        if persisted_findings_list:
+            FindingDeduplicationService.ingest_job_findings(
+                job=job,
+                raw_findings=persisted_findings_list,
+                db=db,
+                client_ip=client_ip,
+            )
 
         # Step 7: Finalize State Machine based on execution outcome
         job.summary_stats = {

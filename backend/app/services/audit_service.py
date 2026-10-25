@@ -73,3 +73,30 @@ class AuditService:
             if settings.AUDIT_LOG_STRICT:
                 raise RuntimeError(f"Audit log write failed under strict security policy: {e}") from e
             raise
+
+    @classmethod
+    def log(
+        cls,
+        db: Session,
+        action: str,
+        target_resource: str = "system",
+        actor_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+        outcome: str = "SUCCESS",
+    ) -> AuditEvent:
+        parts = target_resource.split(":", 1)
+        target_type = parts[0]
+        target_id = parts[1] if len(parts) > 1 else None
+        return cls.record_event(
+            db=db,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            outcome=outcome,
+            actor_id=actor_id,
+            project_id=project_id,
+            ip_address=client_ip,
+            details=details,
+        )

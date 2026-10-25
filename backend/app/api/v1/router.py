@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, projects, scopes, audit, assessments
+from app.api.v1.endpoints import health, auth, projects, scopes, audit, assessments, findings
 
 api_router = APIRouter()
 
@@ -8,4 +8,5 @@ api_router.include_router(auth.router, prefix="/auth", tags=["Identity & Authent
 api_router.include_router(projects.router, prefix="/projects", tags=["Organizations & Projects"])
 api_router.include_router(scopes.router, tags=["Scopes & Authorization"])
 api_router.include_router(assessments.router, tags=["Assessments & Orchestration"])
+api_router.include_router(findings.router, tags=["Finding Lifecycle & Deduplication"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit Ledger"])

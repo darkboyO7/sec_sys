@@ -131,4 +131,72 @@ describe('ApiService', () => {
       })
     );
   });
+
+  it('queries finding lifecycle and deduplication endpoints', async () => {
+    const mockStats = {
+      total: 5,
+      by_status: { CONFIRMED: 2, DETECTED: 3 },
+      by_severity: { HIGH: 2, MEDIUM: 3 },
+      unresolved_count: 5,
+      reopened_count: 0,
+      accepted_risk_count: 0,
+      contradiction_count: 1,
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockStats,
+      })
+    );
+
+    const stats = await api.getFindingStats('proj-123');
+    expect(stats.total).toBe(5);
+    expect(stats.contradiction_count).toBe(1);
+    expect(fetch).toHaveBeenCalledWith('/api/v1/projects/proj-123/findings/stats', expect.any(Object));
+  });
+
+  it('dispatches finding state machine transition requests correctly', async () => {
+    const mockTransitioned = {
+      id: 'finding-001',
+      status: 'CONFIRMED',
+      transitions: [
+        {
+          id: 'trans-1',
+          from_status: 'DETECTED',
+          to_status: 'CONFIRMED',
+          reason: 'Verified in lab reproduction',
+        },
+      ],
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockTransitioned,
+      })
+    );
+
+    const res = await api.transitionFinding('proj-123', 'finding-001', {
+      to_status: 'CONFIRMED',
+      reason: 'Verified in lab reproduction',
+    });
+
+    expect(res.id).toBe('finding-001');
+    expect(res.status).toBe('CONFIRMED');
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/projects/proj-123/findings/finding-001/transition',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          to_status: 'CONFIRMED',
+          reason: 'Verified in lab reproduction',
+        }),
+      })
+    );
+  });
 });
