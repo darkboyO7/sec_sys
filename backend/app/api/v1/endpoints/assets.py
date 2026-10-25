@@ -35,7 +35,10 @@ def _format_asset_detail(asset: Asset, db: Session) -> AssetDetail:
     """Helper to attach observation history, finding count, and graph node reference to an AssetDetail."""
     obs_list = (
         db.query(AssetObservation)
-        .filter(AssetObservation.asset_id == asset.id)
+        .filter(
+            AssetObservation.asset_id == asset.id,
+            AssetObservation.project_id == asset.project_id,
+        )
         .order_by(AssetObservation.observed_at.desc())
         .limit(50)
         .all()
@@ -43,7 +46,10 @@ def _format_asset_detail(asset: Asset, db: Session) -> AssetDetail:
 
     finding_count = (
         db.query(func.count(VulnerabilityFinding.id))
-        .filter(VulnerabilityFinding.asset_id == asset.id)
+        .filter(
+            VulnerabilityFinding.asset_id == asset.id,
+            VulnerabilityFinding.project_id == asset.project_id,
+        )
         .scalar()
         or 0
     )
@@ -175,7 +181,10 @@ def list_asset_observations(
 
     return (
         db.query(AssetObservation)
-        .filter(AssetObservation.asset_id == asset_id)
+        .filter(
+            AssetObservation.asset_id == asset_id,
+            AssetObservation.project_id == project_id,
+        )
         .order_by(AssetObservation.observed_at.desc())
         .offset(offset)
         .limit(limit)

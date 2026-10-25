@@ -196,7 +196,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
     // Group other nodes into concentric rings (depth 1, depth 2)
     // Nodes directly connected to root go into ring 1
     const directNeighbors = new Set<string>();
-    neighborhood.relationships.forEach((rel) => {
+    (neighborhood.relationships || []).forEach((rel) => {
       if (rel.source_node_id === rootId) directNeighbors.add(rel.target_node_id);
       if (rel.target_node_id === rootId) directNeighbors.add(rel.source_node_id);
     });
@@ -240,15 +240,17 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   // Filtered relationships
   const visibleRelationships = useMemo(() => {
     if (!neighborhood) return [];
-    if (statusFilter === 'ALL') return neighborhood.relationships;
-    return neighborhood.relationships.filter((r) => r.status === statusFilter);
+    const rels = neighborhood.relationships || [];
+    if (statusFilter === 'ALL') return rels;
+    return rels.filter((r) => r.status === statusFilter);
   }, [neighborhood, statusFilter]);
 
   // Relationships connected to selected node
   const selectedNodeRelationships = useMemo(() => {
     if (!neighborhood || !selectedNode) return { incoming: [], outgoing: [] };
-    const incoming = neighborhood.relationships.filter((r) => r.target_node_id === selectedNode.id);
-    const outgoing = neighborhood.relationships.filter((r) => r.source_node_id === selectedNode.id);
+    const rels = neighborhood.relationships || [];
+    const incoming = rels.filter((r) => r.target_node_id === selectedNode.id);
+    const outgoing = rels.filter((r) => r.source_node_id === selectedNode.id);
     return { incoming, outgoing };
   }, [neighborhood, selectedNode]);
 

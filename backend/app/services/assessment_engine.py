@@ -175,21 +175,6 @@ class AssessmentExecutionEngine:
                 client_ip=client_ip,
             )
 
-        # Phase 4: Reconcile Asset Inventory and auto-populate Security Knowledge Graph
-        try:
-            cls.integrate_assessment_assets_and_graph(
-                job=job,
-                canonical_findings=canonical_findings,
-                db=db,
-                client_ip=client_ip,
-            )
-        except Exception as e:
-            # Graph and asset ingestion failure must not lose the valid assessment result
-            import logging
-            logging.getLogger("vapt.assessment").warning(
-                f"Asset/Graph integration warning for job {job.id}: {e}", exc_info=True
-            )
-
         # Step 7: Finalize State Machine based on execution outcome
         job.summary_stats = {
             "status_summary": result.status_summary,
@@ -220,6 +205,22 @@ class AssessmentExecutionEngine:
             error_message=error_msg,
             now=now,
         )
+
+        # Phase 4: Reconcile Asset Inventory and auto-populate Security Knowledge Graph
+        try:
+            cls.integrate_assessment_assets_and_graph(
+                job=job,
+                canonical_findings=canonical_findings,
+                db=db,
+                client_ip=client_ip,
+            )
+        except Exception as e:
+            # Graph and asset ingestion failure must not lose the valid assessment result
+            import logging
+            logging.getLogger("vapt.assessment").warning(
+                f"Asset/Graph integration warning for job {job.id}: {e}", exc_info=True
+            )
+
         db.commit()
         db.refresh(job)
 
@@ -276,28 +277,7 @@ class AssessmentExecutionEngine:
             db=db,
         )
 
-        # 2. Record historical observation
-        AssetReconciliationService.record_observation(
-            asset=target_asset,
-            project_id=job.project_id,
-            assessment_job_id=job.id,
-            observation_source=job.adapter_name,
-            adapter_version=job.adapter_version,
-            observed_attributes={
-                "target_input": job.target_input,
-                "findings_count": len(canonical_findings or []),
-                "is_simulated": job.is_simulated,
-            },
-            db=db,
-        )
-
-        # 3. Link canonical findings to the asset
-        for f in (canonical_findings or []):
-            if not f.asset_id:
-                f.asset_id = target_asset.id
-
-        # 4. Auto-populate Knowledge Graph nodes & edges
-        # Asset Node
+        # Asset Node in Knowledge Graph
         asset_node = KnowledgeGraphService.get_or_create_node(
             project_id=job.project_id,
             category=GraphNodeCategory.ASSET,
@@ -312,7 +292,7 @@ class AssessmentExecutionEngine:
             db=db,
         )
 
-        # Assessment Job Node
+        # Assessment Job Node in Knowledge Graph
         job_node = KnowledgeGraphService.get_or_create_node(
             project_id=job.project_id,
             category=GraphNodeCategory.ASSESSMENT,
@@ -327,13 +307,48 @@ class AssessmentExecutionEngine:
             db=db,
         )
 
+        # If the assessment failed completely, we do not record a successful observation
+        # or establish verified edges between the failed scan and target asset or findings.
+        if job.status == AssessmentStatus.FAILED:
+            db.flush()
+            return
+
+        # Determine validation status and relationship status based on execution outcome
+        is_partial = (job.status == AssessmentStatus.PARTIAL)
+        obs_status = "PARTIAL" if is_partial else "VERIFIED"
+        rel_status = RelationshipStatus.INFERRED if is_partial else RelationshipStatus.VERIFIED
+        rel_confidence = 0.6 if is_partial else 1.0
+
+        # 2. Record historical observation
+        AssetReconciliationService.record_observation(
+            asset=target_asset,
+            project_id=job.project_id,
+            assessment_job_id=job.id,
+            observation_source=job.adapter_name,
+            adapter_version=job.adapter_version,
+            observed_attributes={
+                "target_input": job.target_input,
+                "findings_count": len(canonical_findings or []),
+                "is_simulated": job.is_simulated,
+            },
+            validation_status=obs_status,
+            db=db,
+        )
+
+        # 3. Link canonical findings to the asset
+        for f in (canonical_findings or []):
+            if not f.asset_id:
+                f.asset_id = target_asset.id
+
+        # 4. Auto-populate Knowledge Graph nodes & edges
         # Edge: Assessment OBSERVED_AT Asset
         KnowledgeGraphService.create_or_update_relationship(
             project_id=job.project_id,
             source_node_id=job_node.id,
             target_node_id=asset_node.id,
             relationship_type=RelationshipType.OBSERVED_AT,
-            status=RelationshipStatus.VERIFIED,
+            status=rel_status,
+            confidence=rel_confidence,
             provenance=f"ADAPTER_{job.adapter_name}",
             db=db,
         )
@@ -361,8 +376,8 @@ class AssessmentExecutionEngine:
                 source_node_id=asset_node.id,
                 target_node_id=finding_node.id,
                 relationship_type=RelationshipType.AFFECTED_BY,
-                status=RelationshipStatus.VERIFIED,
-                confidence=1.0 if f.confidence.value == "CERTAIN" else 0.8,
+                status=rel_status,
+                confidence=rel_confidence if is_partial else (1.0 if f.confidence.value == "CERTAIN" else 0.8),
                 provenance=f"ASSESSMENT_{job.id[:8]}",
                 db=db,
             )
@@ -373,7 +388,8 @@ class AssessmentExecutionEngine:
                 source_node_id=finding_node.id,
                 target_node_id=job_node.id,
                 relationship_type=RelationshipType.VERIFIED_BY,
-                status=RelationshipStatus.VERIFIED,
+                status=rel_status,
+                confidence=rel_confidence,
                 provenance=f"ASSESSMENT_{job.id[:8]}",
                 db=db,
             )
@@ -395,7 +411,8 @@ class AssessmentExecutionEngine:
                     source_node_id=finding_node.id,
                     target_node_id=vuln_node.id,
                     relationship_type=RelationshipType.ASSOCIATED_WITH,
-                    status=RelationshipStatus.VERIFIED,
+                    status=rel_status,
+                    confidence=rel_confidence,
                     provenance="CVE_CORRELATION",
                     db=db,
                 )

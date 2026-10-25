@@ -40,25 +40,27 @@ class KnowledgeGraphService:
         clean_label = (label or "Unknown").strip()[:255]
         props = properties or {}
 
+        existing_query = db.query(GraphNode).filter(
+            GraphNode.project_id == project_id,
+            GraphNode.category == category,
+        )
         if entity_id:
-            existing = (
-                db.query(GraphNode)
-                .filter(
-                    GraphNode.project_id == project_id,
-                    GraphNode.category == category,
-                    GraphNode.entity_id == entity_id,
-                )
-                .first()
+            existing_query = existing_query.filter(GraphNode.entity_id == entity_id)
+        else:
+            existing_query = existing_query.filter(
+                GraphNode.label == clean_label, GraphNode.entity_id.is_(None)
             )
-            if existing:
-                # Update label or merge properties
-                existing.label = clean_label
-                if props:
-                    merged = dict(existing.properties or {})
-                    merged.update(props)
-                    existing.properties = merged
-                db.flush()
-                return existing
+
+        existing = existing_query.first()
+        if existing:
+            # Update label or merge properties
+            existing.label = clean_label
+            if props:
+                merged = dict(existing.properties or {})
+                merged.update(props)
+                existing.properties = merged
+            db.flush()
+            return existing
 
         # Create new GraphNode
         new_node = GraphNode(
@@ -75,18 +77,9 @@ class KnowledgeGraphService:
                 db.add(new_node)
                 db.flush()
         except Exception:
-            if entity_id:
-                existing = (
-                    db.query(GraphNode)
-                    .filter(
-                        GraphNode.project_id == project_id,
-                        GraphNode.category == category,
-                        GraphNode.entity_id == entity_id,
-                    )
-                    .first()
-                )
-                if existing:
-                    return existing
+            existing = existing_query.first()
+            if existing:
+                return existing
             raise
 
         return new_node
@@ -111,6 +104,12 @@ class KnowledgeGraphService:
         Fails closed on cross-project edge creation attempts.
         """
         assert db is not None, "Database session required"
+
+        if source_node_id == target_node_id:
+            raise ValueError(
+                f"Self-referential relationships (source_node_id == target_node_id == '{source_node_id}') "
+                f"are prohibited."
+            )
 
         # Validate existence and project ownership of both endpoints
         source_node = (
@@ -281,6 +280,7 @@ class KnowledgeGraphService:
 
         return {
             "root_node_id": root_node.id,
+            "max_depth": bounded_depth,
             "nodes": [
                 {
                     "id": n.id,
@@ -291,6 +291,23 @@ class KnowledgeGraphService:
                     "properties": n.properties,
                 }
                 for n in visited_nodes.values()
+            ],
+            "relationships": [
+                {
+                    "id": e.id,
+                    "project_id": e.project_id,
+                    "source_node_id": e.source_node_id,
+                    "target_node_id": e.target_node_id,
+                    "relationship_type": e.relationship_type.value,
+                    "status": e.status.value,
+                    "confidence": e.confidence,
+                    "provenance": e.provenance,
+                    "evidence_reference": e.evidence_reference,
+                    "properties": e.properties,
+                    "observed_at": e.observed_at.isoformat() if e.observed_at else None,
+                    "created_at": e.created_at.isoformat() if e.created_at else None,
+                }
+                for e in collected_edges
             ],
             "edges": [
                 {

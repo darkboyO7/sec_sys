@@ -72,9 +72,15 @@ def test_type_specific_identifier_normalization():
     assert c2 == "http://web.corp"
 
     # 2. IP Address normalization (IPv4 and IPv6 compression)
-    t3, c3, _ = AssetReconciliationService.classify_and_normalize("  192.168.001.050  ")
+    t3, c3, _ = AssetReconciliationService.classify_and_normalize("  192.168.1.50  ")
     assert t3 == AssetType.IP_ADDRESS
     assert c3 == "192.168.1.50"
+
+    # Strict rejection of ambiguous IPv4 octets with leading zeros (CWE-1288)
+    with pytest.raises(ValueError, match="CWE-1288"):
+        AssetReconciliationService.classify_and_normalize("192.168.001.050")
+    with pytest.raises(ValueError, match="CWE-1288"):
+        AssetReconciliationService.classify_and_normalize("0177.0.0.1")
 
     t4, c4, _ = AssetReconciliationService.classify_and_normalize("2001:0db8:0000:0000:0000:0000:0000:0001")
     assert t4 == AssetType.IP_ADDRESS

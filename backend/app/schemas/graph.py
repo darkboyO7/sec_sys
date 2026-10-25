@@ -48,7 +48,9 @@ class GraphRelationshipCreate(BaseModel):
 
 class GraphNeighborhoodResponse(BaseModel):
     root_node_id: str
+    max_depth: int = 2
     nodes: List[Dict[str, Any]]
+    relationships: List[Dict[str, Any]] = Field(default_factory=list)
     edges: List[Dict[str, Any]]
     total_nodes: int
     total_edges: int

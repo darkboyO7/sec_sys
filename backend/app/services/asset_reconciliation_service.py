@@ -1,5 +1,7 @@
 import ipaddress
 import re
+import json
+import hashlib
 from typing import Tuple, Optional, Dict, Any, List
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
@@ -27,8 +29,11 @@ class AssetReconciliationService:
         """
         Deterministically classifies and normalizes a candidate target string.
         Returns: (AssetType, canonical_identifier, display_name)
+        Raises ValueError on malformed or ambiguous representations (e.g. CWE-1288 leading zeros).
         """
         val = (raw_target or "").strip()
+        if not val:
+            raise ValueError("Target string cannot be empty.")
 
         # 1. Check for URL / Web Application / API Endpoint
         if val.lower().startswith(("http://", "https://")):
@@ -36,6 +41,15 @@ class AssetReconciliationService:
             scheme = parsed.scheme.lower()
             hostname = (parsed.hostname or "").lower().rstrip(".")
             port = parsed.port
+
+            # Check hostname for leading zeros if IPv4 (CWE-1288)
+            host_ipv4 = re.match(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)$", hostname)
+            if host_ipv4 and any(len(o) > 1 and o.startswith("0") for o in host_ipv4.groups()):
+                raise ValueError(
+                    f"Ambiguous URL host '{hostname}': IPv4 octets with leading zeros are prohibited (CWE-1288) "
+                    f"due to decimal vs octal ambiguity."
+                )
+
             # Strip standard default ports
             if (scheme == "http" and port == 80) or (scheme == "https" and port == 443):
                 netloc = hostname
@@ -55,59 +69,80 @@ class AssetReconciliationService:
             proto = parsed.scheme.lower()
             host = (parsed.hostname or "").lower()
             port = parsed.port or ""
+            # Check host for leading zeros if IPv4
+            host_ipv4 = re.match(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)$", host)
+            if host_ipv4 and any(len(o) > 1 and o.startswith("0") for o in host_ipv4.groups()):
+                raise ValueError(
+                    f"Ambiguous service host '{host}': IPv4 octets with leading zeros are prohibited (CWE-1288) "
+                    f"due to decimal vs octal ambiguity."
+                )
             canonical = f"{proto}://{host}:{port}" if port else f"{proto}://{host}"
             return AssetType.SERVICE, canonical, canonical
 
-        # 3. Check for IPv4 or IPv6 Address
-        # Pre-process potential IPv4 with leading zeros (e.g. 192.168.001.050)
-        cleaned_ip_str = val
-        ipv4_match = re.match(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$", val)
+        # 3. Check for IPv4 Address
+        ipv4_match = re.match(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)$", val)
         if ipv4_match:
+            octets = ipv4_match.groups()
+            if any(len(o) > 1 and o.startswith("0") for o in octets):
+                raise ValueError(
+                    f"Ambiguous IPv4 address '{val}': octets with leading zeros are prohibited (CWE-1288) "
+                    f"due to potential decimal vs octal ambiguity. Provide standard decimal octets without leading zeros."
+                )
             try:
-                octets = [int(p) for p in ipv4_match.groups()]
-                if all(0 <= o <= 255 for o in octets):
-                    cleaned_ip_str = ".".join(str(o) for o in octets)
+                ip_obj = ipaddress.ip_address(val)
+                canonical = ip_obj.compressed.lower()
+                return AssetType.IP_ADDRESS, canonical, canonical
+            except ValueError as e:
+                raise ValueError(f"Invalid IPv4 address '{val}': {e}")
+
+        # 4. Check for IPv6 Address
+        if ":" in val and not val.startswith("http") and "/" not in val:
+            try:
+                ip_obj = ipaddress.ip_address(val)
+                canonical = ip_obj.compressed.lower()
+                return AssetType.IP_ADDRESS, canonical, canonical
             except ValueError:
                 pass
 
-        try:
-            ip_obj = ipaddress.ip_address(cleaned_ip_str)
-            canonical = ip_obj.compressed.lower()
-            return AssetType.IP_ADDRESS, canonical, canonical
-        except ValueError:
-            pass
-
-        # 4. Check for CIDR block (treated as Host or IP Range network)
-        cleaned_cidr_str = val
-        cidr_match = re.match(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})$", val)
+        # 5. Check for CIDR block (treated as Host or IP Range network)
+        cidr_match = re.match(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)/(\d+)$", val)
         if cidr_match:
+            octets = cidr_match.groups()[:4]
+            if any(len(o) > 1 and o.startswith("0") for o in octets):
+                raise ValueError(
+                    f"Ambiguous IPv4 CIDR '{val}': octets with leading zeros are prohibited (CWE-1288) "
+                    f"due to potential decimal vs octal ambiguity. Provide standard decimal octets without leading zeros."
+                )
+
+        if "/" in val:
             try:
-                octets = [int(p) for p in cidr_match.groups()[:4]]
-                prefix = int(cidr_match.group(5))
-                if all(0 <= o <= 255 for o in octets) and 0 <= prefix <= 32:
-                    cleaned_cidr_str = f"{'.'.join(str(o) for o in octets)}/{prefix}"
-            except ValueError:
-                pass
+                net_obj = ipaddress.ip_network(val, strict=False)
+                canonical = net_obj.compressed.lower()
+                return AssetType.HOST, canonical, f"Network {canonical}"
+            except ValueError as e:
+                raise ValueError(f"Invalid CIDR network representation '{val}': {e}")
 
-        try:
-            net_obj = ipaddress.ip_network(cleaned_cidr_str, strict=False)
-            canonical = net_obj.compressed.lower()
-            return AssetType.HOST, canonical, f"Network {canonical}"
-        except ValueError:
-            pass
-
-        # 5. Check for Host:Port string (e.g. "10.0.0.1:8080" or "db.corp.internal:5432")
+        # 6. Check for Host:Port string (e.g. "10.0.0.1:8080" or "db.corp.internal:5432")
         if ":" in val and not val.startswith("["):
             parts = val.split(":")
             if len(parts) == 2 and parts[1].isdigit():
                 host = parts[0].strip().lower().rstrip(".")
                 port = parts[1]
+                host_ipv4 = re.match(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)$", host)
+                if host_ipv4 and any(len(o) > 1 and o.startswith("0") for o in host_ipv4.groups()):
+                    raise ValueError(
+                        f"Ambiguous service host '{host}': IPv4 octets with leading zeros are prohibited (CWE-1288)."
+                    )
                 canonical = f"tcp://{host}:{port}"
                 return AssetType.SERVICE, canonical, f"Service on {val}"
 
-        # 6. Default to Domain / Hostname
+        # 7. Default to Domain / Hostname
         canonical_domain = val.lower().rstrip(".")
-        # If looks like simple unpunctuated name, classify as HOSTNAME, else DOMAIN
+        if not re.match(r"^[a-zA-Z0-9*_\-.]+$", canonical_domain):
+            raise ValueError(
+                f"Invalid domain or hostname identifier: '{val}'. Contains invalid or unsafe characters."
+            )
+
         asset_type = AssetType.DOMAIN if "." in canonical_domain else AssetType.HOSTNAME
         return asset_type, canonical_domain, canonical_domain
 
@@ -232,9 +267,18 @@ class AssetReconciliationService:
         """
         Appends an immutable, time-stamped observation record for an asset.
         Supports historical change analysis and preserves divergent scanner data.
+        Evidence hashes are computed via SHA-256 over canonical JSON serialization
+        (sort_keys=True, separators=(',', ':')). Note: A hash alone verifies data
+        integrity and provenance matching, but does not constitute cryptographic
+        proof of authentic origin without external digital signatures.
         """
         assert db is not None, "Database session required"
         now = utc_now()
+
+        computed_hash = evidence_hash
+        if not computed_hash and observed_attributes:
+            canonical_json = json.dumps(observed_attributes, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            computed_hash = hashlib.sha256(canonical_json).hexdigest()
 
         obs = AssetObservation(
             asset_id=asset.id,
@@ -244,7 +288,7 @@ class AssetReconciliationService:
             adapter_version=adapter_version,
             observed_at=now,
             observed_attributes=observed_attributes,
-            evidence_hash=evidence_hash,
+            evidence_hash=computed_hash,
             confidence=max(0.0, min(1.0, confidence)),
             validation_status=validation_status,
             created_at=now,

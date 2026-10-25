@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1–4: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory & Knowledge Graph
+## Phase 1–4.1: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory & Hardened Knowledge Graph
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -29,15 +29,19 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
   - Full audit history: `FindingTransition` ledger and immutable audit events for every transition.
 - **Persistent Asset Inventory & Conservative Reconciliation (Phase 4):**
   - Strict decoupling of current authoritative asset state (`assets`) from raw historical scanner outputs (`asset_observations`).
-  - Deterministic identifier normalization across Web Apps, API Endpoints, IPv4 (with octal zero stripping), IPv6 compression, CIDRs, Services, and Domains.
+  - Standards-safe normalization: strictly rejects ambiguous IPv4 octets and CIDRs containing leading zeros (CWE-1288 / CVE-2021-29921) to eliminate socket ambiguity vulnerabilities.
+  - Deterministic identifier normalization across Web Apps, API Endpoints, IPv6 compression, CIDRs, Services, and Domains with strict character sanitization (`^[a-zA-Z0-9*_\-.]+$`).
+  - Automatic canonical SHA-256 evidence digest calculation over JSON observation payloads.
   - Conflict-preserving attribute reconciliation tracking chronological changes in `_attribute_history`.
   - Identity ambiguity tracking (`is_ambiguous`, `ambiguity_reason`) with audit-logged operator resolution governance.
-- **Universal Security Knowledge Graph (Phase 4):**
+- **Universal Security Knowledge Graph (Phase 4 & 4.1):**
   - PostgreSQL-compatible relational graph tables (`graph_nodes`, `graph_relationships`) with index-backed adjacency joins.
   - 13 security entity categories (`ASSET`, `SERVICE`, `APPLICATION`, `IDENTITY`, `ROLE`, `PERMISSION`, `VULNERABILITY`, `FINDING`, `EVIDENCE`, `SECURITY_CONTROL`, `DEPENDENCY`, `REMEDIATION`, `ASSESSMENT`) and 11 relationship types.
   - Epistemic verification statuses (`VERIFIED`, `INFERRED`, `HYPOTHETICAL`, `STALE`, `SUPERSEDED`) and confidence metrics ($0.0 \le c \le 1.0$).
+  - Self-referential edge prohibition (`source_node_id == target_node_id` rejected) and synthetic node idempotency (`entity_id` is None).
+  - Dual parent-child project scoping across all asset observation and graph relationship endpoints.
   - Bounded, cycle-safe BFS traversal with strict depth, node, and edge bounds, plus truncation signaling.
-  - Automatic assessment integration: assessments automatically reconcile assets, record observations, link findings, and generate graph nodes and edges.
+  - Execution outcome alignment: failed scans do not record misleading asset observations or verified edges; partial scans mark relationships as `INFERRED`.
   - Full React 19 visualizer with SVG layout, verification status styling, node inspector, and edge creator.
 - **Immutable Audit Ledger:** All sensitive actions record actor attribution, client IP, outcome, and timestamp with automated credential scrubbing.
 - **Data Persistence:** Native Windows development uses SQLite 3 with `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`. The data layer is fully compatible with PostgreSQL in production via SQLAlchemy 2.0 and Alembic.

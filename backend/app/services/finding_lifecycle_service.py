@@ -328,6 +328,8 @@ class FindingLifecycleService:
 
         expired_count = 0
         for f in overdue_findings:
+            if f.status != FindingLifecycleStatus.ACCEPTED_RISK:
+                continue
             from_status = f.status
             f.status = FindingLifecycleStatus.EXPIRED
             f.updated_at = now
