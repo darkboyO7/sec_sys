@@ -137,6 +137,17 @@ class AssessmentStateMachine:
         return job
 
     @classmethod
+    def update_progress(cls, job: AssessmentJob, progress_pct: int) -> int:
+        """
+        Update job execution progress with monotonic non-decreasing guarantees.
+        Clamps progress between current progress and 100.
+        """
+        clamped = max(0, min(100, int(progress_pct)))
+        if clamped > job.progress_pct:
+            job.progress_pct = clamped
+        return job.progress_pct
+
+    @classmethod
     def record_heartbeat(cls, job: AssessmentJob, now: Optional[datetime] = None) -> None:
         """Record a live worker heartbeat for an actively running job."""
         if job.status == AssessmentStatus.RUNNING:

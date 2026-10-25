@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1–6A: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, Contextual Risk Intelligence, & Execution Boundary Governance
+## Phase 1–6B: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, Contextual Risk Intelligence, Execution Boundary Governance, & Worker Reliability
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -11,6 +11,22 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
 - **Fail-Closed Target Scoping:** Target registration and proof of authorization are strictly decoupled. A target registered in the system remains `PENDING` and cannot be scanned until an authorized lead records verified evidence (Rules of Engagement, approval ticket, expiry).
 - **Scope Exclusions:** Exclusions take absolute precedence over inclusions, ensuring critical infrastructure or third-party services are immediately rejected.
 - **Non-Invasive Scope Console:** In-memory pre-flight validator that checks candidate targets without initiating network probes or DNS traffic.
+- **Execution Isolation, Concurrency Hardening & Evidence Integrity (Phase 6B):**
+  - **Worker Claiming Mutual Exclusion:** Atomic conditional update (`WHERE status = 'QUEUED' / 'READY'`) preventing concurrent workers from claiming the same job.
+  - **Canonical Idempotency Request Digest:** SHA-256 digest calculated over canonical request parameters. Re-submitting the exact same payload returns the existing job (`HTTP 200/201`), while re-using an idempotency key with conflicting parameters returns `HTTP 409 Conflict`.
+  - **Stale Worker Completion Discard:** Snapshot attempt counters prevent stale or abandoned worker runs from overwriting newer attempts or terminal states.
+  - **Transactional Savepoints:** Finding and evidence persistence runs in nested transaction savepoints (`with db.begin_nested()`). Storage errors roll back only the savepoint, cleanly failing the job (`INGESTION_TRANSACTION_FAILED`) and preserving the outer transaction.
+  - **Terminal State Protection:** Heartbeats on terminal jobs are strictly no-ops, preventing resurrected states.
+  - **Three-Stage Cancellation:** Pre-claim cancellation, cooperative cancellation tokens during execution loops, and post-completion rejection (`HTTP 400`).
+  - **Multibyte UTF-8 Boundary Truncation:** `truncate_utf8_to_bytes` bounds evidence payloads to $\le 65,536$ UTF-8 bytes without breaking multibyte character code points or throwing decode errors.
+  - **Dual-Hash Evidence Provenance:** Distinguishes between untruncated raw evidence payload (`raw_sha256_hash`) and persisted normalized payload (`sha256_hash`) with `is_truncated: bool`.
+  - **Timestamp Clamping:** Future timestamps beyond 5s clock skew are clamped to UTC `now`. Naive datetimes normalized to UTC.
+  - **Aggregate Output Volume Caps:** Max 50 findings per job, max 20 evidence items per finding, max 1MB total aggregate evidence bytes per job.
+  - **Project Capacity Governance:** Maximum 10 active/queued jobs per project; 11th job rejected with `HTTP 429 Too Many Requests`.
+  - **Operational Retry Governance:** Role-gated `POST /assessments/{job_id}/retry` permits retrying operational failures (`attempt_count < max_retries`), rejects non-retryable governance failures (`SCOPE_AUTHORIZATION_DENIED`, etc.), and prevents infinite loops.
+  - **Monotonic Progress Tracking:** `update_progress()` strictly enforces non-decreasing progress clamped to $[0, 100]$.
+  - **Abandoned Job Recovery Sweep:** Role-gated `POST /assessments/recover-stale` (`recover_abandoned_jobs`) sweeps orphaned active jobs $> 120$s without heartbeats to `FAILED` (`ABANDONED_EXECUTION_RECOVERED`).
+  - **PostgreSQL Production Concurrency Plan:** Explicit roadmap for `SELECT ... FOR UPDATE SKIP LOCKED` worker pools, partial unique idempotency indexes, and Alembic cross-dialect parity.
 - **Secure Assessment Execution Boundary & Governance (Phase 6A):**
   - **Typed, Versioned Execution Contract:** Immutable job contract capturing job ID, project ID, principal, authorization reference/status, canonical scope snapshot & SHA-256 digest, policy version, adapter metadata, capabilities, timestamps, attempt count, failure categories, and evidence hashes.
   - **Fail-Closed Preflight Boundary Re-Validation:** Independent scope re-evaluation immediately before worker claim; fails closed to `REJECTED` (`SCOPE_AUTHORIZATION_DENIED`) if scope is expired, revoked, or excluded.
@@ -202,7 +218,8 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 92 automated tests covering:*
+*Executes 108 automated tests covering:*
+- *Phase 6B Worker Reliability, Concurrency & Evidence Integrity: atomic worker claiming mutual exclusion (`WHERE status='QUEUED'/'READY'`), idempotency key request digest matching with `HTTP 409 Conflict` on payload mismatch, concurrent cancellation handling and race with completion, stale worker completion discard via attempt snapshot, transactional savepoint rollback during ingestion (`INGESTION_TRANSACTION_FAILED`), cooperative cancellation token during execution loops, abandoned job recovery sweep (`ABANDONED_EXECUTION_RECOVERED`), multibyte UTF-8 boundary truncation ($\le 65,536$ bytes) preventing split characters and `UnicodeDecodeError`, dual-hash evidence provenance (`raw_sha256_hash` vs. `sha256_hash` with `is_truncated`), future timestamp clamping and UTC normalization, max 10 active jobs capacity enforcement (`HTTP 429 Too Many Requests`), operational retry limits and non-retryable governance failure blocking, monotonic non-decreasing progress clamping, and server-side project/job ownership binding preventing tenant injection.*
 - *Phase 6A Secure Assessment Execution Boundary & Job Governance: typed execution contract, canonical scope snapshot & SHA-256 digest tampering detection, 11-state machine legal/illegal transition safety, worker heartbeat loss timeout detection (`WORKER_HEARTBEAT_LOST`), cancellation flow, hard pagination limit enforcement (`limit <= 100`), adapter capability registry discovery API, untrusted evidence boundary sanitization (`NaN`/`inf` CVSS rejection, 64KB payload truncation, finding clamp to 50), and clean host benchmark (`HARDENED_HOST_BASELINE`) zero-finding success decoupled from finding closures.*
 - *Phase 5 & 5.1 Contextual Risk Intelligence & Security Audit: formula versioning (`v1.0.0`), deterministic factor decomposition, non-finite/NaN/inf CVSS rejection, CVSS vs. severity precedence rules, temporal freshness and timezone normalization, historical preservation on `FALSE_POSITIVE` / `VERIFIED_CLOSED`, residual risk tracking on `ACCEPTED_RISK`, recurrence penalties on `REOPENED`.*
 - *Evidence-Aware Attack Path Traversal: bounded DFS ($\le 4$ depth, $\le 10$ paths), cycle avoidance, classification into `VERIFIED` ($\ge 0.7$ confidence), `MIXED_EVIDENCE`, `HYPOTHETICAL`, and `STALE` paths with explicit missing evidence.*

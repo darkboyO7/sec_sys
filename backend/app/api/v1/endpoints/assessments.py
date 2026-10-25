@@ -1,3 +1,5 @@
+import json
+import hashlib
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
@@ -77,7 +79,37 @@ def create_assessment_job(
     client_ip = get_client_ip(request)
     verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD, ProjectRole.TESTER])
 
-    # 1. Idempotency Check: prevent duplicate job generation if key is reused
+    # 1. Capacity Protection: Limit maximum concurrent active/queued jobs per project
+    MAX_ACTIVE_JOBS_PER_PROJECT = 10
+    active_jobs_count = (
+        db.query(AssessmentJob)
+        .filter(
+            AssessmentJob.project_id == project_id,
+            AssessmentJob.status.in_([
+                AssessmentStatus.QUEUED,
+                AssessmentStatus.PREFLIGHT,
+                AssessmentStatus.READY,
+                AssessmentStatus.RUNNING,
+            ]),
+        )
+        .count()
+    )
+    if active_jobs_count >= MAX_ACTIVE_JOBS_PER_PROJECT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Project assessment capacity exceeded: maximum {MAX_ACTIVE_JOBS_PER_PROJECT} active jobs allowed. Wait for active jobs to complete.",
+        )
+
+    # 2. Idempotency Check with Canonical Digest Verification
+    request_payload = {
+        "target_input": job_in.target_input.strip(),
+        "adapter_name": (job_in.adapter_name or "local_fixture_adapter").strip(),
+        "fixture_profile": (job_in.fixture_profile or "WEB_APPLICATION_BASELINE").strip(),
+        "policy_version": (job_in.policy_version or "2026.1").strip(),
+        "config": job_in.config or {},
+    }
+    request_digest = hashlib.sha256(json.dumps(request_payload, sort_keys=True).encode("utf-8")).hexdigest()
+
     if job_in.idempotency_key:
         existing_job = (
             db.query(AssessmentJob)
@@ -88,9 +120,15 @@ def create_assessment_job(
             .first()
         )
         if existing_job:
+            # If key is reused with conflicting parameters, reject with 409 Conflict
+            if existing_job.idempotency_digest and existing_job.idempotency_digest != request_digest:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Idempotency key already exists for this project with a conflicting request payload.",
+                )
             return existing_job
 
-    # 2. Pre-flight Scope Check: Verify candidate target is authorized before queueing
+    # 3. Pre-flight Scope Check: Verify candidate target is authorized before queueing
     scope_eval = ScopeEngine.validate_target_in_scope(
         db=db,
         project_id=project_id,
@@ -102,7 +140,7 @@ def create_assessment_job(
             detail=f"Cannot initiate assessment: Target '{job_in.target_input}' is not authorized ({scope_eval['reason']})",
         )
 
-    # 3. Compute immutable scope snapshot & digest
+    # 4. Compute immutable scope snapshot & digest
     policy_ver = job_in.policy_version or "2026.1"
     scope_snapshot, scope_snapshot_digest = AssessmentExecutionEngine.compute_scope_snapshot_and_digest(
         scope_eval=scope_eval,
@@ -112,7 +150,7 @@ def create_assessment_job(
     auth_ref = rule.get("id") or scope_eval.get("rule_id") or "SCOPE-PREFLIGHT-RULE"
     auth_status = "AUTHORIZED" if scope_eval.get("is_authorized") else "UNAUTHORIZED"
 
-    # 4. Create persistent assessment job in QUEUED status
+    # 5. Create persistent assessment job in QUEUED status
     config = dict(job_in.config or {})
     if job_in.fixture_profile:
         config["fixture_profile"] = job_in.fixture_profile
@@ -124,6 +162,8 @@ def create_assessment_job(
         adapter_version="1.0.0",
         status=AssessmentStatus.QUEUED,
         idempotency_key=job_in.idempotency_key.strip() if job_in.idempotency_key else None,
+        idempotency_digest=request_digest,
+        lock_version=1,
         progress_pct=0,
         policy_version=policy_ver,
         authorization_reference=auth_ref,
@@ -263,20 +303,64 @@ def cancel_assessment_job(
 
     return job
 
+
+@router.post("/projects/{project_id}/assessments/{job_id}/retry", response_model=AssessmentJobResponse)
+def retry_assessment_job(
+    project_id: str,
+    job_id: str,
+    request: Request,
+    auto_execute: bool = Query(True, description="Execute fixture immediately upon retry"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retry a failed assessment job within bounded retry limits.
+    Enforces role verification and project boundary checks.
+    """
+    client_ip = get_client_ip(request)
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD, ProjectRole.TESTER])
+
+    job = db.query(AssessmentJob).filter(AssessmentJob.project_id == project_id, AssessmentJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment job not found")
+
+    success, retried_job, msg = AssessmentExecutionEngine.retry_job(db=db, job_id=job.id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+
     AuditService.record_event(
         db=db,
-        action="ASSESSMENT_JOB_CANCEL",
+        action="ASSESSMENT_JOB_RETRY",
         target_type="assessment_job",
-        target_id=job.id,
+        target_id=retried_job.id,
         project_id=project_id,
         actor_id=current_user.id,
         actor_email=current_user.email,
         outcome="SUCCESS",
         ip_address=client_ip,
-        details={"status": AssessmentStatus.CANCELLED.value},
+        details={"attempt_count": retried_job.attempt_count},
     )
 
-    return job
+    if auto_execute:
+        retried_job = AssessmentExecutionEngine.execute_job(db=db, job_id=retried_job.id, client_ip=client_ip)
+
+    return retried_job
+
+
+@router.post("/projects/{project_id}/assessments/recover-stale")
+def recover_stale_assessments(
+    project_id: str,
+    request: Request,
+    max_stale_seconds: int = Query(120, ge=30, le=3600),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Recover abandoned or hung assessment jobs exceeding stale heartbeat thresholds.
+    """
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
+    recovered = AssessmentExecutionEngine.recover_abandoned_jobs(db=db, max_stale_seconds=max_stale_seconds)
+    return {"recovered_count": len(recovered), "recovered_job_ids": [j.id for j in recovered]}
 
 
 @router.get("/projects/{project_id}/assessments/{job_id}/findings", response_model=List[AssessmentFindingResponse])

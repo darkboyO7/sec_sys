@@ -23,6 +23,8 @@ class AssessmentJobResponse(BaseModel):
     adapter_version: str
     status: AssessmentStatus
     idempotency_key: Optional[str] = None
+    idempotency_digest: Optional[str] = None
+    lock_version: int = 1
     progress_pct: int
     policy_version: str = "2026.1"
     authorization_reference: Optional[str] = None
@@ -67,6 +69,8 @@ class FindingEvidenceResponse(BaseModel):
     evidence_type: str
     payload: str
     sha256_hash: str
+    raw_sha256_hash: Optional[str] = None
+    is_truncated: bool = False
     observed_at: datetime
 
     class Config:

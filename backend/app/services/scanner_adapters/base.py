@@ -1,8 +1,9 @@
+import hashlib
 import math
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Callable, Set, Tuple
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from app.models.assessment import FindingSeverity, FindingConfidence
 
 PERMITTED_EVIDENCE_TYPES: Set[str] = {
@@ -17,21 +18,72 @@ PERMITTED_EVIDENCE_TYPES: Set[str] = {
     "DNS_RECORD",
 }
 
+MAX_EVIDENCE_PAYLOAD_BYTES = 65536  # 64KB per individual evidence item
+MAX_JOB_EVIDENCE_TOTAL_BYTES = 1048576  # 1MB aggregate evidence payload per job
+MAX_FINDINGS_PER_JOB = 50
+MAX_EVIDENCE_PER_FINDING = 20
+
+
+def truncate_utf8_to_bytes(text: str, max_bytes: int = MAX_EVIDENCE_PAYLOAD_BYTES) -> Tuple[str, bool]:
+    """
+    Safely truncates text so its UTF-8 byte length is <= max_bytes.
+    Preserves valid multibyte code point boundaries without corrupting characters.
+    Returns (safe_text, was_truncated).
+    """
+    raw_bytes = text.encode("utf-8", errors="replace")
+    if len(raw_bytes) <= max_bytes:
+        return text, False
+
+    suffix = b"... [TRUNCATED_AT_64KB]"
+    allowed_bytes = max_bytes - len(suffix)
+    truncated_slice = raw_bytes[:allowed_bytes]
+
+    # Decode ignoring trailing incomplete multibyte byte
+    safe_str = truncated_slice.decode("utf-8", errors="ignore") + "... [TRUNCATED_AT_64KB]"
+    return safe_str, True
+
 
 class RawAdapterEvidence(BaseModel):
     evidence_type: str = Field(min_length=2, max_length=100)
-    payload: str = Field(min_length=1, max_length=65536)  # 64KB safety limit per evidence item
-    sha256_hash: str = Field(default="")
+    payload: str = Field(default="")
+    sha256_hash: str = Field(default="")  # Hash of persisted/stored payload
+    raw_sha256_hash: str = Field(default="")  # Hash of untruncated raw payload
+    is_truncated: bool = Field(default=False)
     observed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    @field_validator("payload", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def sanitize_payload(cls, v: Any) -> str:
-        s = str(v) if v is not None else ""
-        if len(s) > 65536:
-            suffix = "... [TRUNCATED_AT_64KB]"
-            return s[: 65536 - len(suffix)] + suffix
-        return s
+    def process_and_sanitize_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            raw_val = data.get("payload", "")
+            s = str(raw_val) if raw_val is not None else ""
+            raw_bytes = s.encode("utf-8", errors="replace")
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+            safe_text, was_truncated = truncate_utf8_to_bytes(s, max_bytes=MAX_EVIDENCE_PAYLOAD_BYTES)
+            persisted_hash = hashlib.sha256(safe_text.encode("utf-8")).hexdigest()
+
+            data["payload"] = safe_text
+            data["raw_sha256_hash"] = raw_hash
+            data["sha256_hash"] = persisted_hash
+            data["is_truncated"] = was_truncated
+
+            # Validate and clamp observed_at timestamp
+            obs = data.get("observed_at")
+            if obs is not None:
+                if isinstance(obs, str):
+                    try:
+                        obs = datetime.fromisoformat(obs)
+                    except Exception:
+                        obs = datetime.now(timezone.utc)
+                if isinstance(obs, datetime):
+                    if obs.tzinfo is None:
+                        obs = obs.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    if obs > now + timedelta(seconds=5):
+                        obs = now
+                    data["observed_at"] = obs
+        return data
 
     @field_validator("evidence_type")
     @classmethod
@@ -40,11 +92,6 @@ class RawAdapterEvidence(BaseModel):
         if clean not in PERMITTED_EVIDENCE_TYPES:
             raise ValueError(f"Evidence type '{clean}' is not permitted. Must be one of: {sorted(PERMITTED_EVIDENCE_TYPES)}")
         return clean
-
-    def model_post_init(self, __context: Any) -> None:
-        if not self.sha256_hash and self.payload:
-            import hashlib
-            self.sha256_hash = hashlib.sha256(self.payload.encode("utf-8")).hexdigest()
 
 
 class RawAdapterFinding(BaseModel):
@@ -56,6 +103,13 @@ class RawAdapterFinding(BaseModel):
     cvss_score: Optional[float] = None
     reproduction_steps: str = Field(default="")
     evidence_items: List[RawAdapterEvidence] = Field(default_factory=list)
+
+    @field_validator("evidence_items")
+    @classmethod
+    def bound_evidence_items(cls, v: List[RawAdapterEvidence]) -> List[RawAdapterEvidence]:
+        if len(v) > MAX_EVIDENCE_PER_FINDING:
+            return v[:MAX_EVIDENCE_PER_FINDING]
+        return v
 
     @field_validator("cvss_score")
     @classmethod
@@ -82,9 +136,19 @@ class AdapterResult(BaseModel):
     @field_validator("findings")
     @classmethod
     def check_findings_limit(cls, v: List[RawAdapterFinding]) -> List[RawAdapterFinding]:
-        if len(v) > 50:
-            raise ValueError("Adapter exceeded maximum allowed findings threshold per assessment (50).")
+        if len(v) > MAX_FINDINGS_PER_JOB:
+            return v[:MAX_FINDINGS_PER_JOB]
         return v
+
+    @model_validator(mode="after")
+    def bound_total_evidence_size(self) -> "AdapterResult":
+        total_bytes = 0
+        for f in self.findings:
+            for ev in f.evidence_items:
+                total_bytes += len(ev.payload.encode("utf-8", errors="replace"))
+        if total_bytes > MAX_JOB_EVIDENCE_TOTAL_BYTES:
+            raise ValueError(f"Total evidence payload exceeds maximum job limit of 1MB (observed {total_bytes} bytes).")
+        return self
 
 
 class BaseScannerAdapter(ABC):

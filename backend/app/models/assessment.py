@@ -57,6 +57,8 @@ class AssessmentJob(Base, TimestampMixin):
 
     status = Column(Enum(AssessmentStatus), default=AssessmentStatus.QUEUED, nullable=False, index=True)
     idempotency_key = Column(String(100), nullable=True, index=True)
+    idempotency_digest = Column(String(64), nullable=True, index=True)
+    lock_version = Column(Integer, default=1, nullable=False)
 
     progress_pct = Column(Integer, default=0, nullable=False)
     queued_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -129,7 +131,9 @@ class FindingEvidence(Base):
 
     evidence_type = Column(String(100), nullable=False)  # HTTP_EXCHANGE, BANNER, CONFIG, PORT_STATE
     payload = Column(Text, nullable=False)  # Raw evidence text or serialized data
-    sha256_hash = Column(String(64), nullable=False, index=True)  # Cryptographic proof of provenance
+    sha256_hash = Column(String(64), nullable=False, index=True)  # Cryptographic proof of persisted payload
+    raw_sha256_hash = Column(String(64), nullable=True)  # Hash of un-truncated raw payload
+    is_truncated = Column(Boolean, default=False, nullable=False)
     observed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships

@@ -61,8 +61,11 @@ class AuditService:
                 details=clean_details,
             )
             db.add(event)
-            db.commit()
-            db.refresh(event)
+            if db.in_nested_transaction():
+                db.flush()
+            else:
+                db.commit()
+                db.refresh(event)
             logger.info(
                 f"AUDIT: action={action} actor={actor_email or actor_id} target={target_type}:{target_id} outcome={outcome}"
             )

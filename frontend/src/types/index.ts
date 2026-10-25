@@ -86,6 +86,8 @@ export interface FindingEvidence {
   evidence_type: string;
   payload: string;
   sha256_hash: string;
+  raw_sha256_hash?: string | null;
+  is_truncated: boolean;
   observed_at: string;
 }
 
@@ -115,6 +117,8 @@ export interface AssessmentJob {
   adapter_version: string;
   status: AssessmentStatus;
   idempotency_key?: string | null;
+  idempotency_digest?: string | null;
+  lock_version: number;
   progress_pct: number;
   policy_version: string;
   authorization_reference?: string | null;

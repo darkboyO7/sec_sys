@@ -1,7 +1,7 @@
 import json
 import hashlib
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple, List
 from sqlalchemy.orm import Session
 from app.models.assessment import (
@@ -83,14 +83,22 @@ class AssessmentExecutionEngine:
         if job.status not in (AssessmentStatus.QUEUED, AssessmentStatus.READY):
             return job
 
-        # 1. State transition to PREFLIGHT
+        # 1. State transition to PREFLIGHT using atomic conditional update
         if job.status == AssessmentStatus.QUEUED:
-            AssessmentStateMachine.transition(
-                job=job,
-                new_status=AssessmentStatus.PREFLIGHT,
-                now=now,
-            )
+            rows = db.query(AssessmentJob).filter(
+                AssessmentJob.id == job_id,
+                AssessmentJob.status == AssessmentStatus.QUEUED,
+            ).update({
+                AssessmentJob.status: AssessmentStatus.PREFLIGHT,
+                AssessmentJob.preflight_at: now,
+                AssessmentJob.progress_pct: 10,
+            }, synchronize_session="fetch")
             db.commit()
+            if rows == 0:
+                # Concurrently claimed by another worker or state changed
+                db.refresh(job)
+                return job
+            db.refresh(job)
 
         # ----------------------------------------------------------------------
         # CHECK 1: Scope & Authorization Re-validation at Execution Boundary
@@ -225,21 +233,21 @@ class AssessmentExecutionEngine:
             db.commit()
             return job
 
-        # Preflight passed -> READY -> RUNNING (Atomic worker claim)
-        AssessmentStateMachine.transition(
-            job=job,
-            new_status=AssessmentStatus.READY,
-            now=now,
-        )
-        AssessmentStateMachine.transition(
-            job=job,
-            new_status=AssessmentStatus.RUNNING,
-            now=now,
-        )
-        job.started_at = now
-        job.heartbeat_at = now
+        # Preflight passed -> READY -> RUNNING (Atomic worker claim using conditional update)
+        rows_claimed = db.query(AssessmentJob).filter(
+            AssessmentJob.id == job.id,
+            AssessmentJob.status.in_([AssessmentStatus.PREFLIGHT, AssessmentStatus.READY]),
+        ).update({
+            AssessmentJob.status: AssessmentStatus.RUNNING,
+            AssessmentJob.started_at: now,
+            AssessmentJob.heartbeat_at: now,
+            AssessmentJob.progress_pct: 30,
+        }, synchronize_session="fetch")
         db.commit()
         db.refresh(job)
+        if rows_claimed == 0:
+            # Concurrently claimed by another worker or state changed
+            return job
         return job
 
     @classmethod
@@ -294,6 +302,8 @@ class AssessmentExecutionEngine:
         if job.status != AssessmentStatus.RUNNING:
             return job
 
+        execution_attempt = job.attempt_count
+
         # Step 3: Resolve Adapter
         adapter = AdapterRegistry.get(job.adapter_name)
         if not adapter:
@@ -334,86 +344,104 @@ class AssessmentExecutionEngine:
             db.commit()
             return job
 
-        # Step 5: Check if job was cancelled during execution
+        # Step 5: Check if job was cancelled or reassigned during execution
         db.refresh(job)
-        if job.status in (AssessmentStatus.CANCELLATION_REQUESTED, AssessmentStatus.CANCELLED):
-            if job.status == AssessmentStatus.CANCELLATION_REQUESTED:
-                AssessmentStateMachine.transition(
-                    job=job,
-                    new_status=AssessmentStatus.CANCELLED,
-                    error_message="Assessment cancelled by operator request during execution.",
-                    failure_category="CANCELLED_BY_OPERATOR",
-                    now=now,
-                )
-                db.commit()
+        if job.status in AssessmentStateMachine.TERMINAL_STATUSES:
+            return job
+
+        if job.status == AssessmentStatus.CANCELLATION_REQUESTED:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.CANCELLED,
+                error_message="Assessment cancelled by operator request during execution.",
+                failure_category="CANCELLED_BY_OPERATOR",
+                now=now,
+            )
+            db.commit()
+            return job
+
+        if job.status != AssessmentStatus.RUNNING or job.attempt_count != execution_attempt:
+            # Stale worker execution or attempt count mismatch: discard execution results safely
             return job
 
         # ----------------------------------------------------------------------
-        # Step 6: Normalized Untrusted Evidence Boundary
+        # Step 6: Normalized Untrusted Evidence Boundary (Transactional)
         # ----------------------------------------------------------------------
         persisted_findings_count = 0
         persisted_evidence_count = 0
         persisted_findings_list: List[AssessmentFinding] = []
+        canonical_findings = []
 
         # Bound maximum ingested findings to 50
         raw_findings = result.findings[:50]
 
-        for raw_finding in raw_findings:
-            # Validate CVSS numeric sanity (sanitize non-finite/NaN/inf)
-            safe_cvss = raw_finding.cvss_score
-            if safe_cvss is not None:
-                if math.isnan(safe_cvss) or math.isinf(safe_cvss) or safe_cvss < 0.0 or safe_cvss > 10.0:
-                    safe_cvss = None
+        try:
+            with db.begin_nested():
+                for raw_finding in raw_findings:
+                    # Validate CVSS numeric sanity (sanitize non-finite/NaN/inf)
+                    safe_cvss = raw_finding.cvss_score
+                    if safe_cvss is not None:
+                        if math.isnan(safe_cvss) or math.isinf(safe_cvss) or safe_cvss < 0.0 or safe_cvss > 10.0:
+                            safe_cvss = None
 
-            finding = AssessmentFinding(
-                job_id=job.id,
-                project_id=job.project_id,
-                target_value=job.target_input,
-                title=raw_finding.title[:255],
-                description=raw_finding.description[:10000],
-                severity=raw_finding.severity,
-                confidence=raw_finding.confidence,
-                vuln_id=raw_finding.vuln_id[:100] if raw_finding.vuln_id else None,
-                cvss_score=safe_cvss,
-                is_simulated=result.is_simulated,
-                reproduction_steps=raw_finding.reproduction_steps[:10000],
-                created_at=now,
+                    finding = AssessmentFinding(
+                        job_id=job.id,
+                        project_id=job.project_id,
+                        target_value=job.target_input,
+                        title=raw_finding.title[:255],
+                        description=raw_finding.description[:10000],
+                        severity=raw_finding.severity,
+                        confidence=raw_finding.confidence,
+                        vuln_id=raw_finding.vuln_id[:100] if raw_finding.vuln_id else None,
+                        cvss_score=safe_cvss,
+                        is_simulated=result.is_simulated,
+                        reproduction_steps=raw_finding.reproduction_steps[:10000],
+                        created_at=now,
+                    )
+                    db.add(finding)
+                    db.flush()  # Acquire finding.id
+                    persisted_findings_count += 1
+                    persisted_findings_list.append(finding)
+
+                    for raw_ev in raw_finding.evidence_items:
+                        # Validate evidence type against permitted set
+                        ev_type = raw_ev.evidence_type.strip().upper()
+                        if ev_type not in PERMITTED_EVIDENCE_TYPES:
+                            ev_type = "CONFIG_AUDIT"
+
+                        evidence = FindingEvidence(
+                            finding_id=finding.id,
+                            evidence_type=ev_type,
+                            payload=raw_ev.payload,
+                            sha256_hash=raw_ev.sha256_hash or hashlib.sha256(raw_ev.payload.encode("utf-8")).hexdigest(),
+                            raw_sha256_hash=raw_ev.raw_sha256_hash or raw_ev.sha256_hash,
+                            is_truncated=raw_ev.is_truncated,
+                            observed_at=raw_ev.observed_at,
+                        )
+                        db.add(evidence)
+                        persisted_evidence_count += 1
+
+                # Phase 3: Deduplicate and correlate into canonical VulnerabilityFindings
+                # Invariant: Ingestion never auto-closes or marks findings FALSE_POSITIVE or REMEDIATED.
+                if persisted_findings_list:
+                    canonical_findings = FindingDeduplicationService.ingest_job_findings(
+                        job=job,
+                        raw_findings=persisted_findings_list,
+                        db=db,
+                        client_ip=client_ip,
+                    )
+            db.commit()
+        except Exception as e:
+            target_job = db.query(AssessmentJob).filter(AssessmentJob.id == job_id).first() or job
+            AssessmentStateMachine.transition(
+                job=target_job,
+                new_status=AssessmentStatus.FAILED,
+                error_message=f"Evidence persistence transaction rollback: {str(e)}",
+                failure_category="INGESTION_TRANSACTION_FAILED",
+                now=now,
             )
-            db.add(finding)
-            db.flush()  # Acquire finding.id
-            persisted_findings_count += 1
-            persisted_findings_list.append(finding)
-
-            for raw_ev in raw_finding.evidence_items:
-                # Validate evidence type against permitted set
-                ev_type = raw_ev.evidence_type.strip().upper()
-                if ev_type not in PERMITTED_EVIDENCE_TYPES:
-                    ev_type = "CONFIG_AUDIT"
-
-                # Enforce 64KB max safety limit on payload
-                safe_payload = raw_ev.payload[:65536]
-                sha256 = hashlib.sha256(safe_payload.encode("utf-8")).hexdigest()
-
-                evidence = FindingEvidence(
-                    finding_id=finding.id,
-                    evidence_type=ev_type,
-                    payload=safe_payload,
-                    sha256_hash=sha256,
-                    observed_at=raw_ev.observed_at,
-                )
-                db.add(evidence)
-                persisted_evidence_count += 1
-
-        # Phase 3: Deduplicate and correlate into canonical VulnerabilityFindings
-        # Note: Ingestion never auto-closes or marks findings FALSE_POSITIVE or REMEDIATED.
-        canonical_findings = []
-        if persisted_findings_list:
-            canonical_findings = FindingDeduplicationService.ingest_job_findings(
-                job=job,
-                raw_findings=persisted_findings_list,
-                db=db,
-                client_ip=client_ip,
-            )
+            db.commit()
+            return target_job
 
         # Step 7: Finalize State Machine based on execution outcome
         job.summary_stats = {
@@ -494,43 +522,95 @@ class AssessmentExecutionEngine:
 
         return job
 
-        # Phase 4: Reconcile Asset Inventory and auto-populate Security Knowledge Graph
-        try:
-            cls.integrate_assessment_assets_and_graph(
-                job=job,
-                canonical_findings=canonical_findings,
-                db=db,
-                client_ip=client_ip,
-            )
-        except Exception as e:
-            # Graph and asset ingestion failure must not lose the valid assessment result
-            import logging
-            logging.getLogger("vapt.assessment").warning(
-                f"Asset/Graph integration warning for job {job.id}: {e}", exc_info=True
-            )
+    @classmethod
+    def recover_abandoned_jobs(
+        cls,
+        db: Session,
+        max_stale_seconds: int = 120,
+        now: Optional[datetime] = None,
+    ) -> List[AssessmentJob]:
+        """
+        Recovers abandoned jobs left in non-terminal active states (RUNNING, PREFLIGHT, READY).
+        Transitions stale un-heartbeated jobs to FAILED with category ABANDONED_EXECUTION_RECOVERED.
+        Prevents hanging jobs across worker crashes or node failures.
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(seconds=max_stale_seconds)
 
-        db.commit()
-        db.refresh(job)
-
-        # Step 8: Record Audit Log
-        AuditService.record_event(
-            db=db,
-            action="ASSESSMENT_EXECUTION_COMPLETE",
-            target_type="assessment_job",
-            target_id=job.id,
-            project_id=job.project_id,
-            actor_id=job.created_by_id,
-            outcome="SUCCESS" if final_status == AssessmentStatus.COMPLETED else "FAILURE" if final_status == AssessmentStatus.FAILED else "PARTIAL",
-            details={
-                "target_input": job.target_input,
-                "final_status": final_status.value,
-                "findings_count": persisted_findings_count,
-                "evidence_count": persisted_evidence_count,
-                "is_simulated": job.is_simulated,
-            },
+        candidates = (
+            db.query(AssessmentJob)
+            .filter(
+                AssessmentJob.status.in_([AssessmentStatus.RUNNING, AssessmentStatus.PREFLIGHT, AssessmentStatus.READY]),
+            )
+            .all()
         )
 
-        return job
+        recovered = []
+        for job in candidates:
+            last_activity = job.heartbeat_at or job.started_at or job.preflight_at or job.queued_at
+            if last_activity:
+                if last_activity.tzinfo is None:
+                    last_activity = last_activity.replace(tzinfo=timezone.utc)
+                if last_activity < cutoff:
+                    AssessmentStateMachine.transition(
+                        job=job,
+                        new_status=AssessmentStatus.FAILED,
+                        error_message=f"Execution abandoned: no worker activity reported within {max_stale_seconds}s threshold.",
+                        failure_category="ABANDONED_EXECUTION_RECOVERED",
+                        now=now,
+                    )
+                    recovered.append(job)
+        if recovered:
+            db.commit()
+        return recovered
+
+    @classmethod
+    def retry_job(
+        cls,
+        db: Session,
+        job_id: str,
+        now: Optional[datetime] = None,
+    ) -> Tuple[bool, AssessmentJob, str]:
+        """
+        Re-queues a failed operational job if attempt_count < max_retries.
+        Enforces retry limits to prevent infinite recovery loops.
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        job = db.query(AssessmentJob).filter(AssessmentJob.id == job_id).first()
+        if not job:
+            raise ValueError(f"Job '{job_id}' not found.")
+
+        if job.status != AssessmentStatus.FAILED:
+            return False, job, f"Cannot retry job in status '{job.status.value}'. Only FAILED jobs may be retried."
+
+        if job.attempt_count >= job.max_retries:
+            return False, job, f"Job has reached maximum allowed execution attempts ({job.max_retries})."
+
+        # Non-retryable governance failures cannot be retried
+        NON_RETRYABLE_CATEGORIES = {
+            "SCOPE_AUTHORIZATION_DENIED",
+            "SCOPE_SNAPSHOT_TAMPERING_DETECTED",
+            "POLICY_VERSION_MISMATCH",
+            "UNSUPPORTED_ADAPTER",
+            "INVALID_ADAPTER_CONFIGURATION",
+        }
+        if job.failure_category in NON_RETRYABLE_CATEGORIES:
+            return False, job, f"Job failed with non-retryable governance failure '{job.failure_category}'."
+
+        job.attempt_count += 1
+        job.retry_count += 1
+        job.status = AssessmentStatus.QUEUED
+        job.error_message = None
+        job.failure_category = None
+        job.started_at = None
+        job.completed_at = None
+        job.progress_pct = 0
+        db.commit()
+        db.refresh(job)
+        return True, job, "Job successfully re-queued for retry."
 
     @classmethod
     def integrate_assessment_assets_and_graph(
