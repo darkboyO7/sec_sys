@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Enum, DateTime, Text, JSON
+from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Enum, DateTime, Text, JSON, Index
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -58,6 +58,7 @@ class AssessmentJob(Base, TimestampMixin):
     status = Column(Enum(AssessmentStatus), default=AssessmentStatus.QUEUED, nullable=False, index=True)
     idempotency_key = Column(String(100), nullable=True, index=True)
     idempotency_digest = Column(String(64), nullable=True, index=True)
+    claimed_by = Column(String(100), nullable=True, index=True)
     lock_version = Column(Integer, default=1, nullable=False)
 
     progress_pct = Column(Integer, default=0, nullable=False)
@@ -86,6 +87,10 @@ class AssessmentJob(Base, TimestampMixin):
     target = relationship("ScopeTarget")
     created_by = relationship("User")
     findings = relationship("AssessmentFinding", back_populates="job", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("uq_assessment_jobs_project_idempotency_key", "project_id", "idempotency_key", unique=True),
+    )
 
 
 class AssessmentFinding(Base):

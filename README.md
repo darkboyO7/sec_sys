@@ -1,5 +1,5 @@
 # Vulnerability Assessment and Penetration Testing (VAPT) Platform
-## Phase 1–6B: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, Contextual Risk Intelligence, Execution Boundary Governance, & Worker Reliability
+## Phase 1–6B.1: Secure Foundation, Assessment Orchestration, Finding Lifecycle, Asset Inventory, Knowledge Graph, Contextual Risk Intelligence, Execution Boundary Governance, & Concurrency Hardening
 
 A modular, multi-tenant cybersecurity intelligence and testing control plane. Built natively for Windows with Python 3.14, FastAPI, SQLAlchemy 2.0, Alembic, React 19, TypeScript, Vite, and Tailwind CSS.
 
@@ -11,6 +11,15 @@ A modular, multi-tenant cybersecurity intelligence and testing control plane. Bu
 - **Fail-Closed Target Scoping:** Target registration and proof of authorization are strictly decoupled. A target registered in the system remains `PENDING` and cannot be scanned until an authorized lead records verified evidence (Rules of Engagement, approval ticket, expiry).
 - **Scope Exclusions:** Exclusions take absolute precedence over inclusions, ensuring critical infrastructure or third-party services are immediately rejected.
 - **Non-Invasive Scope Console:** In-memory pre-flight validator that checks candidate targets without initiating network probes or DNS traffic.
+- **Independent Security Audit, Concurrency Proof & Hardening (Phase 6B.1):**
+  - **Database Unique Idempotency Constraint:** Composite unique index `(project_id, idempotency_key)` preventing concurrent request TOCTOU duplicate job creation. Handles `IntegrityError` safely without session corruption.
+  - **Worker Claim Ownership:** Atomic conditional update persists `claimed_by: String(100)`. Losing workers are rejected from execution and cannot execute the scanner adapter.
+  - **Stale Attempt Protection:** Snapshot attempt counter and worker ownership checks discard stale or slow worker completions after job retries. Retrying cleanly resets `claimed_by = None`.
+  - **Cancellation Request vs Confirmed Termination:** `/cancel` on running jobs transitions to `CANCELLATION_REQUESTED`. The adapter detects this via `check_cancellation`, cleanly terminates, and transitions to `CANCELLED`.
+  - **Timeout Detection in Adapter Loop:** `check_cancellation` observes `TIMED_OUT` and `FAILED` states, preventing unnoticed background execution after timeout.
+  - **Project-Isolated Stale Recovery:** `recover_abandoned_jobs` enforces `project_id` scoping so project Leads only recover orphaned jobs in their own project.
+  - **Evidence Provenance & Retention Reality:** Distinguishes `raw_sha256_hash` (original emitted bytes checksum) from `sha256_hash` (persisted bytes checksum). Explicitly documents that truncated raw bytes are discarded, not stored.
+  - **Aggregate Workload Limits:** Max 50 findings per job, max 20 evidence items per finding, 1MB aggregate evidence payload cap.
 - **Execution Isolation, Concurrency Hardening & Evidence Integrity (Phase 6B):**
   - **Worker Claiming Mutual Exclusion:** Atomic conditional update (`WHERE status = 'QUEUED' / 'READY'`) preventing concurrent workers from claiming the same job.
   - **Canonical Idempotency Request Digest:** SHA-256 digest calculated over canonical request parameters. Re-submitting the exact same payload returns the existing job (`HTTP 200/201`), while re-using an idempotency key with conflicting parameters returns `HTTP 409 Conflict`.
@@ -218,7 +227,8 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 108 automated tests covering:*
+*Executes 123 automated tests covering:*
+- *Phase 6B.1 Independent Security Audit & Concurrency Proof: database-enforced unique constraints on `(project_id, idempotency_key)` preventing concurrent TOCTOU job duplication, worker claim ownership (`claimed_by`) with atomic conditional updates, stale execution attempt discard, cancellation request distinction (`CANCELLATION_REQUESTED` vs `CANCELLED`), timeout and failure observation in adapter loops, project-isolated stale recovery sweep, evidence raw vs persisted cryptographic hashing taxonomy, 1MB aggregate evidence payload cap, and cross-project authorization boundary validation.*
 - *Phase 6B Worker Reliability, Concurrency & Evidence Integrity: atomic worker claiming mutual exclusion (`WHERE status='QUEUED'/'READY'`), idempotency key request digest matching with `HTTP 409 Conflict` on payload mismatch, concurrent cancellation handling and race with completion, stale worker completion discard via attempt snapshot, transactional savepoint rollback during ingestion (`INGESTION_TRANSACTION_FAILED`), cooperative cancellation token during execution loops, abandoned job recovery sweep (`ABANDONED_EXECUTION_RECOVERED`), multibyte UTF-8 boundary truncation ($\le 65,536$ bytes) preventing split characters and `UnicodeDecodeError`, dual-hash evidence provenance (`raw_sha256_hash` vs. `sha256_hash` with `is_truncated`), future timestamp clamping and UTC normalization, max 10 active jobs capacity enforcement (`HTTP 429 Too Many Requests`), operational retry limits and non-retryable governance failure blocking, monotonic non-decreasing progress clamping, and server-side project/job ownership binding preventing tenant injection.*
 - *Phase 6A Secure Assessment Execution Boundary & Job Governance: typed execution contract, canonical scope snapshot & SHA-256 digest tampering detection, 11-state machine legal/illegal transition safety, worker heartbeat loss timeout detection (`WORKER_HEARTBEAT_LOST`), cancellation flow, hard pagination limit enforcement (`limit <= 100`), adapter capability registry discovery API, untrusted evidence boundary sanitization (`NaN`/`inf` CVSS rejection, 64KB payload truncation, finding clamp to 50), and clean host benchmark (`HARDENED_HOST_BASELINE`) zero-finding success decoupled from finding closures.*
 - *Phase 5 & 5.1 Contextual Risk Intelligence & Security Audit: formula versioning (`v1.0.0`), deterministic factor decomposition, non-finite/NaN/inf CVSS rejection, CVSS vs. severity precedence rules, temporal freshness and timezone normalization, historical preservation on `FALSE_POSITIVE` / `VERIFIED_CLOSED`, residual risk tracking on `ACCEPTED_RISK`, recurrence penalties on `REOPENED`.*

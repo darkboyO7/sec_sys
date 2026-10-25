@@ -3,6 +3,7 @@ import hashlib
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.models.user import User
 from app.models.project import ProjectRole
@@ -178,7 +179,31 @@ def create_assessment_job(
         summary_stats={"status": "QUEUED"},
     )
     db.add(job)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Concurrent creation race: another request committed with this idempotency key
+        if job_in.idempotency_key:
+            existing_job = (
+                db.query(AssessmentJob)
+                .filter(
+                    AssessmentJob.project_id == project_id,
+                    AssessmentJob.idempotency_key == job_in.idempotency_key.strip(),
+                )
+                .first()
+            )
+            if existing_job:
+                if existing_job.idempotency_digest and existing_job.idempotency_digest != request_digest:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Idempotency key already exists for this project with a conflicting request payload.",
+                    )
+                return existing_job
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity constraint violated during job creation.",
+        )
     db.refresh(job)
 
     AuditService.record_event(
@@ -262,19 +287,20 @@ def cancel_assessment_job(
             detail=f"Cannot cancel job in terminal state '{job.status.value}'",
         )
 
+    # Idempotent: If cancellation was already requested, return job
+    if job.status == AssessmentStatus.CANCELLATION_REQUESTED:
+        return job
+
     try:
         if job.status == AssessmentStatus.RUNNING:
+            # Running execution: request cancellation; running worker will observe and terminate
             AssessmentStateMachine.transition(
                 job=job,
                 new_status=AssessmentStatus.CANCELLATION_REQUESTED,
                 error_message="Cancellation requested by operator.",
             )
-            AssessmentStateMachine.transition(
-                job=job,
-                new_status=AssessmentStatus.CANCELLED,
-                error_message="Assessment cancelled by operator request.",
-            )
         else:
+            # Non-running (QUEUED/PREFLIGHT/READY): confirmed termination immediately
             AssessmentStateMachine.transition(
                 job=job,
                 new_status=AssessmentStatus.CANCELLED,
@@ -359,7 +385,11 @@ def recover_stale_assessments(
     Recover abandoned or hung assessment jobs exceeding stale heartbeat thresholds.
     """
     verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
-    recovered = AssessmentExecutionEngine.recover_abandoned_jobs(db=db, max_stale_seconds=max_stale_seconds)
+    recovered = AssessmentExecutionEngine.recover_abandoned_jobs(
+        db=db,
+        project_id=project_id,
+        max_stale_seconds=max_stale_seconds,
+    )
     return {"recovered_count": len(recovered), "recovered_job_ids": [j.id for j in recovered]}
 
 
@@ -385,7 +415,10 @@ def list_assessment_findings(
 
     findings = (
         db.query(AssessmentFinding)
-        .filter(AssessmentFinding.job_id == job_id)
+        .filter(
+            AssessmentFinding.project_id == project_id,
+            AssessmentFinding.job_id == job_id,
+        )
         .order_by(AssessmentFinding.severity.asc())
         .all()
     )

@@ -525,7 +525,62 @@ While local development uses SQLite in WAL mode with busy-handler timeouts, high
    - In SQLite, the application layer enforces idempotency queries while Alembic migrations maintain cross-dialect standard index definitions (`index=True`).
 3. **Alembic Cross-Dialect Compatibility**:
    - Alembic migration `e8a9b0c1d2e3` utilizes generic SQLAlchemy types (`String(64)`, `Integer`, `Boolean`) with explicit server defaults.
+   - Migration `f9a0b1c2d3e4` establishes database-enforced unique constraints (`uq_assessment_jobs_project_idempotency_key`) and worker claim tracking (`claimed_by`).
    - Downward and upward migrations tested cleanly across SQLite and PostgreSQL dialect targets.
+
+---
+
+## 13. Independent Security Audit, Concurrency Proof & Pre-Scanner Readiness (Phase 6B.1)
+
+### 13.1 Concurrency Audit & Defect Remediations
+An independent security and concurrency audit was executed on Phase 6B, identifying critical race conditions and boundary risks that were remediated and verified in Phase 6B.1:
+
+| Component | Demonstrated Risk / Defect | Remediation Applied in Phase 6B.1 | Verification |
+| :--- | :--- | :--- | :--- |
+| **Job Idempotency** | Application-only duplicate check was vulnerable to TOCTOU races under simultaneous requests; duplicate jobs could be created with the same idempotency key. | Added composite unique index `uq_assessment_jobs_project_idempotency_key` via migration `f9a0b1c2d3e4`. `create_assessment_job` catches database `IntegrityError`, rolls back, and returns the canonical job or raises `409 Conflict`. | `test_database_unique_constraint_enforces_single_canonical_job`, `test_concurrent_idempotency_payload_mismatch_rejected_with_409` |
+| **Worker Mutual Exclusion** | `preflight_and_claim_job` did not track worker identity. If worker A claimed a job, worker B refreshing the running job believed it owned the job and executed the adapter concurrently. | Added `claimed_by: String(100)` column to `AssessmentJob`. Atomic conditional update records `claimed_by`. `execute_job` verifies `job.claimed_by == worker_id`; losing workers exit immediately without running the adapter. | `test_worker_claim_mutual_exclusion_and_ownership` |
+| **Stale Attempt Overwrite** | Slow/hanging worker from execution attempt 1 could complete after the job was retried to attempt 2, corrupting findings and state. | Execution attempt snapshot check (`attempt_count == execution_attempt and claimed_by == worker_id`). Stale completions are safely discarded. Retry resets `claimed_by = None`. | `test_stale_attempt_discarded_after_job_retry` |
+| **Cancellation Request Distinction** | `/cancel` on a running job immediately transitioned to `CANCELLED` while the worker thread was still executing in memory. | `/cancel` on running jobs sets `CANCELLATION_REQUESTED`. The adapter checks `cancellation_token`, cleanly terminates execution, and transitions to `CANCELLED`. Calling `/cancel` while `CANCELLATION_REQUESTED` is idempotent. | `test_cancellation_request_distinguished_from_confirmed_termination` |
+| **Cross-Tenant Recovery** | `recover_abandoned_jobs` swept abandoned jobs across the entire database regardless of project boundary. | Added `project_id: Optional[str]` scoping to `recover_abandoned_jobs`. Project Leads only sweep jobs in their authorized project. | `test_abandoned_job_recovery_respects_project_isolation` |
+| **Evidence Size Exhaustion** | Unbounded aggregate evidence size across many findings could lead to memory exhaustion or SQLite WAL bloat. | Enforced 1MB aggregate evidence payload cap across all findings in an assessment job (`MAX_JOB_EVIDENCE_TOTAL_BYTES = 1048576`). | `test_aggregate_evidence_size_exceeded_raises_validation_error` |
+
+### 13.2 Evidence Provenance & Cryptographic Taxonomy
+The platform maintains strict distinction between evidence states:
+- **`raw_sha256_hash`**: The cryptographic SHA-256 digest computed across the exact original byte sequence emitted by the scanner adapter *before* any truncation or normalization.
+- **`sha256_hash`**: The cryptographic SHA-256 digest computed across the persisted, normalized, and safely truncated byte sequence stored in the database.
+- **`is_truncated: bool`**: Explicit boolean flag indicating whether the payload was truncated to the 64KB UTF-8 safety boundary.
+- **Data Retention Reality**: When an evidence payload exceeds 64KB, the excess bytes are permanently discarded; only the truncated text is retained in storage. The `raw_sha256_hash` serves as an immutable integrity checksum for third-party audit verification, but does *not* imply that original raw bytes are stored or recoverable.
+
+### 13.3 SQLite vs. PostgreSQL Concurrency Realities
+- **SQLite Concurrency Model**: SQLite operates on a database-file level lock. Even in WAL mode, only one write transaction may proceed at any given moment. Under high-concurrency multi-threaded requests in Python, sharing database handles across threads without process-level mutexes can cause C-level connection locks (`sqlite3.OperationalError: database is locked`).
+- **PostgreSQL Concurrency Model**: PostgreSQL provides true Multi-Version Concurrency Control (MVCC) with row-level locking. In production, worker job claiming must utilize `SELECT id FROM assessment_jobs WHERE status = 'READY' FOR UPDATE SKIP LOCKED` across independent worker processes.
+
+### 13.4 Security Property Verification Matrix
+
+| Property | Status | Evidence / Test |
+| :--- | :--- | :--- |
+| Database Unique Idempotency Constraint | **Verified by automated test** | `test_database_unique_constraint_enforces_single_canonical_job` |
+| Idempotency Payload Conflict Rejection (409) | **Verified by automated test** | `test_concurrent_idempotency_payload_mismatch_rejected_with_409` |
+| Cross-Project Idempotency Key Reuse | **Verified by automated test** | `test_idempotency_key_scoped_to_project_allows_cross_project_reuse` |
+| Worker Claim Ownership & Mutual Exclusion | **Verified by automated test** | `test_worker_claim_mutual_exclusion_and_ownership` |
+| Stale Worker Execution Attempt Discard | **Verified by automated test** | `test_stale_attempt_discarded_after_job_retry` |
+| Cancellation Request vs Confirmed Termination | **Verified by automated test** | `test_cancellation_request_distinguished_from_confirmed_termination` |
+| Project-Isolated Stale Job Recovery | **Verified by automated test** | `test_abandoned_job_recovery_respects_project_isolation` |
+| Evidence Raw vs Persisted Hash Provenance | **Verified by automated test** | `test_evidence_hashing_exact_bytes_taxonomy` |
+| Multibyte UTF-8 Boundary Truncation | **Verified by automated test** | `test_evidence_multibyte_utf8_truncation_boundary` |
+| Aggregate 1MB Evidence Payload Cap | **Verified by automated test** | `test_aggregate_evidence_size_exceeded_raises_validation_error` |
+| Max 50 Findings Clamping | **Verified by automated test** | `test_findings_per_job_clamped_to_50` |
+| Cross-Project Resource Boundary (404) | **Verified by automated test** | `test_mismatched_parent_project_and_job_returns_404` |
+| RBAC Role Enforcement on Retry & Cancel | **Verified by automated test** | `test_unauthorized_role_cannot_cancel_or_retry` |
+| Non-Retryable Governance Failure Blocking | **Verified by automated test** | `test_non_retryable_governance_failure_blocked` |
+| Max Retry Limit Enforcement | **Verified by automated test** | `test_retry_attempts_exceeded_blocked` |
+| PostgreSQL `SKIP LOCKED` Distributed Worker Pools | **Inspected but not concurrency-tested** | Documented SQL migration query; not tested on PostgreSQL engine in Windows dev environment. |
+| OS Process Hard Termination (SIGKILL / cgroups) | **Known limitation** | In-process execution cannot forcefully kill hung socket reads on native Windows. |
+
+### 13.5 Final Pre-Scanner Readiness Decision
+- **Status for In-Process Deterministic Fixtures**: **READY & VERIFIED**. The control plane, execution boundary, state machine, evidence normalization, retry governance, and audit logging are fully verified and hardened.
+- **Status for Live Network Scanners / Shell Tools**: **NOT PERMITTED / BLOCKED**. Active network scanning, raw socket probing, exploit execution, credential attacks, and automated remediation remain **strictly disabled**. Real scanner adapters must not be enabled until an out-of-process, containerized worker architecture (with OS process isolation and dropped network capabilities) is implemented.
+
 
 
 

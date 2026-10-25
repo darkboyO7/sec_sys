@@ -90,6 +90,7 @@ class AssessmentExecutionEngine:
                 AssessmentJob.status == AssessmentStatus.QUEUED,
             ).update({
                 AssessmentJob.status: AssessmentStatus.PREFLIGHT,
+                AssessmentJob.claimed_by: worker_id,
                 AssessmentJob.preflight_at: now,
                 AssessmentJob.progress_pct: 10,
             }, synchronize_session="fetch")
@@ -239,6 +240,8 @@ class AssessmentExecutionEngine:
             AssessmentJob.status.in_([AssessmentStatus.PREFLIGHT, AssessmentStatus.READY]),
         ).update({
             AssessmentJob.status: AssessmentStatus.RUNNING,
+            AssessmentJob.claimed_by: worker_id,
+            AssessmentJob.lock_version: AssessmentJob.lock_version + 1,
             AssessmentJob.started_at: now,
             AssessmentJob.heartbeat_at: now,
             AssessmentJob.progress_pct: 30,
@@ -255,6 +258,7 @@ class AssessmentExecutionEngine:
         cls,
         db: Session,
         job_id: str,
+        worker_id: str = "worker-01",
         now: Optional[datetime] = None,
         client_ip: Optional[str] = None,
     ) -> AssessmentJob:
@@ -281,6 +285,7 @@ class AssessmentExecutionEngine:
             job = cls.preflight_and_claim_job(
                 db=db,
                 job_id=job.id,
+                worker_id=worker_id,
                 now=now,
                 client_ip=client_ip,
             )
@@ -299,7 +304,10 @@ class AssessmentExecutionEngine:
             db.commit()
             return job
 
+        # Mutual exclusion: Only the worker that owns this execution attempt may execute
         if job.status != AssessmentStatus.RUNNING:
+            return job
+        if job.claimed_by and job.claimed_by != worker_id:
             return job
 
         execution_attempt = job.attempt_count
@@ -317,13 +325,15 @@ class AssessmentExecutionEngine:
             db.commit()
             return job
 
-        # Step 4: Execute Adapter with Cancellation Check
+        # Step 4: Execute Adapter with Cancellation and Timeout Check
         def check_cancellation() -> bool:
             # Query fresh job status from database
             fresh = db.query(AssessmentJob.status).filter(AssessmentJob.id == job.id).first()
             return fresh is not None and fresh[0] in (
                 AssessmentStatus.CANCELLATION_REQUESTED,
                 AssessmentStatus.CANCELLED,
+                AssessmentStatus.TIMED_OUT,
+                AssessmentStatus.FAILED,
             )
 
         try:
@@ -360,8 +370,8 @@ class AssessmentExecutionEngine:
             db.commit()
             return job
 
-        if job.status != AssessmentStatus.RUNNING or job.attempt_count != execution_attempt:
-            # Stale worker execution or attempt count mismatch: discard execution results safely
+        if job.status != AssessmentStatus.RUNNING or job.attempt_count != execution_attempt or (job.claimed_by and job.claimed_by != worker_id):
+            # Stale worker execution, attempt count mismatch, or ownership loss: discard execution results safely
             return job
 
         # ----------------------------------------------------------------------
@@ -526,6 +536,7 @@ class AssessmentExecutionEngine:
     def recover_abandoned_jobs(
         cls,
         db: Session,
+        project_id: Optional[str] = None,
         max_stale_seconds: int = 120,
         now: Optional[datetime] = None,
     ) -> List[AssessmentJob]:
@@ -533,18 +544,19 @@ class AssessmentExecutionEngine:
         Recovers abandoned jobs left in non-terminal active states (RUNNING, PREFLIGHT, READY).
         Transitions stale un-heartbeated jobs to FAILED with category ABANDONED_EXECUTION_RECOVERED.
         Prevents hanging jobs across worker crashes or node failures.
+        Respects project isolation when project_id is provided.
         """
         if now is None:
             now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=max_stale_seconds)
 
-        candidates = (
-            db.query(AssessmentJob)
-            .filter(
-                AssessmentJob.status.in_([AssessmentStatus.RUNNING, AssessmentStatus.PREFLIGHT, AssessmentStatus.READY]),
-            )
-            .all()
+        query = db.query(AssessmentJob).filter(
+            AssessmentJob.status.in_([AssessmentStatus.RUNNING, AssessmentStatus.PREFLIGHT, AssessmentStatus.READY]),
         )
+        if project_id:
+            query = query.filter(AssessmentJob.project_id == project_id)
+
+        candidates = query.all()
 
         recovered = []
         for job in candidates:
@@ -603,6 +615,7 @@ class AssessmentExecutionEngine:
         job.attempt_count += 1
         job.retry_count += 1
         job.status = AssessmentStatus.QUEUED
+        job.claimed_by = None
         job.error_message = None
         job.failure_category = None
         job.started_at = None

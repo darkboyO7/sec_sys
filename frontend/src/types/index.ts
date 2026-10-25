@@ -118,6 +118,7 @@ export interface AssessmentJob {
   status: AssessmentStatus;
   idempotency_key?: string | null;
   idempotency_digest?: string | null;
+  claimed_by?: string | null;
   lock_version: number;
   progress_pct: number;
   policy_version: string;
