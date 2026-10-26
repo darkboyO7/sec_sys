@@ -55,6 +55,11 @@ from app.models.regression import (
     RegressionBaseline,
     RegressionAlert,
 )
+from app.models.ai_analyst import (
+    AIDraftType,
+    AIDraftStatus,
+    AIAnalystDraft,
+)
 
 __all__ = [
     "Base",
@@ -107,4 +112,7 @@ __all__ = [
     "AlertStatus",
     "RegressionBaseline",
     "RegressionAlert",
+    "AIDraftType",
+    "AIDraftStatus",
+    "AIAnalystDraft",
 ]
