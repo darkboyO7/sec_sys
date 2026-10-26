@@ -42,6 +42,11 @@ from app.models.verification import (
     VerificationMethod,
     RemediationVerification,
 )
+from app.models.report import (
+    ReportType,
+    ReportFormat,
+    ReportRecord,
+)
 
 __all__ = [
     "Base",
@@ -85,4 +90,7 @@ __all__ = [
     "VerificationOutcome",
     "VerificationMethod",
     "RemediationVerification",
+    "ReportType",
+    "ReportFormat",
+    "ReportRecord",
 ]

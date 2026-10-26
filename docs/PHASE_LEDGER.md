@@ -23,5 +23,6 @@
 | **Phase 12** | Evidence-Aware Attack-Path Analysis | **COMPLETED** | `fbbb5f7` | Stable path fingerprints, risk impact scoring, defensive chokepoints |
 | **Phase 13** | Remediation Planning & Governance | **COMPLETED** | `90e0c1f` | Migration f6a7b8c9d0e1, control mapping, effort tiers, change authorization boundary |
 | **Phase 14** | Independent Remediation Verification | **COMPLETED** | `87ee642` | Migration a7b8c9d0e1f2, 4-outcome verification state space, re-testing, recurrence |
-| **Phase 15** | Reporting & Export | **PLANNED** | Next Active Phase | Executive, technical, governance reports, Merkle audit proofs, safe CSV/PDF/HTML |
-| **Phases 16-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
+| **Phase 15** | Reporting & Export | **COMPLETED** | Checkpoint in progress | Migration b8c9d0e1f2a3, Executive/Technical/Governance reports, CSV formula defense, HTML XSS escaping |
+| **Phase 16** | Historical Security Digital Twin | **PLANNED** | Next Active Phase | Versioned snapshots, point-in-time diffing, state reconstruction |
+| **Phases 17-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
