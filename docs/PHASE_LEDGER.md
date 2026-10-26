@@ -21,6 +21,6 @@
 | **Phase 10** | Universal Security Knowledge Graph | **COMPLETED** | `7d13188` | Migration d4e5f6a7b8c9, 21 node types, 17 edge types, semantic validation matrix, epistemic history |
 | **Phase 11** | Contextual Risk Intelligence | **COMPLETED** | `b757881` | Migration e5f6a7b8c9d0, formula v1.1.0, inherent vs residual risk, uncertainty bounds |
 | **Phase 12** | Evidence-Aware Attack-Path Analysis | **COMPLETED** | `fbbb5f7` | Stable path fingerprints, risk impact scoring, defensive chokepoints |
-| **Phase 13** | Remediation Planning & Governance | **COMPLETED** | Checkpoint in progress | Migration f6a7b8c9d0e1, control mapping, effort tiers, change authorization boundary |
+| **Phase 13** | Remediation Planning & Governance | **COMPLETED** | `90e0c1f` | Migration f6a7b8c9d0e1, control mapping, effort tiers, change authorization boundary |
 | **Phase 14** | Independent Remediation Verification | **PLANNED** | Next Active Phase | Automated & passive re-testing, outcome states, regression validation |
 | **Phases 15-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
