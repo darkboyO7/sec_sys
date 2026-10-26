@@ -48,6 +48,13 @@ from app.models.report import (
     ReportRecord,
 )
 from app.models.digital_twin import SecuritySnapshot
+from app.models.regression import (
+    RegressionAlertType,
+    AlertSeverity,
+    AlertStatus,
+    RegressionBaseline,
+    RegressionAlert,
+)
 
 __all__ = [
     "Base",
@@ -95,4 +102,9 @@ __all__ = [
     "ReportFormat",
     "ReportRecord",
     "SecuritySnapshot",
+    "RegressionAlertType",
+    "AlertSeverity",
+    "AlertStatus",
+    "RegressionBaseline",
+    "RegressionAlert",
 ]

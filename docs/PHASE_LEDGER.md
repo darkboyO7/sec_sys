@@ -25,5 +25,5 @@
 | **Phase 14** | Independent Remediation Verification | **COMPLETED** | `87ee642` | Migration a7b8c9d0e1f2, 4-outcome verification state space, re-testing, recurrence |
 | **Phase 15** | Reporting & Export | **COMPLETED** | `0bdfbb1` | Migration b8c9d0e1f2a3, Executive/Technical/Governance reports, CSV formula defense, HTML XSS escaping |
 | **Phase 16** | Historical Security Digital Twin | **COMPLETED** | `9708c6c` | Migration c9d0e1f2a3b4, snapshot manifests, point-in-time reconstruction, diff engine |
-| **Phase 17** | Regression Detection & Change Intelligence | **PLANNED** | Next Active Phase | Automated regression alerts, recurrence triggers, drift detection, evidence thresholds |
+| **Phase 17** | Regression Detection & Change Intelligence | **COMPLETED** | In Progress Commit | Migration d0e1f2a3b4c5, baseline anchoring, 4 regression alert vectors, deduplication, disposition lifecycle |
 | **Phases 18-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |

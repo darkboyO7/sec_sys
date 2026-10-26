@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     verification,
     reports,
     digital_twin,
+    regression,
 )
 
 api_router = APIRouter()
@@ -32,3 +33,4 @@ api_router.include_router(integrity.router, tags=["Cryptographic Integrity & Mer
 api_router.include_router(verification.router, tags=["Independent Remediation Verification"])
 api_router.include_router(reports.router, tags=["Reporting & Export"])
 api_router.include_router(digital_twin.router, tags=["Historical Security Digital Twin"])
+api_router.include_router(regression.router, tags=["Regression Detection & Change Intelligence"])
