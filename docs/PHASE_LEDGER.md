@@ -18,6 +18,6 @@
 | **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **COMPLETED** | `b631cfa` | Thread-safe registry, multibyte truncation, findings clamp, 1MB limit |
 | **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **COMPLETED** | `0ee676f` | Migration b2c3d4e5f6a7, Merkle proofs, audit hash chaining, verify endpoints |
 | **Phase 9** | Advanced Finding Validation | **COMPLETED** | `b3e334a` | Migration c3d4e5f6a7b8, validation outcomes, quality scoring, recurrence tracking |
-| **Phase 10** | Universal Security Knowledge Graph | **COMPLETED** | `HEAD` | Migration d4e5f6a7b8c9, 21 node types, 17 edge types, semantic validation matrix, epistemic history |
+| **Phase 10** | Universal Security Knowledge Graph | **COMPLETED** | `7d13188` | Migration d4e5f6a7b8c9, 21 node types, 17 edge types, semantic validation matrix, epistemic history |
 | **Phase 11** | Contextual Risk Intelligence | **PLANNED** | Next Active Phase | Versioned scoring formula v1.1.0, factor snapshotting, missing factor handling, uncertainty bounds |
 | **Phases 11-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
