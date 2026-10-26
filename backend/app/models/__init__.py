@@ -60,6 +60,13 @@ from app.models.ai_analyst import (
     AIDraftStatus,
     AIAnalystDraft,
 )
+from app.models.learning import (
+    DatasetSplit,
+    ModelStatus,
+    LearningDataset,
+    DatasetRecord,
+    GovernedModel,
+)
 
 __all__ = [
     "Base",
@@ -115,4 +122,9 @@ __all__ = [
     "AIDraftType",
     "AIDraftStatus",
     "AIAnalystDraft",
+    "DatasetSplit",
+    "ModelStatus",
+    "LearningDataset",
+    "DatasetRecord",
+    "GovernedModel",
 ]
