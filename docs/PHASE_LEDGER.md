@@ -19,6 +19,6 @@
 | **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **COMPLETED** | `0ee676f` | Migration b2c3d4e5f6a7, Merkle proofs, audit hash chaining, verify endpoints |
 | **Phase 9** | Advanced Finding Validation | **COMPLETED** | `b3e334a` | Migration c3d4e5f6a7b8, validation outcomes, quality scoring, recurrence tracking |
 | **Phase 10** | Universal Security Knowledge Graph | **COMPLETED** | `7d13188` | Migration d4e5f6a7b8c9, 21 node types, 17 edge types, semantic validation matrix, epistemic history |
-| **Phase 11** | Contextual Risk Intelligence | **COMPLETED** | `HEAD` | Migration e5f6a7b8c9d0, formula v1.1.0, inherent vs residual risk, uncertainty bounds |
+| **Phase 11** | Contextual Risk Intelligence | **COMPLETED** | `b757881` | Migration e5f6a7b8c9d0, formula v1.1.0, inherent vs residual risk, uncertainty bounds |
 | **Phase 12** | Evidence-Aware Attack-Path Analysis | **PLANNED** | Next Active Phase | Epistemic path classification, bounded traversal, risk contribution leverage |
 | **Phases 11-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
