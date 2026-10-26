@@ -2,11 +2,12 @@ import uuid
 import time
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy.orm import Session
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, engine, get_db
 from app.api.v1.router import api_router
 
 # Configure root logging
@@ -37,6 +38,45 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Enforces defense-in-depth HTTP security headers according to OWASP Secure Headers:
+    - Content-Security-Policy (CSP)
+    - X-Frame-Options (Clickjacking defense)
+    - X-Content-Type-Options (MIME-sniffing defense)
+    - X-XSS-Protection
+    - Referrer-Policy
+    - Permissions-Policy
+    - Strict-Transport-Security (HSTS)
+    - Cache-Control (Strict no-store for API payloads)
+    """
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none';"
+        )
+
+        if settings.ENVIRONMENT == "production" or request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
+        if request.url.path.startswith(settings.API_V1_STR):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Ensure SQLite / local DB tables are initialized
@@ -60,6 +100,7 @@ app = FastAPI(
 
 # Request context and audit middleware
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Cross-Origin Resource Sharing
 app.add_middleware(
@@ -69,6 +110,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Root-level liveness and readiness probes for orchestrators (Kubernetes, AWS ALB, ECS)
+@app.get("/health", include_in_schema=False)
+def root_liveness():
+    return {"status": "ok", "environment": settings.ENVIRONMENT, "app": settings.APP_NAME}
+
+
+@app.get("/ready", include_in_schema=False)
+def root_readiness(db: Session = Depends(get_db)):
+    from app.api.v1.endpoints.health import readiness_check
+    return readiness_check(db)
+
 
 # Register API v1 routes
 app.include_router(api_router, prefix=settings.API_V1_STR)

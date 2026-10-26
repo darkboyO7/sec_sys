@@ -1,5 +1,5 @@
 from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +48,20 @@ class Settings(BaseSettings):
         if len(v.strip()) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long for cryptographic security.")
         return v
+
+    @model_validator(mode="after")
+    def validate_production_hardening(self) -> "Settings":
+        if self.ENVIRONMENT.lower() == "production":
+            if any(bad in self.SECRET_KEY.lower() for bad in ["insecure", "change_in_production", "test"]):
+                raise ValueError("Default or development SECRET_KEY is strictly forbidden in production mode.")
+            if self.DEBUG:
+                raise ValueError("DEBUG mode must be set to False in production.")
+            if not self.AUDIT_LOG_STRICT:
+                raise ValueError("AUDIT_LOG_STRICT must be set to True in production.")
+            origins = self.cors_origins
+            if "*" in origins:
+                raise ValueError("Wildcard '*' in ALLOWED_ORIGINS is strictly forbidden in production mode.")
+        return self
 
     @property
     def cors_origins(self) -> List[str]:

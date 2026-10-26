@@ -33,4 +33,5 @@
 | **Phase 22** | PostgreSQL & Multi-Worker Readiness | **COMPLETED** | `9eca4dc` | Dialect pool config, DDL AST validation, atomic FOR UPDATE SKIP LOCKED claimer, deadlock retry, stale worker recovery |
 | **Phase 23** | Reliability, Performance & Resource Governance | **COMPLETED** | `575245e` | Migration b3c4d5e6f7a8, composite hot-path indexes, bounded pagination, queue backpressure (HTTP 429), cyclical graph clamping |
 | **Phase 24** | Backup, Recovery, and Data Lifecycle | **COMPLETED** | `b2ffe66` | Non-blocking online SQLite WAL backup, SHA-256 integrity, disposable restore sandbox, project manifest export, purge teardown, evidence retention |
-| **Phases 25-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
+| **Phase 25** | Deployment Hardening & Release Readiness | **COMPLETED** | `PENDING_COMMIT` | Secret key policy enforcement, fail-closed production mode, OWASP security headers, API no-store caching, root/API readiness probes |
+| **Phase 26** | Final Independent Security Assessment & Defensive Release Gate | **PLANNED** | Scheduled | Complete 26-phase end-to-end audit, security regression, final defensive release gate |
