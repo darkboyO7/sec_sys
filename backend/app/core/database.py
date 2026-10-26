@@ -15,14 +15,24 @@ if settings.DATABASE_URL.startswith("sqlite"):
             parent_dir.mkdir(parents=True, exist_ok=True)
 
 connect_args = {}
+engine_kwargs = {
+    "pool_pre_ping": True,
+    "echo": settings.DEBUG,
+}
+
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+    engine_kwargs["connect_args"] = connect_args
+elif settings.DATABASE_URL.startswith("postgresql"):
+    # Production-ready PostgreSQL connection pool configuration
+    engine_kwargs["pool_size"] = getattr(settings, "POSTGRES_POOL_SIZE", 20)
+    engine_kwargs["max_overflow"] = getattr(settings, "POSTGRES_MAX_OVERFLOW", 10)
+    engine_kwargs["pool_timeout"] = getattr(settings, "POSTGRES_POOL_TIMEOUT", 30)
+    engine_kwargs["pool_recycle"] = getattr(settings, "POSTGRES_POOL_RECYCLE", 1800)
 
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True,
-    echo=settings.DEBUG,
+    **engine_kwargs,
 )
 
 # Apply SQLite specific pragmas for WAL mode and Foreign Key enforcement

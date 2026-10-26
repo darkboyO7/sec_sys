@@ -18,6 +18,12 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "sqlite:///./data/vapt.db"
+    POSTGRES_POOL_SIZE: int = 20
+    POSTGRES_MAX_OVERFLOW: int = 10
+    POSTGRES_POOL_TIMEOUT: int = 30
+    POSTGRES_POOL_RECYCLE: int = 1800
+    DB_RETRY_MAX_ATTEMPTS: int = 3
+    DB_RETRY_BASE_DELAY_SECONDS: float = 0.05
 
     # Security & Cryptography
     SECRET_KEY: str = "dev_insecure_secret_key_change_in_production_min_32_bytes_long"

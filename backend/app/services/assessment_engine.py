@@ -842,3 +842,147 @@ class AssessmentExecutionEngine:
                 )
 
         db.flush()
+
+    @classmethod
+    def claim_next_available_job(
+        cls,
+        db: Session,
+        worker_id: str = "worker-01",
+        now: Optional[datetime] = None,
+    ) -> Optional[AssessmentJob]:
+        """
+        Atomically claims the next QUEUED assessment job from the global queue.
+        Supports PostgreSQL row-locking concurrency (FOR UPDATE SKIP LOCKED)
+        and SQLite atomic conditional update.
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        dialect_name = getattr(db.bind.dialect, "name", "sqlite") if db.bind else "sqlite"
+
+        if dialect_name == "postgresql":
+            job = (
+                db.query(AssessmentJob)
+                .filter(AssessmentJob.status == AssessmentStatus.QUEUED)
+                .order_by(AssessmentJob.created_at.asc())
+                .with_for_update(skip_locked=True)
+                .first()
+            )
+            if not job:
+                return None
+            job.status = AssessmentStatus.PREFLIGHT
+            job.claimed_by = worker_id
+            job.preflight_at = now
+            job.progress_pct = 10
+            db.commit()
+            db.refresh(job)
+            return job
+        else:
+            # SQLite / Generic atomic conditional update
+            candidate = (
+                db.query(AssessmentJob)
+                .filter(AssessmentJob.status == AssessmentStatus.QUEUED)
+                .order_by(AssessmentJob.created_at.asc())
+                .first()
+            )
+            if not candidate:
+                return None
+
+            rows = (
+                db.query(AssessmentJob)
+                .filter(
+                    AssessmentJob.id == candidate.id,
+                    AssessmentJob.status == AssessmentStatus.QUEUED,
+                )
+                .update(
+                    {
+                        AssessmentJob.status: AssessmentStatus.PREFLIGHT,
+                        AssessmentJob.claimed_by: worker_id,
+                        AssessmentJob.preflight_at: now,
+                        AssessmentJob.progress_pct: 10,
+                    },
+                    synchronize_session="fetch",
+                )
+            )
+            db.commit()
+            if rows > 0:
+                db.refresh(candidate)
+                return candidate
+            return None
+
+    @classmethod
+    def recover_stale_workers(
+        cls,
+        db: Session,
+        heartbeat_timeout_seconds: int = 120,
+        now: Optional[datetime] = None,
+    ) -> List[AssessmentJob]:
+        """
+        Scans for stalled assessment jobs whose worker heartbeat or runtime has elapsed.
+        Re-queues recoverable jobs or marks exhausted jobs as FAILED.
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        cutoff = now - timedelta(seconds=heartbeat_timeout_seconds)
+
+        # Check active jobs in PREFLIGHT or RUNNING
+        active_jobs = (
+            db.query(AssessmentJob)
+            .filter(AssessmentJob.status.in_([AssessmentStatus.PREFLIGHT, AssessmentStatus.RUNNING]))
+            .all()
+        )
+
+        recovered: List[AssessmentJob] = []
+
+        for job in active_jobs:
+            # Determine last activity timestamp
+            last_active = job.heartbeat_at or job.started_at or job.preflight_at or job.created_at
+            if last_active:
+                if last_active.tzinfo is None:
+                    last_active = last_active.replace(tzinfo=timezone.utc)
+                if last_active < cutoff:
+                    if job.attempt_count < job.max_retries:
+                        # Stale worker recovery: re-queue
+                        job.status = AssessmentStatus.QUEUED
+                        job.claimed_by = None
+                        job.worker_pid = None
+                        job.retry_count = (job.retry_count or 0) + 1
+                        job.attempt_count = (job.attempt_count or 1) + 1
+                        job.error_message = f"Stale worker recovered: heartbeat absent since {last_active.isoformat()}"
+                        AuditService.record_event(
+                            db=db,
+                            action="ASSESSMENT_STALE_WORKER_RECOVERED",
+                            target_type="AssessmentJob",
+                            outcome="SUCCESS",
+                            target_id=job.id,
+                            project_id=job.project_id,
+                            details={"last_active": last_active.isoformat(), "retry_count": job.retry_count},
+                        )
+                    else:
+                        # Attempts exhausted: fail closed
+                        job.status = AssessmentStatus.FAILED
+                        job.claimed_by = None
+                        job.worker_pid = None
+                        job.completed_at = now
+                        job.failure_category = "WORKER_HEARTBEAT_TIMEOUT"
+                        job.error_message = (
+                            f"Execution aborted: worker heartbeat absent past {heartbeat_timeout_seconds}s limit "
+                            f"and maximum retries ({job.max_retries}) exhausted."
+                        )
+                        AuditService.record_event(
+                            db=db,
+                            action="ASSESSMENT_STALE_WORKER_FAILED",
+                            target_type="AssessmentJob",
+                            outcome="FAILURE",
+                            target_id=job.id,
+                            project_id=job.project_id,
+                            details={"last_active": last_active.isoformat(), "attempts": job.attempt_count},
+                        )
+
+                    recovered.append(job)
+
+        if recovered:
+            db.commit()
+
+        return recovered
