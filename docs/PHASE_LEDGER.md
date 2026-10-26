@@ -15,8 +15,8 @@
 | **Phase 7A** | Isolated Worker Process & IPC Boundary | **COMPLETED** | `305230a` | Subprocess execution, Alembic migration `a1b2c3d4e5f6` (worker_pid), stdio IPC |
 | **Phase 7A.1**| Independent Execution Security Review & Hardening | **COMPLETED** | `fe9fa70` | Win32 Job Object containment, stdout protection, schema sanitization |
 | **Phase 7B** | Restricted Scanner Framework | **COMPLETED** | `487168d` | Formal typed contract, AdapterRegistry governance, passive header & SSL adapters |
-| **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **COMPLETED** | In Progress (`HEAD`) | Thread-safe registry, multibyte truncation, findings clamp, 1MB limit |
-| **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **PLANNED** | Next Active Phase | Merkle proofs, immutable evidence chains, non-repudiation |
-| **Phase 9** | Threat Modeling & Adaptive Asset Intelligence | **PLANNED** | Scheduled | Dynamic asset topology updates, passive risk enrichment |
+| **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **COMPLETED** | `b631cfa` | Thread-safe registry, multibyte truncation, findings clamp, 1MB limit |
+| **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **COMPLETED** | In Progress (`HEAD`) | Migration b2c3d4e5f6a7, Merkle proofs, audit hash chaining, verify endpoints |
+| **Phase 9** | Threat Modeling & Adaptive Asset Intelligence | **PLANNED** | Next Active Phase | Dynamic asset topology updates, passive risk enrichment |
 | **Phase 10** | Continuous Vulnerability Correlation | **PLANNED** | Scheduled | Multi-scanner deduplication, canonical CVE correlation |
 | **Phases 11-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |

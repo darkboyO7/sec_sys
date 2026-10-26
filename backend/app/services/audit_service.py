@@ -1,3 +1,5 @@
+import json
+import hashlib
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 import logging
@@ -28,6 +30,40 @@ def sanitize_audit_details(data: Any) -> Any:
     return data
 
 
+def compute_audit_event_hash(
+    prev_hash: Optional[str],
+    timestamp: datetime,
+    actor_id: Optional[str],
+    action: str,
+    target_type: str,
+    target_id: Optional[str],
+    project_id: Optional[str],
+    outcome: str,
+    details: Dict[str, Any],
+) -> str:
+    """
+    Computes deterministic SHA-256 hash for an audit event, binding it to the previous event hash.
+    """
+    canonical_details = json.dumps(details or {}, sort_keys=True, separators=(",", ":"))
+    if timestamp.tzinfo is None:
+        ts_utc = timestamp.replace(tzinfo=timezone.utc)
+    else:
+        ts_utc = timestamp.astimezone(timezone.utc)
+    ts_str = ts_utc.isoformat()
+    raw = (
+        f"{prev_hash or 'GENESIS'}|"
+        f"{ts_str}|"
+        f"{actor_id or 'ANONYMOUS'}|"
+        f"{action}|"
+        f"{target_type}|"
+        f"{target_id or ''}|"
+        f"{project_id or ''}|"
+        f"{outcome}|"
+        f"{canonical_details}"
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 class AuditService:
     @staticmethod
     def record_event(
@@ -47,18 +83,48 @@ class AuditService:
         Fails closed or logs fatal error if audit persistence fails.
         """
         clean_details = sanitize_audit_details(details or {})
+        now = datetime.now(timezone.utc)
+        proj_str = str(project_id) if project_id is not None else None
+        target_id_str = str(target_id) if target_id is not None else None
+
+        # Fetch previous audit event in chain for this project (or globally)
+        try:
+            query = db.query(AuditEvent)
+            if proj_str:
+                query = query.filter(AuditEvent.project_id == proj_str)
+            else:
+                query = query.filter(AuditEvent.project_id.is_(None))
+            last_event = query.order_by(AuditEvent.timestamp.desc(), AuditEvent.id.desc()).first()
+            prev_hash = last_event.event_hash if last_event else None
+        except Exception:
+            prev_hash = None
+
+        event_hash = compute_audit_event_hash(
+            prev_hash=prev_hash,
+            timestamp=now,
+            actor_id=actor_id,
+            action=action,
+            target_type=target_type,
+            target_id=target_id_str,
+            project_id=proj_str,
+            outcome=outcome,
+            details=clean_details,
+        )
+
         try:
             event = AuditEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now,
                 actor_id=actor_id,
                 actor_email=actor_email,
                 action=action,
                 target_type=target_type,
-                target_id=str(target_id) if target_id is not None else None,
-                project_id=str(project_id) if project_id is not None else None,
+                target_id=target_id_str,
+                project_id=proj_str,
                 ip_address=ip_address,
                 outcome=outcome,
                 details=clean_details,
+                prev_event_hash=prev_hash,
+                event_hash=event_hash,
             )
             db.add(event)
             if db.in_nested_transaction():

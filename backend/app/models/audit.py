@@ -31,3 +31,7 @@ class AuditEvent(Base):
 
     # Contextual structured metadata (strictly sanitized - no passwords, secrets, or full tokens)
     details = Column(JSON, default=dict, nullable=False)
+
+    # Cryptographic tamper-evident hash chaining (Phase 8)
+    prev_event_hash = Column(String(64), nullable=True, index=True)
+    event_hash = Column(String(64), nullable=True, index=True)

@@ -1,5 +1,17 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, projects, scopes, audit, assessments, findings, assets, graph, risk
+from app.api.v1.endpoints import (
+    health,
+    auth,
+    projects,
+    scopes,
+    audit,
+    assessments,
+    findings,
+    assets,
+    graph,
+    risk,
+    integrity,
+)
 
 api_router = APIRouter()
 
@@ -13,3 +25,4 @@ api_router.include_router(assets.router, tags=["Asset Inventory & Observations"]
 api_router.include_router(graph.router, tags=["Universal Security Knowledge Graph"])
 api_router.include_router(risk.router, tags=["Contextual Risk & Attack Paths"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit Ledger"])
+api_router.include_router(integrity.router, tags=["Cryptographic Integrity & Merkle Proofs"])
