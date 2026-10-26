@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, JSON, Text
+from sqlalchemy import Column, String, DateTime, JSON, Text, Index
 from app.core.database import Base
 from app.models.base import generate_uuid, utc_now
 
@@ -9,6 +9,10 @@ class AuditEvent(Base):
     Records actor, action, target entity, timestamp, outcome, and structured details.
     """
     __tablename__ = "audit_events"
+
+    __table_args__ = (
+        Index("ix_audit_events_project_timestamp", "project_id", "timestamp"),
+    )
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)

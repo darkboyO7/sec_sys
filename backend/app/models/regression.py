@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Enum as SqlEnum, DateTime, Text, JSON
+from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Enum as SqlEnum, DateTime, Text, JSON, Index
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -83,3 +83,7 @@ class RegressionAlert(Base, TimestampMixin):
     # Relationships
     project = relationship("Project", backref="regression_alerts")
     acknowledged_by = relationship("User", foreign_keys=[acknowledged_by_id])
+
+    __table_args__ = (
+        Index("ix_regression_alerts_project_status_severity", "project_id", "status", "severity"),
+    )

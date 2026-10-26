@@ -91,6 +91,7 @@ class AssessmentJob(Base, TimestampMixin):
 
     __table_args__ = (
         Index("uq_assessment_jobs_project_idempotency_key", "project_id", "idempotency_key", unique=True),
+        Index("ix_assessment_jobs_project_status_created", "project_id", "status", "created_at"),
     )
 
 
@@ -124,6 +125,10 @@ class AssessmentFinding(Base):
     project = relationship("Project")
     evidence_items = relationship("FindingEvidence", back_populates="finding", cascade="all, delete-orphan")
     canonical_finding = relationship("VulnerabilityFinding", back_populates="observations")
+
+    __table_args__ = (
+        Index("ix_assessment_findings_project_severity", "project_id", "severity"),
+    )
 
 
 class FindingEvidence(Base):
