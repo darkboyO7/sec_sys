@@ -47,6 +47,7 @@ from app.models.report import (
     ReportFormat,
     ReportRecord,
 )
+from app.models.digital_twin import SecuritySnapshot
 
 __all__ = [
     "Base",
@@ -93,4 +94,5 @@ __all__ = [
     "ReportType",
     "ReportFormat",
     "ReportRecord",
+    "SecuritySnapshot",
 ]
