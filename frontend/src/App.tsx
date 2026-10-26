@@ -11,6 +11,13 @@ import { KnowledgeGraphView } from './views/KnowledgeGraphView';
 import { ContextualRiskView } from './views/ContextualRiskView';
 import { AuditLedgerView } from './views/AuditLedgerView';
 import { SystemHealthView } from './views/SystemHealthView';
+import { RemediationVerificationView } from './views/RemediationVerificationView';
+import { ReportingView } from './views/ReportingView';
+import { DigitalTwinView } from './views/DigitalTwinView';
+import { RegressionAlertsView } from './views/RegressionAlertsView';
+import { AIAnalystView } from './views/AIAnalystView';
+import { ModelGovernanceView } from './views/ModelGovernanceView';
+import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { AuthModal } from './components/AuthModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { api } from './services/api';
@@ -152,6 +159,22 @@ export const App: React.FC = () => {
 
   const authorizedTargets = targets.filter((t) => t.authorization_status === 'AUTHORIZED');
 
+  const requiresProjectTab = [
+    'scopes',
+    'assessments',
+    'findings',
+    'assets',
+    'graph',
+    'risk',
+    'verification',
+    'reports',
+    'digital-twin',
+    'regression',
+    'ai-analyst',
+    'learning',
+    'adaptive-defense',
+  ].includes(activeTab);
+
   return (
     <div className="min-h-screen bg-cyber-900 text-slate-100 flex flex-col font-sans selection:bg-accent-cyan/30">
       <Header
@@ -193,52 +216,90 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'scopes' && activeProject && (
-          <ScopeManagementView
-            project={activeProject}
-            targets={targets}
-            exclusions={exclusions}
-            currentUser={currentUser}
-            onRefresh={loadProjectData}
-          />
+        {requiresProjectTab && !activeProject && (
+          <div className="py-16 text-center text-slate-400 bg-cyber-850/40 border border-cyber-750 rounded-lg">
+            <p className="text-sm">Please authenticate and select an active project to access this view.</p>
+          </div>
         )}
 
-        {activeTab === 'assessments' && activeProject && (
-          <AssessmentJobsView
-            project={activeProject}
-            authorizedTargets={authorizedTargets}
-            jobs={assessmentJobs}
-            onRefresh={loadProjectData}
-            loading={loading}
-          />
-        )}
+        {activeProject && (
+          <>
+            {activeTab === 'scopes' && (
+              <ScopeManagementView
+                project={activeProject}
+                targets={targets}
+                exclusions={exclusions}
+                currentUser={currentUser}
+                onRefresh={loadProjectData}
+              />
+            )}
 
-        {activeTab === 'findings' && activeProject && (
-          <FindingLifecycleView currentProject={activeProject} />
-        )}
+            {activeTab === 'assessments' && (
+              <AssessmentJobsView
+                project={activeProject}
+                authorizedTargets={authorizedTargets}
+                jobs={assessmentJobs}
+                onRefresh={loadProjectData}
+                loading={loading}
+              />
+            )}
 
-        {activeTab === 'assets' && activeProject && (
-          <AssetInventoryView
-            currentProject={activeProject}
-            onNavigateToGraph={(nodeId) => {
-              if (nodeId) setGraphRootNodeId(nodeId);
-              setActiveTab('graph');
-            }}
-          />
-        )}
+            {activeTab === 'findings' && (
+              <FindingLifecycleView currentProject={activeProject} />
+            )}
 
-        {activeTab === 'graph' && activeProject && (
-          <KnowledgeGraphView
-            currentProject={activeProject}
-            initialNodeId={graphRootNodeId}
-          />
-        )}
+            {activeTab === 'assets' && (
+              <AssetInventoryView
+                currentProject={activeProject}
+                onNavigateToGraph={(nodeId) => {
+                  if (nodeId) setGraphRootNodeId(nodeId);
+                  setActiveTab('graph');
+                }}
+              />
+            )}
 
-        {activeTab === 'risk' && activeProject && (
-          <ContextualRiskView
-            currentProject={activeProject}
-            currentUserRole={currentUser?.system_role}
-          />
+            {activeTab === 'graph' && (
+              <KnowledgeGraphView
+                currentProject={activeProject}
+                initialNodeId={graphRootNodeId}
+              />
+            )}
+
+            {activeTab === 'risk' && (
+              <ContextualRiskView
+                currentProject={activeProject}
+                currentUserRole={currentUser?.system_role}
+              />
+            )}
+
+            {activeTab === 'verification' && (
+              <RemediationVerificationView currentProject={activeProject} />
+            )}
+
+            {activeTab === 'reports' && (
+              <ReportingView currentProject={activeProject} />
+            )}
+
+            {activeTab === 'digital-twin' && (
+              <DigitalTwinView currentProject={activeProject} />
+            )}
+
+            {activeTab === 'regression' && (
+              <RegressionAlertsView currentProject={activeProject} />
+            )}
+
+            {activeTab === 'ai-analyst' && (
+              <AIAnalystView currentProject={activeProject} />
+            )}
+
+            {activeTab === 'learning' && (
+              <ModelGovernanceView projectId={activeProject.id} />
+            )}
+
+            {activeTab === 'adaptive-defense' && (
+              <AdaptiveDefenseView projectId={activeProject.id} />
+            )}
+          </>
         )}
 
         {activeTab === 'audit' && (
@@ -258,16 +319,10 @@ export const App: React.FC = () => {
             loading={loading}
           />
         )}
-
-        {(activeTab === 'scopes' || activeTab === 'assessments' || activeTab === 'findings' || activeTab === 'assets' || activeTab === 'graph' || activeTab === 'risk') && !activeProject && (
-          <div className="py-12 text-center text-slate-400">
-            Please authenticate and select an assessment project to proceed.
-          </div>
-        )}
       </main>
 
       <footer className="border-t border-cyber-800 bg-cyber-900/80 py-4 px-6 text-center text-slate-500 text-xs font-mono">
-        VAPT Platform Phase 5: Contextual Risk Intelligence, Attack Paths & Remediation · Windows-Native Control Plane
+        VAPT Platform Phase 21: Unified Enterprise Defensive Intelligence Dashboard · Windows-Native Control Plane
       </footer>
 
       {/* Modals */}

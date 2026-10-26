@@ -545,6 +545,204 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  // Phase 13: Remediation Planning & Change Authorization
+  async authorizeChange(
+    projectId: string,
+    recommendationId: string,
+    externalChangeTicketRef: string
+  ): Promise<RemediationRecommendation> {
+    return this.request(`/projects/${projectId}/risk/remediations/${recommendationId}/authorize-change`, {
+      method: 'POST',
+      body: JSON.stringify({ external_change_ticket_ref: externalChangeTicketRef }),
+    });
+  }
+
+  // Phase 14: Independent Remediation Verification
+  async verifyFinding(
+    projectId: string,
+    findingId: string,
+    data: {
+      recommendation_id?: string;
+      outcome: string;
+      verification_method: string;
+      verification_criteria: string;
+      verification_evidence_summary: string;
+      notes?: string;
+    }
+  ): Promise<any> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/verify`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async retestFinding(projectId: string, findingId: string, adapterKey?: string): Promise<any> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/verify/retest`, {
+      method: 'POST',
+      body: JSON.stringify({ adapter_key: adapterKey || 'scanner.passive_header' }),
+    });
+  }
+
+  // Phase 15: Reporting & Export
+  async generateReport(
+    projectId: string,
+    data: { report_type: string; format?: string; title: string }
+  ): Promise<any> {
+    return this.request(`/projects/${projectId}/reports/generate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listReports(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/reports`);
+  }
+
+  // Phase 16: Historical Security Digital Twin
+  async captureSnapshot(projectId: string, name: string, description?: string): Promise<any> {
+    return this.request(`/projects/${projectId}/digital-twin/snapshots`, {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    });
+  }
+
+  async listSnapshots(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/digital-twin/snapshots`);
+  }
+
+  async compareSnapshots(projectId: string, snapshotAId: string, snapshotBId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/digital-twin/compare`, {
+      method: 'POST',
+      body: JSON.stringify({ snapshot_a_id: snapshotAId, snapshot_b_id: snapshotBId }),
+    });
+  }
+
+  // Phase 17: Regression Detection & Change Intelligence
+  async getRegressionBaseline(projectId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/regressions/baseline`);
+  }
+
+  async evaluateRegressions(projectId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/regressions/evaluate`, { method: 'POST' });
+  }
+
+  async listRegressionAlerts(projectId: string, status?: string): Promise<any[]> {
+    const qs = status ? `?status=${status}` : '';
+    return this.request(`/projects/${projectId}/regressions/alerts${qs}`);
+  }
+
+  async acknowledgeRegressionAlert(projectId: string, alertId: string, notes?: string): Promise<any> {
+    return this.request(`/projects/${projectId}/regressions/alerts/${alertId}/acknowledge`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async resolveRegressionAlert(projectId: string, alertId: string, notes: string): Promise<any> {
+    return this.request(`/projects/${projectId}/regressions/alerts/${alertId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ resolution_notes: notes }),
+    });
+  }
+
+  // Phase 18: Controlled AI Security Analyst
+  async explainFindingAI(projectId: string, findingId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/ai-analyst/explain-finding/${findingId}`, {
+      method: 'POST',
+      body: JSON.stringify({ include_mitre_mapping: true, include_defensive_controls: true }),
+    });
+  }
+
+  async draftRemediationAI(projectId: string, findingId: string, operationalConstraints?: string): Promise<any> {
+    return this.request(`/projects/${projectId}/ai-analyst/draft-remediation/${findingId}`, {
+      method: 'POST',
+      body: JSON.stringify({ operational_constraints: operationalConstraints }),
+    });
+  }
+
+  async listAIDrafts(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/ai-analyst/drafts`);
+  }
+
+  async reviewAIDraft(projectId: string, draftId: string, approved: boolean, notes: string): Promise<any> {
+    return this.request(`/projects/${projectId}/ai-analyst/drafts/${draftId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ approved, review_notes: notes }),
+    });
+  }
+
+  // Phase 19: Controlled Learning & Model Governance
+  async curateDataset(projectId: string, name: string, version: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/datasets/curate`, {
+      method: 'POST',
+      body: JSON.stringify({ name, version }),
+    });
+  }
+
+  async listDatasets(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/learning/datasets`);
+  }
+
+  async registerModel(projectId: string, data: { model_name: string; version: string; model_type?: string; dataset_id: string }): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/models/register`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async evaluateModel(projectId: string, modelId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/models/${modelId}/evaluate`, { method: 'POST' });
+  }
+
+  async approveModel(projectId: string, modelId: string, approved: boolean, notes: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/models/${modelId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ approved, approval_notes: notes }),
+    });
+  }
+
+  async activateModel(projectId: string, modelId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/models/${modelId}/activate`, { method: 'POST' });
+  }
+
+  async rollbackModel(projectId: string, modelId: string, reason: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/models/${modelId}/rollback`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async listModels(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/learning/models`);
+  }
+
+  // Phase 20: Morph-State Adaptive Defense & Recovery
+  async getAdaptivePosture(projectId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/adaptive-defense/posture`);
+  }
+
+  async evaluateAdaptivePosture(projectId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/adaptive-defense/evaluate`, { method: 'POST' });
+  }
+
+  async engageKillSwitch(projectId: string, reason: string): Promise<any> {
+    return this.request(`/projects/${projectId}/adaptive-defense/kill-switch/engage`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async disengageKillSwitch(projectId: string, justification: string): Promise<any> {
+    return this.request(`/projects/${projectId}/adaptive-defense/kill-switch/disengage`, {
+      method: 'POST',
+      body: JSON.stringify({ justification }),
+    });
+  }
+
+  async getPostureHistory(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/adaptive-defense/history`);
+  }
 }
 
 export const api = new ApiService();

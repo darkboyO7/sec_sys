@@ -549,7 +549,221 @@ export interface RemediationRecommendation {
   reviewed_by_id?: string | null;
   reviewed_at?: string | null;
   review_notes?: string | null;
+  execution_governance_stage?: string;
+  external_change_ticket_ref?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Phase 14: Independent Remediation Verification
+export type VerificationOutcome = 'VERIFIED_FIXED' | 'STILL_VULNERABLE' | 'PARTIALLY_REMEDIATED' | 'INCONCLUSIVE';
+export type VerificationMethod = 'SCANNER_RETEST' | 'MANUAL_PROBE' | 'CONFIG_INSPECTION' | 'CODE_AUDIT';
+
+export interface RemediationVerification {
+  id: string;
+  project_id: string;
+  finding_id: string;
+  recommendation_id?: string | null;
+  outcome: VerificationOutcome;
+  verification_method: VerificationMethod;
+  verification_criteria: string;
+  verification_evidence_summary: string;
+  notes?: string | null;
+  verified_by_id?: string | null;
+  verified_at: string;
+}
+
+// Phase 15: Reporting and Export
+export type ReportType = 'EXECUTIVE' | 'TECHNICAL' | 'GOVERNANCE';
+export type ReportFormat = 'JSON' | 'CSV' | 'HTML';
+
+export interface ReportRecord {
+  id: string;
+  project_id: string;
+  report_type: ReportType;
+  format: ReportFormat;
+  title: string;
+  content_sha256: string;
+  file_size_bytes: number;
+  report_metadata: Record<string, any>;
+  generated_by_id?: string | null;
+  created_at: string;
+}
+
+// Phase 16: Historical Security Digital Twin
+export interface SecuritySnapshot {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string | null;
+  snapshot_timestamp: string;
+  manifest_sha256: string;
+  state_manifest: Record<string, any>;
+  risk_summary: Record<string, any>;
+  captured_by_id?: string | null;
+  created_at: string;
+}
+
+export interface SnapshotDiffResponse {
+  project_id: string;
+  snapshot_a_id: string;
+  snapshot_b_id: string;
+  snapshot_a_timestamp: string;
+  snapshot_b_timestamp: string;
+  new_findings: any[];
+  resolved_findings: any[];
+  recurring_findings: any[];
+  changed_findings: any[];
+  unresolved_findings: any[];
+  added_assets: any[];
+  removed_assets: any[];
+  risk_drift: Record<string, any>;
+  overall_posture_trend: 'IMPROVED' | 'DEGRADED' | 'STABLE';
+}
+
+// Phase 17: Regression Detection and Change Intelligence
+export type RegressionAlertType = 'RECURRING_FINDING' | 'REMEDIATION_REGRESSION' | 'STALE_EVIDENCE' | 'NEW_EXPOSURE';
+export type AlertSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+export type AlertStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'DISMISSED';
+
+export interface RegressionAlert {
+  id: string;
+  project_id: string;
+  alert_type: RegressionAlertType;
+  severity: AlertSeverity;
+  status: AlertStatus;
+  title: string;
+  description: string;
+  evidence_rationale: string;
+  baseline_reference?: string | null;
+  target_resource: string;
+  fingerprint: string;
+  resolution_notes?: string | null;
+  acknowledged_by_id?: string | null;
+  acknowledged_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RegressionBaseline {
+  id: string;
+  project_id: string;
+  snapshot_id?: string | null;
+  name: string;
+  is_active: boolean;
+  risk_score_threshold_delta: number;
+  evidence_stale_days: number;
+  created_at: string;
+}
+
+// Phase 18: Controlled AI Security Analyst
+export type AIDraftType = 'FINDING_EXPLANATION' | 'ASSESSMENT_SUMMARY' | 'REMEDIATION_DRAFT' | 'ATTACK_PATH_SUMMARY' | 'VALIDATION_CHECKLIST';
+export type AIDraftStatus = 'DRAFT' | 'REVIEWED_APPROVED' | 'REVIEWED_REJECTED' | 'MODIFIED';
+
+export interface AIAnalystDraft {
+  id: string;
+  project_id: string;
+  draft_type: AIDraftType;
+  status: AIDraftStatus;
+  prompt_version: string;
+  model_identifier: string;
+  target_resource: string;
+  title: string;
+  summary: string;
+  content: Record<string, any>;
+  citations: Array<{ citation_type: string; resource_id: string; label: string; sha256_digest?: string | null }>;
+  uncertainty_notes?: string | null;
+  prompt_injection_flags?: string[] | null;
+  is_reviewed: boolean;
+  reviewed_by_id?: string | null;
+  reviewed_at?: string | null;
+  review_notes?: string | null;
+  created_at: string;
+}
+
+// Phase 19: Controlled Learning and Model Governance
+export type DatasetSplit = 'TRAIN' | 'VALIDATION' | 'TEST';
+export type ModelStatus = 'CANDIDATE' | 'EVALUATED' | 'APPROVED' | 'ACTIVE' | 'DEPRECATED' | 'ROLLED_BACK';
+
+export interface LearningDataset {
+  id: string;
+  project_id: string;
+  name: string;
+  version: string;
+  dataset_hash: string;
+  total_records: number;
+  train_count: number;
+  val_count: number;
+  test_count: number;
+  created_at: string;
+}
+
+export interface GovernedModel {
+  id: string;
+  project_id: string;
+  model_name: string;
+  version: string;
+  model_type: string;
+  status: ModelStatus;
+  dataset_id: string;
+  metrics: Record<string, any>;
+  hyperparameters: Record<string, any>;
+  is_active: boolean;
+  activated_at?: string | null;
+  approved_by_id?: string | null;
+  approved_at?: string | null;
+  approval_notes?: string | null;
+  rollback_target_id?: string | null;
+  created_at: string;
+}
+
+// Phase 20: Morph-State Adaptive Defense and Recovery
+export type AdaptiveMorphState =
+  | 'NORMAL'
+  | 'ELEVATED_MONITORING'
+  | 'INVESTIGATION_REQUIRED'
+  | 'CONTAINMENT_RECOMMENDED'
+  | 'RECOVERY_IN_PROGRESS'
+  | 'RECOVERY_VERIFICATION_REQUIRED'
+  | 'RECOVERY_COMPLETE'
+  | 'MANUAL_REVIEW_REQUIRED';
+
+export type AdaptiveTransitionTrigger =
+  | 'INITIAL_PROVISIONING'
+  | 'CRITICAL_FINDING_DETECTED'
+  | 'REGRESSION_ALERT_RAISED'
+  | 'CHANGE_AUTHORIZED'
+  | 'VERIFICATION_FAILED'
+  | 'VERIFICATION_PASSED'
+  | 'POSTURE_CLEARED'
+  | 'KILL_SWITCH_ENGAGED'
+  | 'KILL_SWITCH_DISENGAGED'
+  | 'MANUAL_OVERRIDE';
+
+export interface MorphStatePosture {
+  id: string;
+  project_id: string;
+  current_state: AdaptiveMorphState;
+  previous_state?: AdaptiveMorphState | null;
+  state_version: number;
+  kill_switch_active: boolean;
+  kill_switch_engaged_at?: string | null;
+  kill_switch_reason?: string | null;
+  monitoring_cadence_multiplier: number;
+  active_recommendations: Array<Record<string, any>>;
+  recovery_prerequisites: Array<Record<string, any>>;
+  last_transition_at: string;
+  last_evaluated_at: string;
+}
+
+export interface MorphStateHistory {
+  id: string;
+  posture_id: string;
+  from_state: AdaptiveMorphState;
+  to_state: AdaptiveMorphState;
+  trigger: AdaptiveTransitionTrigger;
+  evidence_rationale: string;
+  triggered_by_id?: string | null;
+  created_at: string;
 }
 

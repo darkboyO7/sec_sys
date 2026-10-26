@@ -1,7 +1,40 @@
 import React from 'react';
-import { LayoutDashboard, Target, PlayCircle, ShieldAlert, FileText, Activity, Server, Network, Flame } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Target,
+  PlayCircle,
+  ShieldAlert,
+  FileText,
+  Activity,
+  Server,
+  Network,
+  Flame,
+  CheckCircle,
+  FileSpreadsheet,
+  History,
+  AlertTriangle,
+  Bot,
+  Scale,
+  Shield,
+} from 'lucide-react';
 
-export type NavigationTab = 'overview' | 'scopes' | 'assessments' | 'findings' | 'assets' | 'graph' | 'risk' | 'audit' | 'health';
+export type NavigationTab =
+  | 'overview'
+  | 'scopes'
+  | 'assessments'
+  | 'findings'
+  | 'assets'
+  | 'graph'
+  | 'risk'
+  | 'verification'
+  | 'reports'
+  | 'digital-twin'
+  | 'regression'
+  | 'ai-analyst'
+  | 'learning'
+  | 'adaptive-defense'
+  | 'audit'
+  | 'health';
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -54,13 +87,48 @@ export const Navigation: React.FC<NavigationProps> = ({
     },
     {
       id: 'graph' as NavigationTab,
-      label: 'Security Knowledge Graph',
+      label: 'Knowledge Graph',
       icon: Network,
     },
     {
       id: 'risk' as NavigationTab,
       label: 'Risk & Attack Paths',
       icon: Flame,
+    },
+    {
+      id: 'verification' as NavigationTab,
+      label: 'Remediation & Verification',
+      icon: CheckCircle,
+    },
+    {
+      id: 'reports' as NavigationTab,
+      label: 'Reports & Export',
+      icon: FileSpreadsheet,
+    },
+    {
+      id: 'digital-twin' as NavigationTab,
+      label: 'Digital Twin',
+      icon: History,
+    },
+    {
+      id: 'regression' as NavigationTab,
+      label: 'Regression Alerts',
+      icon: AlertTriangle,
+    },
+    {
+      id: 'ai-analyst' as NavigationTab,
+      label: 'AI Analyst',
+      icon: Bot,
+    },
+    {
+      id: 'learning' as NavigationTab,
+      label: 'Model Governance',
+      icon: Scale,
+    },
+    {
+      id: 'adaptive-defense' as NavigationTab,
+      label: 'Adaptive Defense',
+      icon: Shield,
     },
     {
       id: 'audit' as NavigationTab,
@@ -76,8 +144,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <nav className="border-b border-cyber-750 bg-cyber-850/60 px-6">
-      <div className="flex gap-2">
+    <nav className="border-b border-cyber-750 bg-cyber-850/60 px-6 overflow-x-auto scrollbar-thin">
+      <div className="flex gap-1.5 min-w-max">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -85,13 +153,13 @@ export const Navigation: React.FC<NavigationProps> = ({
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 py-3 px-3.5 text-xs font-semibold border-b-2 transition-all ${
+              className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
                 isActive
                   ? 'border-accent-cyan text-accent-cyan bg-cyber-800/40'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-cyber-600'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
               {tab.badge !== undefined && (
                 <span
