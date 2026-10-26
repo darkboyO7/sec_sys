@@ -15,6 +15,7 @@ from app.models.graph import (
 )
 from app.schemas.graph import (
     GraphNodeRead,
+    GraphNodeCreate,
     GraphRelationshipRead,
     GraphRelationshipCreate,
     GraphNeighborhoodResponse,
@@ -93,6 +94,77 @@ def get_node_neighborhood(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
+
+
+@router.get("/projects/{project_id}/graph/nodes", response_model=List[GraphNodeRead])
+def list_graph_nodes(
+    project_id: str,
+    category: Optional[GraphNodeCategory] = Query(None, description="Filter by node category"),
+    epistemic_status: Optional[str] = Query(None, description="Filter by epistemic status"),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    List graph nodes within the project context with optional category/epistemic filters.
+    """
+    verify_project_access(project_id, current_user, db)
+    return KnowledgeGraphService.list_nodes(
+        project_id=project_id,
+        category=category,
+        epistemic_status=epistemic_status,
+        limit=limit,
+        db=db,
+    )
+
+
+@router.post("/projects/{project_id}/graph/nodes", response_model=GraphNodeRead, status_code=status.HTTP_201_CREATED)
+def create_graph_node(
+    project_id: str,
+    node_in: GraphNodeCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Register a new entity node into the project's Knowledge Graph.
+    Requires Project LEAD or System ADMIN.
+    """
+    verify_project_access(
+        project_id,
+        current_user,
+        db,
+        required_project_roles=[ProjectRole.LEAD],
+    )
+
+    node = KnowledgeGraphService.get_or_create_node(
+        project_id=project_id,
+        category=node_in.category,
+        label=node_in.label,
+        entity_id=node_in.entity_id,
+        entity_type=node_in.entity_type,
+        properties=node_in.properties,
+        epistemic_status=node_in.epistemic_status,
+        db=db,
+    )
+
+    client_ip = get_client_ip(request)
+    AuditService.log(
+        db=db,
+        action="GRAPH_NODE_CREATE",
+        target_resource=f"graph_node:{node.id}",
+        actor_id=current_user.id,
+        project_id=project_id,
+        client_ip=client_ip,
+        details={
+            "node_id": node.id,
+            "category": node.category.value,
+            "label": node.label,
+            "epistemic_status": node.epistemic_status,
+        },
+    )
+    db.commit()
+    return node
 
 
 @router.get("/projects/{project_id}/graph/nodes/{node_id}", response_model=GraphNodeRead)

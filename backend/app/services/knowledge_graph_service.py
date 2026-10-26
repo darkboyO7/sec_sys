@@ -18,8 +18,80 @@ class KnowledgeGraphService:
     """
     Universal Security Knowledge Graph Service.
     Enforces project boundaries, cycle safety, strictly bounded neighborhood traversal,
-    and provenance/confidence differentiation (VERIFIED vs INFERRED vs HYPOTHETICAL vs STALE).
+    epistemic verification states (VERIFIED vs INFERRED vs HYPOTHETICAL vs STALE),
+    and semantic edge type validity constraints.
     """
+
+    VALID_EDGE_CONSTRAINTS: Dict[RelationshipType, Tuple[Optional[Set[GraphNodeCategory]], Optional[Set[GraphNodeCategory]]]] = {
+        RelationshipType.RUNS: (
+            {GraphNodeCategory.HOST, GraphNodeCategory.ASSET, GraphNodeCategory.CLOUD_RESOURCE, GraphNodeCategory.SERVICE},
+            {GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.SOFTWARE_COMPONENT, GraphNodeCategory.PACKAGE},
+        ),
+        RelationshipType.RESOLVES_TO: (
+            {GraphNodeCategory.DOMAIN, GraphNodeCategory.HOST, GraphNodeCategory.ASSET},
+            {GraphNodeCategory.IP_ADDRESS, GraphNodeCategory.HOST, GraphNodeCategory.CLOUD_RESOURCE},
+        ),
+        RelationshipType.EXPOSES: (
+            {GraphNodeCategory.HOST, GraphNodeCategory.ASSET, GraphNodeCategory.SERVICE, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.CLOUD_RESOURCE},
+            {GraphNodeCategory.API_ENDPOINT, GraphNodeCategory.SERVICE, GraphNodeCategory.VULNERABILITY, GraphNodeCategory.FINDING},
+        ),
+        RelationshipType.DEPENDS_ON: (
+            {GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.SERVICE, GraphNodeCategory.SOFTWARE_COMPONENT, GraphNodeCategory.PACKAGE, GraphNodeCategory.BUSINESS_SERVICE, GraphNodeCategory.ASSET},
+            {GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.SERVICE, GraphNodeCategory.SOFTWARE_COMPONENT, GraphNodeCategory.PACKAGE, GraphNodeCategory.DEPENDENCY, GraphNodeCategory.DATA_STORE, GraphNodeCategory.CLOUD_RESOURCE, GraphNodeCategory.ASSET, GraphNodeCategory.HOST},
+        ),
+        RelationshipType.AUTHENTICATES_TO: (
+            {GraphNodeCategory.IDENTITY, GraphNodeCategory.ROLE, GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.ASSET, GraphNodeCategory.HOST},
+            {GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.DATA_STORE, GraphNodeCategory.HOST, GraphNodeCategory.CLOUD_RESOURCE, GraphNodeCategory.ASSET},
+        ),
+        RelationshipType.CAN_ACCESS: (
+            {GraphNodeCategory.IDENTITY, GraphNodeCategory.ROLE, GraphNodeCategory.PERMISSION, GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.ASSET, GraphNodeCategory.HOST},
+            {GraphNodeCategory.DATA_STORE, GraphNodeCategory.API_ENDPOINT, GraphNodeCategory.HOST, GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.CLOUD_RESOURCE, GraphNodeCategory.ASSET},
+        ),
+        RelationshipType.AFFECTED_BY: (
+            {GraphNodeCategory.ASSET, GraphNodeCategory.HOST, GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.SOFTWARE_COMPONENT, GraphNodeCategory.PACKAGE, GraphNodeCategory.CLOUD_RESOURCE},
+            {GraphNodeCategory.VULNERABILITY, GraphNodeCategory.FINDING},
+        ),
+        RelationshipType.PROTECTED_BY: (
+            {GraphNodeCategory.ASSET, GraphNodeCategory.HOST, GraphNodeCategory.SERVICE, GraphNodeCategory.APPLICATION, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.DATA_STORE, GraphNodeCategory.BUSINESS_SERVICE},
+            {GraphNodeCategory.SECURITY_CONTROL},
+        ),
+        RelationshipType.MITIGATES: (
+            {GraphNodeCategory.SECURITY_CONTROL, GraphNodeCategory.REMEDIATION},
+            {GraphNodeCategory.VULNERABILITY, GraphNodeCategory.FINDING, GraphNodeCategory.ASSET, GraphNodeCategory.SERVICE},
+        ),
+        RelationshipType.OBSERVED_ON: (
+            {GraphNodeCategory.FINDING, GraphNodeCategory.VULNERABILITY, GraphNodeCategory.EVIDENCE, GraphNodeCategory.ASSESSMENT},
+            {GraphNodeCategory.ASSET, GraphNodeCategory.HOST, GraphNodeCategory.SERVICE, GraphNodeCategory.API_ENDPOINT, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.IP_ADDRESS, GraphNodeCategory.ASSESSMENT},
+        ),
+        RelationshipType.OBSERVED_AT: (
+            {GraphNodeCategory.FINDING, GraphNodeCategory.VULNERABILITY, GraphNodeCategory.EVIDENCE, GraphNodeCategory.ASSESSMENT},
+            {GraphNodeCategory.ASSET, GraphNodeCategory.HOST, GraphNodeCategory.SERVICE, GraphNodeCategory.API_ENDPOINT, GraphNodeCategory.WEB_APPLICATION, GraphNodeCategory.IP_ADDRESS, GraphNodeCategory.ASSESSMENT},
+        ),
+        RelationshipType.DERIVED_FROM: (
+            {GraphNodeCategory.FINDING, GraphNodeCategory.VULNERABILITY, GraphNodeCategory.EVIDENCE},
+            {GraphNodeCategory.ASSESSMENT, GraphNodeCategory.EVIDENCE, GraphNodeCategory.FINDING},
+        ),
+        RelationshipType.REMEDIATED_BY: (
+            {GraphNodeCategory.VULNERABILITY, GraphNodeCategory.FINDING},
+            {GraphNodeCategory.REMEDIATION, GraphNodeCategory.SECURITY_CONTROL},
+        ),
+        RelationshipType.CONTAINS: (
+            None,
+            None,
+        ),
+        RelationshipType.BELONGS_TO: (
+            None,
+            None,
+        ),
+        RelationshipType.ASSOCIATED_WITH: (
+            None,
+            None,
+        ),
+        RelationshipType.VERIFIED_BY: (
+            {GraphNodeCategory.FINDING, GraphNodeCategory.VULNERABILITY, GraphNodeCategory.REMEDIATION},
+            {GraphNodeCategory.ASSESSMENT, GraphNodeCategory.EVIDENCE, GraphNodeCategory.IDENTITY},
+        ),
+    }
 
     @classmethod
     def get_or_create_node(
@@ -30,6 +102,7 @@ class KnowledgeGraphService:
         entity_id: Optional[str] = None,
         entity_type: Optional[str] = None,
         properties: Optional[Dict[str, Any]] = None,
+        epistemic_status: str = "VERIFIED",
         db: Optional[Session] = None,
     ) -> GraphNode:
         """
@@ -55,6 +128,7 @@ class KnowledgeGraphService:
         if existing:
             # Update label or merge properties
             existing.label = clean_label
+            existing.epistemic_status = epistemic_status
             if props:
                 merged = dict(existing.properties or {})
                 merged.update(props)
@@ -70,6 +144,7 @@ class KnowledgeGraphService:
             entity_id=entity_id,
             entity_type=entity_type,
             properties=props,
+            epistemic_status=epistemic_status,
         )
 
         try:
@@ -129,6 +204,24 @@ class KnowledgeGraphService:
                 f"does not exist in project '{project_id}'."
             )
 
+        # Validate semantic category constraints
+        allowed_sources, allowed_targets = cls.VALID_EDGE_CONSTRAINTS.get(relationship_type, (None, None))
+        if allowed_sources is not None and source_node.category not in allowed_sources:
+            raise ValueError(
+                f"Invalid edge source category: relationship type '{relationship_type.value}' does not allow "
+                f"source node '{source_node.label}' with category '{source_node.category.value}'."
+            )
+        if allowed_targets is not None and target_node.category not in allowed_targets:
+            raise ValueError(
+                f"Invalid edge target category: relationship type '{relationship_type.value}' does not allow "
+                f"target node '{target_node.label}' with category '{target_node.category.value}'."
+            )
+
+        # Grounding check: prevent ungrounded claims of VERIFIED status without evidence or verified observation
+        effective_status = status
+        if status == RelationshipStatus.VERIFIED and not evidence_reference and provenance in ("MANUAL_ANALYST", "INFERRED_ENGINE"):
+            effective_status = RelationshipStatus.INFERRED
+
         now = utc_now()
         existing_rel = (
             db.query(GraphRelationship)
@@ -142,7 +235,18 @@ class KnowledgeGraphService:
         )
 
         if existing_rel:
-            existing_rel.status = status
+            if existing_rel.status != effective_status or existing_rel.confidence != confidence:
+                hist_entry = {
+                    "from_status": existing_rel.status.value,
+                    "to_status": effective_status.value,
+                    "confidence": confidence,
+                    "provenance": provenance,
+                    "evidence_reference": evidence_reference,
+                    "timestamp": now.isoformat(),
+                }
+                existing_rel.verification_history = list(existing_rel.verification_history or []) + [hist_entry]
+
+            existing_rel.status = effective_status
             existing_rel.confidence = max(0.0, min(1.0, confidence))
             existing_rel.provenance = provenance
             existing_rel.evidence_reference = evidence_reference
@@ -154,16 +258,26 @@ class KnowledgeGraphService:
             db.flush()
             return existing_rel
 
+        initial_history = [{
+            "from_status": None,
+            "to_status": effective_status.value,
+            "confidence": confidence,
+            "provenance": provenance,
+            "evidence_reference": evidence_reference,
+            "timestamp": now.isoformat(),
+        }]
+
         new_rel = GraphRelationship(
             project_id=project_id,
             source_node_id=source_node_id,
             target_node_id=target_node_id,
             relationship_type=relationship_type,
-            status=status,
+            status=effective_status,
             confidence=max(0.0, min(1.0, confidence)),
             provenance=provenance,
             evidence_reference=evidence_reference,
             properties=properties or {},
+            verification_history=initial_history,
             observed_at=now,
         )
 
@@ -387,3 +501,23 @@ class KnowledgeGraphService:
                 for r in incoming
             ],
         }
+
+    @classmethod
+    def list_nodes(
+        cls,
+        project_id: str,
+        category: Optional[GraphNodeCategory] = None,
+        epistemic_status: Optional[str] = None,
+        limit: int = 100,
+        db: Optional[Session] = None,
+    ) -> List[GraphNode]:
+        """
+        Lists graph nodes for a project, optionally filtered by category or epistemic status.
+        """
+        assert db is not None, "Database session required"
+        q = db.query(GraphNode).filter(GraphNode.project_id == project_id)
+        if category:
+            q = q.filter(GraphNode.category == category)
+        if epistemic_status:
+            q = q.filter(GraphNode.epistemic_status == epistemic_status)
+        return q.order_by(GraphNode.created_at.desc()).limit(min(limit, 500)).all()

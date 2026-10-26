@@ -6,33 +6,59 @@ from app.models.base import TimestampMixin, generate_uuid, utc_now
 
 
 class GraphNodeCategory(str, enum.Enum):
+    # Core Context & Boundaries
+    PROJECT = "PROJECT"
+    BUSINESS_SERVICE = "BUSINESS_SERVICE"
+
+    # Infrastructure & Network
     ASSET = "ASSET"
-    SERVICE = "SERVICE"
+    HOST = "HOST"
+    DOMAIN = "DOMAIN"
+    IP_ADDRESS = "IP_ADDRESS"
+    CLOUD_RESOURCE = "CLOUD_RESOURCE"
+    DATA_STORE = "DATA_STORE"
+
+    # Application & Software Components
     APPLICATION = "APPLICATION"
+    WEB_APPLICATION = "WEB_APPLICATION"
+    API_ENDPOINT = "API_ENDPOINT"
+    SERVICE = "SERVICE"
+    SOFTWARE_COMPONENT = "SOFTWARE_COMPONENT"
+    PACKAGE = "PACKAGE"
+    DEPENDENCY = "DEPENDENCY"
+
+    # Identity & Authorization
     IDENTITY = "IDENTITY"
     ROLE = "ROLE"
     PERMISSION = "PERMISSION"
+
+    # Security & Findings
     VULNERABILITY = "VULNERABILITY"
     FINDING = "FINDING"
     EVIDENCE = "EVIDENCE"
-    SECURITY_CONTROL = "SECURITY_CONTROL"
-    DEPENDENCY = "DEPENDENCY"
-    REMEDIATION = "REMEDIATION"
     ASSESSMENT = "ASSESSMENT"
+    REMEDIATION = "REMEDIATION"
+    SECURITY_CONTROL = "SECURITY_CONTROL"
 
 
 class RelationshipType(str, enum.Enum):
+    CONTAINS = "CONTAINS"
+    RESOLVES_TO = "RESOLVES_TO"
+    EXPOSES = "EXPOSES"
     RUNS = "RUNS"
     DEPENDS_ON = "DEPENDS_ON"
     AUTHENTICATES_TO = "AUTHENTICATES_TO"
     CAN_ACCESS = "CAN_ACCESS"
-    EXPOSES = "EXPOSES"
     AFFECTED_BY = "AFFECTED_BY"
+    PROTECTED_BY = "PROTECTED_BY"
     MITIGATES = "MITIGATES"
+    OBSERVED_ON = "OBSERVED_ON"
     OBSERVED_AT = "OBSERVED_AT"
-    VERIFIED_BY = "VERIFIED_BY"
+    DERIVED_FROM = "DERIVED_FROM"
+    REMEDIATED_BY = "REMEDIATED_BY"
     BELONGS_TO = "BELONGS_TO"
     ASSOCIATED_WITH = "ASSOCIATED_WITH"
+    VERIFIED_BY = "VERIFIED_BY"
 
 
 class RelationshipStatus(str, enum.Enum):
@@ -62,6 +88,7 @@ class GraphNode(Base, TimestampMixin):
     entity_id = Column(String(36), nullable=True, index=True)
     entity_type = Column(String(100), nullable=True)
     properties = Column(JSON, default=dict, nullable=False)
+    epistemic_status = Column(String(20), default="VERIFIED", nullable=False)
 
     # Relationships
     project = relationship("Project")
@@ -102,6 +129,7 @@ class GraphRelationship(Base, TimestampMixin):
     provenance = Column(String(255), default="AUTOMATED_INGESTION", nullable=False)
     evidence_reference = Column(String(255), nullable=True)
     properties = Column(JSON, default=dict, nullable=False)
+    verification_history = Column(JSON, default=list, nullable=False)
     observed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships

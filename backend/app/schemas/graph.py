@@ -15,7 +15,17 @@ class GraphNodeRead(BaseModel):
     entity_id: Optional[str] = None
     entity_type: Optional[str] = None
     properties: Dict[str, Any] = Field(default_factory=dict)
+    epistemic_status: str = "VERIFIED"
     created_at: datetime
+
+
+class GraphNodeCreate(BaseModel):
+    category: GraphNodeCategory
+    label: str = Field(..., min_length=1, max_length=255)
+    entity_id: Optional[str] = None
+    entity_type: Optional[str] = None
+    properties: Dict[str, Any] = Field(default_factory=dict)
+    epistemic_status: str = Field("VERIFIED", max_length=20)
 
 
 class GraphRelationshipRead(BaseModel):
@@ -31,6 +41,7 @@ class GraphRelationshipRead(BaseModel):
     provenance: str
     evidence_reference: Optional[str] = None
     properties: Dict[str, Any] = Field(default_factory=dict)
+    verification_history: List[Dict[str, Any]] = Field(default_factory=list)
     observed_at: datetime
     created_at: datetime
 
