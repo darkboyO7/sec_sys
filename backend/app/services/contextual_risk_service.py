@@ -22,7 +22,7 @@ class ContextualRiskService:
     with explicit factor decomposition, contributing rationale, and missing factor tracking.
     """
 
-    SCORING_VERSION = "v1.0.0"
+    SCORING_VERSION = "v1.1.0"
 
     # Base severity score bounds and defaults
     SEVERITY_BASE_SCORES: Dict[FindingSeverity, float] = {
@@ -253,12 +253,50 @@ class ContextualRiskService:
                 f"Finding lifecycle state '{finding.status.value}': multiplier {lifecycle_mult:.2f}."
             )
 
-        # 7. Composite Calculation
-        effective_base = base_score * conf_weight
-        raw_composite = effective_base * crit_mult * exposure_mult * fresh_mult * lifecycle_mult
-        final_score = round(max(0.0, min(100.0, raw_composite)), 1)
+        # 7. Recurrence Multiplier (Phase 11)
+        recurrence_mult = 1.0
+        if getattr(finding, "recurrence_detected", False):
+            rec_count = getattr(finding, "recurrence_count", 1) or 1
+            recurrence_mult = 1.0 + min(0.30, 0.10 * rec_count)
+            contributing_factors.append(
+                f"Vulnerability recurrence detected ({rec_count} prior occurrences): recurrence multiplier {recurrence_mult:.2f}."
+            )
 
-        # 8. Priority Determination
+        # 8. Evidence Quality Multiplier (Phase 11)
+        quality_mult = 1.0
+        ev_quality = getattr(finding, "evidence_quality_score", None)
+        if ev_quality is not None and ev_quality < 1.0:
+            quality_mult = round(0.80 + (0.20 * max(0.0, min(1.0, float(ev_quality)))), 2)
+            contributing_factors.append(
+                f"Evidence quality adjustment ({ev_quality:.2f}): multiplier {quality_mult:.2f}."
+            )
+
+        # 9. Inherent vs Residual Composite Calculation
+        effective_base = base_score * conf_weight
+        inherent_composite = effective_base * crit_mult * exposure_mult
+        inherent_score = round(max(0.0, min(100.0, inherent_composite)), 1)
+
+        raw_composite = inherent_composite * fresh_mult * lifecycle_mult * recurrence_mult * quality_mult
+        final_score = round(max(0.0, min(100.0, raw_composite)), 1)
+        residual_score = final_score
+
+        # 10. Explicit Uncertainty Range (Phase 11)
+        uncertainty_margin = 3.0
+        if finding.confidence == FindingConfidence.TENTATIVE:
+            uncertainty_margin += 7.0
+        if missing_factors:
+            uncertainty_margin += min(8.0, 2.5 * len(missing_factors))
+        if getattr(finding, "has_contradictions", False):
+            uncertainty_margin += 5.0
+
+        uncertainty_range = {
+            "min_score": round(max(0.0, final_score - uncertainty_margin), 1),
+            "max_score": round(min(100.0, final_score + uncertainty_margin), 1),
+            "uncertainty_margin": round(uncertainty_margin, 1),
+            "confidence_band": "HIGH" if uncertainty_margin <= 4.0 else ("MODERATE" if uncertainty_margin <= 10.0 else "LOW"),
+        }
+
+        # 11. Priority Determination
         if final_score >= 80.0:
             priority = RiskPriority.CRITICAL
         elif final_score >= 60.0:
@@ -279,6 +317,10 @@ class ContextualRiskService:
             "exposure_label": exposure_label,
             "freshness_multiplier": fresh_mult,
             "lifecycle_multiplier": lifecycle_mult,
+            "recurrence_multiplier": recurrence_mult,
+            "quality_multiplier": quality_mult,
+            "inherent_score": inherent_score,
+            "residual_score": residual_score,
             "final_score": final_score,
             "raw_composite": round(raw_composite, 2),
         }
@@ -299,14 +341,20 @@ class ContextualRiskService:
             "risk_accepted_expires_at": exp_iso,
             "risk_accepted_by_id": finding.risk_accepted_by_id,
             "compensating_controls": finding.compensating_controls,
+            "recurrence_detected": getattr(finding, "recurrence_detected", False),
+            "recurrence_count": getattr(finding, "recurrence_count", 0),
+            "evidence_quality_score": getattr(finding, "evidence_quality_score", None),
         }
 
         return {
             "score": final_score,
+            "inherent_score": inherent_score,
+            "residual_score": residual_score,
             "priority": priority,
             "factor_breakdown": factor_breakdown,
             "contributing_factors": contributing_factors,
             "missing_factors": missing_factors,
+            "uncertainty_range": uncertainty_range,
             "input_snapshot": input_snapshot,
         }
 
@@ -415,11 +463,14 @@ class ContextualRiskService:
             finding_id=finding.id,
             asset_id=asset.id if asset else None,
             score=calc["score"],
+            inherent_score=calc["inherent_score"],
+            residual_score=calc["residual_score"],
             priority=calc["priority"],
             scoring_version=cls.SCORING_VERSION,
             factor_breakdown=calc["factor_breakdown"],
             contributing_factors=calc["contributing_factors"],
             missing_factors=calc["missing_factors"],
+            uncertainty_range=calc["uncertainty_range"],
             evidence_references=[f.id for f in (finding.raw_findings or [])] if hasattr(finding, "raw_findings") else [],
             input_snapshot=calc["input_snapshot"],
             calculated_at=now,

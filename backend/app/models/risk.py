@@ -47,12 +47,15 @@ class RiskAssessment(Base, TimestampMixin):
     asset_id = Column(String(36), ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True)
 
     score = Column(Float, nullable=False, index=True)
+    inherent_score = Column(Float, nullable=True)
+    residual_score = Column(Float, nullable=True)
     priority = Column(Enum(RiskPriority), nullable=False, index=True)
-    scoring_version = Column(String(50), nullable=False, default="v1.0.0")
+    scoring_version = Column(String(50), nullable=False, default="v1.1.0")
 
     factor_breakdown = Column(JSON, nullable=False, default=dict)
     contributing_factors = Column(JSON, nullable=False, default=list)
     missing_factors = Column(JSON, nullable=False, default=list)
+    uncertainty_range = Column(JSON, nullable=False, default=dict)
     evidence_references = Column(JSON, nullable=False, default=list)
     input_snapshot = Column(JSON, nullable=False, default=dict)
 

@@ -13,11 +13,14 @@ class RiskAssessmentRead(BaseModel):
     finding_id: str
     asset_id: Optional[str] = None
     score: float
+    inherent_score: Optional[float] = None
+    residual_score: Optional[float] = None
     priority: RiskPriority
     scoring_version: str
     factor_breakdown: Dict[str, Any] = Field(default_factory=dict)
     contributing_factors: List[str] = Field(default_factory=list)
     missing_factors: List[str] = Field(default_factory=list)
+    uncertainty_range: Dict[str, Any] = Field(default_factory=dict)
     evidence_references: List[str] = Field(default_factory=list)
     input_snapshot: Dict[str, Any] = Field(default_factory=dict)
     calculated_at: datetime
