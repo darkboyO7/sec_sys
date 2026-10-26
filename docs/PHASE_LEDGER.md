@@ -28,4 +28,5 @@
 | **Phase 17** | Regression Detection & Change Intelligence | **COMPLETED** | `8b4232f` | Migration d0e1f2a3b4c5, baseline anchoring, 4 regression alert vectors, deduplication, disposition lifecycle |
 | **Phase 18** | Controlled AI Security Analyst | **COMPLETED** | `4180e16` | Migration e1f2a3b4c5d6, prompt injection defense, grounded citations, advisory drafts, review gate |
 | **Phase 19** | Controlled Learning & Model Governance | **COMPLETED** | `5ffe3f9` | Migration f1a2b3c4d5e6, dataset curation, train/val/test splits, empirical metrics, approval gate, atomic rollback |
-| **Phases 20-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
+| **Phase 20** | Morph-State Adaptive Defense & Recovery | **COMPLETED** | In Progress Commit | Migration a2b3c4d5e6f7, 8-state adaptive lifecycle, cadence multipliers, emergency kill switch, immutable history |
+| **Phases 21-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |

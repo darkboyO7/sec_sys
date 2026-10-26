@@ -67,6 +67,12 @@ from app.models.learning import (
     DatasetRecord,
     GovernedModel,
 )
+from app.models.adaptive_defense import (
+    AdaptiveMorphState,
+    AdaptiveTransitionTrigger,
+    MorphStatePosture,
+    MorphStateHistory,
+)
 
 __all__ = [
     "Base",
@@ -127,4 +133,8 @@ __all__ = [
     "LearningDataset",
     "DatasetRecord",
     "GovernedModel",
+    "AdaptiveMorphState",
+    "AdaptiveTransitionTrigger",
+    "MorphStatePosture",
+    "MorphStateHistory",
 ]
