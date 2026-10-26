@@ -245,6 +245,7 @@ def recalculate_all_project_risks(
 
 
 @router.post("/projects/{project_id}/risk/attack-paths", response_model=AttackPathAnalysisResponse)
+@router.post("/projects/{project_id}/graph/paths", response_model=AttackPathAnalysisResponse)
 @router.post("/projects/{project_id}/graph/paths/analyze", response_model=AttackPathAnalysisResponse)
 def analyze_attack_paths(
     project_id: str,

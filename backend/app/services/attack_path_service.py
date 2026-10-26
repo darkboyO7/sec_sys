@@ -1,4 +1,5 @@
 import enum
+import hashlib
 from typing import List, Dict, Any, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
@@ -16,9 +17,10 @@ class PathVerificationStatus(str, enum.Enum):
 
 class AttackPathAnalysisService:
     """
-    Evidence-Aware Bounded Attack Path Analysis Service.
+    Evidence-Aware Bounded Attack Path Analysis Service (Phase 12).
     Discovers candidate attack paths exclusively through persisted Knowledge Graph relationships.
     Categorizes paths as VERIFIED, MIXED_EVIDENCE, or HYPOTHETICAL based on edge epistemic status.
+    Computes stable path fingerprints, risk impact scores, ranking rationales, and remediation chokepoints.
     Enforces strict depth, cycle, path count, and project boundaries.
     """
 
@@ -34,6 +36,9 @@ class AttackPathAnalysisService:
         RelationshipType.AUTHENTICATES_TO,
         RelationshipType.AFFECTED_BY,
         RelationshipType.OBSERVED_AT,
+        RelationshipType.OBSERVED_ON,
+        RelationshipType.RESOLVES_TO,
+        RelationshipType.CONTAINS,
         RelationshipType.ASSOCIATED_WITH,
     }
 
@@ -159,16 +164,69 @@ class AttackPathAnalysisService:
 
         # Format and categorize candidate paths
         formatted_paths: List[Dict[str, Any]] = []
-        for p in discovered_paths[:bounded_max_paths]:
+        for p in discovered_paths:
             formatted = cls._format_path(p, node_map)
             formatted_paths.append(formatted)
 
+        # Status rank weight for sorting
+        status_rank_weight = {
+            PathVerificationStatus.VERIFIED.value: 4,
+            PathVerificationStatus.MIXED_EVIDENCE.value: 3,
+            PathVerificationStatus.HYPOTHETICAL.value: 2,
+            PathVerificationStatus.STALE.value: 1,
+        }
+
+        # Deterministic ranking: status weight DESC, risk impact DESC, confidence DESC, step_count ASC
+        formatted_paths.sort(
+            key=lambda p: (
+                status_rank_weight.get(p["path_verification_status"], 0),
+                p.get("risk_impact_score", 0.0),
+                p.get("cumulative_confidence", 0.0),
+                -p.get("step_count", 0),
+            ),
+            reverse=True,
+        )
+
+        top_paths = formatted_paths[:bounded_max_paths]
+
+        # Identify defensive chokepoints across discovered paths
+        edge_freq: Dict[str, int] = {}
+        node_freq: Dict[str, int] = {}
+        for path in top_paths:
+            for edge in path["relationships"]:
+                e_id = edge["id"]
+                edge_freq[e_id] = edge_freq.get(e_id, 0) + 1
+            for node in path["nodes"][1:-1]:
+                n_id = node["id"]
+                node_freq[n_id] = node_freq.get(n_id, 0) + 1
+
+        chokepoints: List[Dict[str, Any]] = []
+        total_p = max(1, len(top_paths))
+        for e_id, count in sorted(edge_freq.items(), key=lambda x: x[1], reverse=True):
+            if count > 1 or total_p == 1:
+                chokepoints.append({
+                    "element_type": "RELATIONSHIP",
+                    "id": e_id,
+                    "paths_intersected": count,
+                    "remediation_leverage": round(count / total_p, 2),
+                })
+        for n_id, count in sorted(node_freq.items(), key=lambda x: x[1], reverse=True):
+            if count > 1:
+                chokepoints.append({
+                    "element_type": "NODE",
+                    "id": n_id,
+                    "label": node_map.get(n_id).label if node_map.get(n_id) else n_id[:8],
+                    "paths_intersected": count,
+                    "remediation_leverage": round(count / total_p, 2),
+                })
+
         return {
             "project_id": project_id,
-            "total_paths_found": len(formatted_paths),
+            "total_paths_found": len(top_paths),
             "max_depth_evaluated": bounded_depth,
             "truncated": truncated or (len(discovered_paths) > bounded_max_paths),
-            "paths": formatted_paths,
+            "paths": top_paths,
+            "chokepoints": chokepoints,
             "methodology_disclaimer": (
                 "Attack path analysis represents relational topology and potential exposure chains. "
                 "Adjacency does not prove exploitability or successful breach without independent empirical verification."
@@ -296,6 +354,27 @@ class AttackPathAnalysisService:
         labels = [node_map[nid].label if nid in node_map else nid[:8] for nid in node_ids]
         narrative = " -> ".join(labels)
 
+        # 5. Deterministic Stable Path ID
+        raw_sig = f"{'->'.join(node_ids)}|{':'.join(e.relationship_type.value for e in edges)}"
+        path_id = hashlib.sha256(raw_sig.encode('utf-8')).hexdigest()[:16]
+
+        # 6. Risk Impact Score Calculation
+        target_node = node_map.get(node_ids[-1])
+        target_cat = target_node.category if target_node else None
+        target_base = 50.0
+        if target_cat in (GraphNodeCategory.DATA_STORE, GraphNodeCategory.BUSINESS_SERVICE):
+            target_base = 90.0
+        elif target_cat in (GraphNodeCategory.FINDING, GraphNodeCategory.VULNERABILITY):
+            target_base = 80.0
+        elif target_cat in (GraphNodeCategory.ASSET, GraphNodeCategory.HOST, GraphNodeCategory.SERVICE):
+            target_base = 70.0
+        risk_impact_score = round(target_base * cumulative_confidence, 1)
+
+        ranking_rationale = (
+            f"Path status '{path_status.value}' with confidence {cumulative_confidence:.2f} "
+            f"terminating at '{labels[-1]}' ({target_cat.value if target_cat else 'UNKNOWN'}) across {len(edges)} hops."
+        )
+
         # Formatted Node List
         nodes_detail = [
             {
@@ -323,11 +402,14 @@ class AttackPathAnalysisService:
         ]
 
         return {
+            "path_id": path_id,
             "path_verification_status": path_status.value,
             "cumulative_confidence": cumulative_confidence,
+            "risk_impact_score": risk_impact_score,
             "step_count": len(edges),
             "narrative": narrative,
             "nodes": nodes_detail,
             "relationships": edges_detail,
             "missing_evidence": missing_evidence,
+            "ranking_rationale": ranking_rationale,
         }

@@ -66,13 +66,16 @@ class AttackPathRelationship(BaseModel):
 
 
 class AttackPathRead(BaseModel):
+    path_id: Optional[str] = None
     path_verification_status: str
     cumulative_confidence: float
+    risk_impact_score: Optional[float] = 0.0
     step_count: int
     narrative: str
     nodes: List[AttackPathNode]
     relationships: List[AttackPathRelationship]
     missing_evidence: List[str] = Field(default_factory=list)
+    ranking_rationale: Optional[str] = None
 
 
 class AttackPathAnalysisResponse(BaseModel):
@@ -81,6 +84,7 @@ class AttackPathAnalysisResponse(BaseModel):
     max_depth_evaluated: int
     truncated: bool
     paths: List[AttackPathRead]
+    chokepoints: List[Dict[str, Any]] = Field(default_factory=list)
     methodology_disclaimer: str
 
 
