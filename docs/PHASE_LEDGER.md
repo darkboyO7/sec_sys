@@ -13,9 +13,9 @@
 | **Phase 6B** | Execution Isolation, Concurrency & Worker Recovery | **COMPLETED** | `aae85af` | Concurrency locking, worker crash recovery, heartbeat monitoring |
 | **Phase 6B.1**| Independent Security Audit & Pre-Scanner Readiness | **COMPLETED** | `0ffe6f4` | Idempotency enforcement, boundary verification, audit records |
 | **Phase 7A** | Isolated Worker Process & IPC Boundary | **COMPLETED** | `305230a` | Subprocess execution, Alembic migration `a1b2c3d4e5f6` (worker_pid), stdio IPC |
-| **Phase 7A.1**| Independent Execution Security Review & Hardening | **COMPLETED** | In Progress (`HEAD`) | Win32 Job Object containment, stdout protection, schema sanitization |
-| **Phase 7B** | Restricted Scanner Framework | **PLANNED** | Next Active Phase | Capability-typed adapter contracts, restricted registry, no live probes |
-| **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **PLANNED** | Scheduled | Validates adapter schema constraints and synthetic execution safety |
+| **Phase 7A.1**| Independent Execution Security Review & Hardening | **COMPLETED** | `fe9fa70` | Win32 Job Object containment, stdout protection, schema sanitization |
+| **Phase 7B** | Restricted Scanner Framework | **COMPLETED** | In Progress (`HEAD`) | Formal typed contract, AdapterRegistry governance, passive header & SSL adapters |
+| **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **PLANNED** | Next Active Phase | Validates adapter schema constraints and synthetic execution safety |
 | **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **PLANNED** | Scheduled | Merkle proofs, immutable evidence chains, non-repudiation |
 | **Phase 9** | Threat Modeling & Adaptive Asset Intelligence | **PLANNED** | Scheduled | Dynamic asset topology updates, passive risk enrichment |
 | **Phase 10** | Continuous Vulnerability Correlation | **PLANNED** | Scheduled | Multi-scanner deduplication, canonical CVE correlation |

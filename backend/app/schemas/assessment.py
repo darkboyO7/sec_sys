@@ -7,7 +7,7 @@ from app.models.assessment import AssessmentStatus, FindingSeverity, FindingConf
 class AssessmentJobCreate(BaseModel):
     target_input: str = Field(min_length=1, max_length=500, description="IP, CIDR, domain, or URL to assess")
     adapter_name: Optional[str] = Field(default="local_fixture_adapter", max_length=100)
-    fixture_profile: Optional[str] = Field(default="WEB_APPLICATION_BASELINE", max_length=100)
+    fixture_profile: Optional[str] = Field(default=None, max_length=100)
     timeout_seconds: Optional[int] = Field(default=300, ge=10, le=3600)
     idempotency_key: Optional[str] = Field(default=None, max_length=100)
     policy_version: Optional[str] = Field(default="2026.1", max_length=50)
@@ -62,6 +62,13 @@ class AdapterCapabilityResponse(BaseModel):
     declared_capabilities: List[str]
     supported_profiles: List[str]
     permitted_check_categories: List[str]
+    supported_target_types: List[str] = Field(default_factory=list)
+    required_permissions: List[str] = Field(default_factory=list)
+    default_timeout_seconds: int = 300
+    min_timeout_seconds: int = 5
+    max_timeout_seconds: int = 3600
+    config_schema: Optional[Dict[str, Any]] = None
+    status: str = "ACTIVE"
     health: Dict[str, Any]
 
 

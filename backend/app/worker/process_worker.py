@@ -11,8 +11,12 @@ import time
 from typing import Dict, Any
 
 # Ensure scanner adapters are registered
-from app.services.scanner_adapters.base import AdapterRegistry
-from app.services.scanner_adapters.local_fixture_adapter import LocalFixtureAdapter
+from app.services.scanner_adapters import (
+    AdapterRegistry,
+    LocalFixtureAdapter,
+    PassiveHeaderAuditAdapter,
+    SslTlsCipherAuditAdapter,
+)
 from app.worker.ipc_schemas import WorkerIPCRequest, WorkerIPCResponse, SUPPORTED_PROTOCOL_VERSION
 
 

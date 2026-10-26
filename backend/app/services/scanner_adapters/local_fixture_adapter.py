@@ -7,6 +7,7 @@ from app.services.scanner_adapters.base import (
     AdapterResult,
     RawAdapterFinding,
     RawAdapterEvidence,
+    PreflightResult,
     AdapterRegistry,
 )
 
@@ -58,22 +59,69 @@ class LocalFixtureAdapter(BaseScannerAdapter):
             "INFORMATION_DISCLOSURE",
         ]
 
+    @property
+    def supported_target_types(self) -> List[str]:
+        return ["IP_ADDRESS", "IPV4", "CIDR", "DOMAIN", "URL"]
+
+    @property
+    def required_permissions(self) -> List[str]:
+        return ["READ_ONLY", "PASSIVE_AUDIT"]
+
+    @property
+    def default_timeout_seconds(self) -> int:
+        return 300
+
+    @property
+    def min_timeout_seconds(self) -> int:
+        return 5
+
+    @property
+    def max_timeout_seconds(self) -> int:
+        return 3600
+
+    @property
+    def config_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "fixture_profile": {
+                    "type": "string",
+                    "enum": self.supported_profiles,
+                    "default": "WEB_APPLICATION_BASELINE",
+                    "description": "Simulation fixture profile identifier",
+                },
+                "delay_ms": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "default": 0,
+                    "description": "Artificial execution delay in milliseconds",
+                },
+            },
+            "additionalProperties": True,
+        }
+
+    @property
+    def status(self) -> str:
+        return "ACTIVE"
+
     def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         profile = config.get("fixture_profile", "WEB_APPLICATION_BASELINE")
         if profile not in self.supported_profiles:
             return False, f"Profile '{profile}' is not supported by adapter '{self.name}' (supported: {self.supported_profiles})."
         return True, None
 
-    def preflight_check(self, target: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    def preflight_check(self, target: str, config: Dict[str, Any]) -> PreflightResult:
         valid, err = self.validate_config(config)
-        return {
-            "adapter": self.name,
-            "version": self.version,
-            "target": target,
-            "is_ready": valid,
-            "preflight_error": err,
-            "mode": "SIMULATED_FIXTURE",
-        }
+        return PreflightResult(
+            adapter_name=self.name,
+            adapter_version=self.version,
+            target=target,
+            target_type=None,
+            is_ready=valid,
+            preflight_error=err,
+            mode="SIMULATED_FIXTURE",
+        )
 
     def get_health(self) -> Dict[str, Any]:
         return {

@@ -151,11 +151,34 @@ class AdapterResult(BaseModel):
         return self
 
 
+class PreflightResult(BaseModel):
+    """
+    Formal result model for scanner preflight checks.
+    Provides dict-like and attribute-like access for full compatibility.
+    """
+    adapter_name: str
+    adapter_version: str
+    target: str
+    target_type: Optional[str] = None
+    is_ready: bool
+    preflight_error: Optional[str] = None
+    mode: str = "SIMULATED_FIXTURE"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    def __getitem__(self, item: str) -> Any:
+        return getattr(self, item)
+
+    def get(self, item: str, default: Any = None) -> Any:
+        return getattr(self, item, default)
+
+
 class BaseScannerAdapter(ABC):
     """
-    Formal Typed Contract for Scanner Adapters.
+    Formal Typed Contract for Scanner Adapters (Phase 7B).
     Every adapter must declare identity, version, capabilities, supported profiles,
-    and supply configuration preflight and bounded execution without shell escapes.
+    permitted check categories, supported target types, required permissions,
+    timeout policies, configuration schema, and supply configuration preflight
+    and bounded execution without shell escapes.
     """
 
     @property
@@ -188,13 +211,60 @@ class BaseScannerAdapter(ABC):
         """List of permitted check categories for this adapter."""
         pass
 
+    @property
+    def supported_target_types(self) -> List[str]:
+        """List of supported target types (e.g. ['IPV4', 'CIDR', 'DOMAIN', 'URL'])."""
+        return ["IPV4", "CIDR", "DOMAIN", "URL"]
+
+    @property
+    def required_permissions(self) -> List[str]:
+        """List of required permissions (e.g. ['READ_ONLY', 'PASSIVE_AUDIT'])."""
+        return ["READ_ONLY", "PASSIVE_AUDIT"]
+
+    @property
+    def default_timeout_seconds(self) -> int:
+        """Default timeout in seconds."""
+        return 300
+
+    @property
+    def min_timeout_seconds(self) -> int:
+        """Minimum allowable timeout in seconds."""
+        return 5
+
+    @property
+    def max_timeout_seconds(self) -> int:
+        """Maximum allowable timeout in seconds."""
+        return 3600
+
+    @property
+    def config_schema(self) -> Optional[Dict[str, Any]]:
+        """Optional JSON schema dictionary for adapter-specific configuration."""
+        return None
+
+    @property
+    def status(self) -> str:
+        """Operational lifecycle status: 'ACTIVE', 'DEPRECATED', 'DISABLED'."""
+        return "ACTIVE"
+
+    def validate_target_type(self, target_type: str) -> Tuple[bool, Optional[str]]:
+        """Validate whether the target type is supported by this adapter."""
+        clean_type = target_type.strip().upper()
+        equivalent_types = {clean_type}
+        if clean_type in ("IP_ADDRESS", "IPV4"):
+            equivalent_types.update(["IP_ADDRESS", "IPV4"])
+
+        supported_set = {t.upper() for t in self.supported_target_types}
+        if any(t in supported_set for t in equivalent_types):
+            return True, None
+        return False, f"Target type '{clean_type}' is not supported by adapter '{self.name}'. Supported types: {self.supported_target_types}."
+
     @abstractmethod
     def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         """Validate adapter-specific execution configuration before preflight."""
         pass
 
     @abstractmethod
-    def preflight_check(self, target: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    def preflight_check(self, target: str, config: Dict[str, Any]) -> PreflightResult:
         """Verify target and configuration readiness without initiating network scans."""
         pass
 
@@ -219,14 +289,52 @@ class BaseScannerAdapter(ABC):
 
 class AdapterRegistry:
     """
-    Central Governance Registry for Approved Scanner Adapters.
+    Central Governance Registry for Approved Scanner Adapters (Phase 7B).
     Enforces that only verified, permissioned adapters can be dispatched.
     """
     _registry: Dict[str, BaseScannerAdapter] = {}
 
     @classmethod
-    def register(cls, adapter: BaseScannerAdapter) -> None:
-        cls._registry[adapter.name] = adapter
+    def register(cls, adapter: BaseScannerAdapter, allow_override: bool = False) -> None:
+        """Register and validate an approved scanner adapter."""
+        import re
+        if not isinstance(adapter, BaseScannerAdapter):
+            raise TypeError(f"Adapter must inherit from BaseScannerAdapter, got {type(adapter)}")
+
+        name = adapter.name
+        if not name or not isinstance(name, str) or not name.strip():
+            raise ValueError("Adapter name must be a non-empty string.")
+
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", name):
+            raise ValueError(f"Adapter name '{name}' contains invalid characters. Use alphanumeric, underscore, or hyphen.")
+
+        if not adapter.version or not isinstance(adapter.version, str):
+            raise ValueError(f"Adapter '{name}' must declare a valid SemVer version string.")
+
+        if not adapter.declared_capabilities or not isinstance(adapter.declared_capabilities, list) or len(adapter.declared_capabilities) == 0:
+            raise ValueError(f"Adapter '{name}' must declare at least one capability in declared_capabilities.")
+
+        if not adapter.supported_profiles or not isinstance(adapter.supported_profiles, list) or len(adapter.supported_profiles) == 0:
+            raise ValueError(f"Adapter '{name}' must declare at least one supported profile in supported_profiles.")
+
+        if not adapter.supported_target_types or not isinstance(adapter.supported_target_types, list) or len(adapter.supported_target_types) == 0:
+            raise ValueError(f"Adapter '{name}' must declare supported_target_types.")
+
+        if name in cls._registry:
+            if cls._registry[name] is adapter:
+                return
+            if not allow_override:
+                raise ValueError(f"Adapter '{name}' is already registered. Set allow_override=True to replace.")
+
+        cls._registry[name] = adapter
+
+    @classmethod
+    def unregister(cls, name: str) -> bool:
+        """Unregister an adapter by name. Returns True if removed, False if not present."""
+        if name in cls._registry:
+            del cls._registry[name]
+            return True
+        return False
 
     @classmethod
     def get(cls, name: str) -> Optional[BaseScannerAdapter]:
@@ -234,7 +342,14 @@ class AdapterRegistry:
 
     @classmethod
     def is_approved(cls, name: str) -> bool:
-        return name in cls._registry
+        adapter = cls._registry.get(name)
+        return adapter is not None and adapter.status != "DISABLED"
+
+    @classmethod
+    def get_active_adapter(cls, name: str) -> Optional[BaseScannerAdapter]:
+        if cls.is_approved(name):
+            return cls._registry.get(name)
+        return None
 
     @classmethod
     def list_capabilities(cls) -> List[Dict[str, Any]]:
@@ -246,7 +361,37 @@ class AdapterRegistry:
                 "declared_capabilities": a.declared_capabilities,
                 "supported_profiles": a.supported_profiles,
                 "permitted_check_categories": a.permitted_check_categories,
+                "supported_target_types": a.supported_target_types,
+                "required_permissions": a.required_permissions,
+                "default_timeout_seconds": a.default_timeout_seconds,
+                "min_timeout_seconds": a.min_timeout_seconds,
+                "max_timeout_seconds": a.max_timeout_seconds,
+                "config_schema": a.config_schema,
+                "status": a.status,
                 "health": a.get_health(),
             }
             for a in cls._registry.values()
         ]
+
+    @classmethod
+    def get_by_capability(cls, capability: str) -> List[BaseScannerAdapter]:
+        """Find approved adapters that provide the requested capability."""
+        cap_clean = capability.strip().upper()
+        return [
+            a for a in cls._registry.values()
+            if cls.is_approved(a.name) and any(c.upper() == cap_clean for c in a.declared_capabilities)
+        ]
+
+    @classmethod
+    def get_by_target_type(cls, target_type: str) -> List[BaseScannerAdapter]:
+        """Find approved adapters that support the specified target type."""
+        t_clean = target_type.strip().upper()
+        return [
+            a for a in cls._registry.values()
+            if cls.is_approved(a.name) and any(t.upper() == t_clean for t in a.supported_target_types)
+        ]
+
+    @classmethod
+    def clear(cls) -> None:
+        """Clear all registered adapters (useful for test isolation)."""
+        cls._registry.clear()

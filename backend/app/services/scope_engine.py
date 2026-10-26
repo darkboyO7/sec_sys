@@ -252,6 +252,7 @@ class ScopeEngine:
                 "status": "AUTHORIZED",
                 "reason": f"Target is authorized under scope rule: {matched_authorized_rule.target_value}",
                 "normalized_target": cand_val,
+                "target_type": cand_type.value,
                 "matched_rule": {
                     "id": matched_authorized_rule.id,
                     "target_type": matched_authorized_rule.target_type.value,

@@ -22,6 +22,7 @@ from app.schemas.assessment import (
 )
 from app.services.assessment_state_machine import AssessmentStateMachine
 from app.services.assessment_engine import AssessmentExecutionEngine
+import app.services.scanner_adapters  # Ensure all adapters are registered
 from app.services.scanner_adapters.base import AdapterRegistry
 from app.services.scope_engine import ScopeEngine
 from app.services.audit_service import AuditService
@@ -101,13 +102,68 @@ def create_assessment_job(
             detail=f"Project assessment capacity exceeded: maximum {MAX_ACTIVE_JOBS_PER_PROJECT} active jobs allowed. Wait for active jobs to complete.",
         )
 
-    # 2. Idempotency Check with Canonical Digest Verification
+    # 2. Scanner Adapter Governance & Validation (Phase 7B)
+    adapter_name = (job_in.adapter_name or "local_fixture_adapter").strip()
+    adapter = AdapterRegistry.get(adapter_name)
+    if not adapter:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Adapter '{adapter_name}' is not registered in the system.",
+        )
+    if not AdapterRegistry.is_approved(adapter_name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Adapter '{adapter_name}' is disabled or not approved for execution.",
+        )
+
+    # 3. Pre-flight Scope Check: Verify candidate target is authorized before queueing
+    scope_eval = ScopeEngine.validate_target_in_scope(
+        db=db,
+        project_id=project_id,
+        target=job_in.target_input.strip(),
+    )
+    if not scope_eval["is_authorized"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Cannot initiate assessment: Target '{job_in.target_input}' is not authorized ({scope_eval['reason']})",
+        )
+
+    # Verify adapter supports the target type
+    target_type = scope_eval.get("target_type")
+    if target_type:
+        valid_type, type_err = adapter.validate_target_type(target_type)
+        if not valid_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=type_err,
+            )
+
+    # 4. Resolve effective profile and validate configuration
+    config = dict(job_in.config or {})
+    effective_profile = job_in.fixture_profile or config.get("fixture_profile") or adapter.supported_profiles[0]
+    config["fixture_profile"] = effective_profile
+    valid_cfg, cfg_err = adapter.validate_config(config)
+    if not valid_cfg:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid configuration for adapter '{adapter_name}': {cfg_err}",
+        )
+
+    # 5. Validate timeout bounds against adapter policy
+    if job_in.timeout_seconds is not None:
+        if job_in.timeout_seconds < adapter.min_timeout_seconds or job_in.timeout_seconds > adapter.max_timeout_seconds:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Requested timeout {job_in.timeout_seconds}s is outside permitted range [{adapter.min_timeout_seconds}s, {adapter.max_timeout_seconds}s] for adapter '{adapter_name}'.",
+            )
+
+    # 6. Idempotency Check with Canonical Digest Verification
     request_payload = {
         "target_input": job_in.target_input.strip(),
-        "adapter_name": (job_in.adapter_name or "local_fixture_adapter").strip(),
-        "fixture_profile": (job_in.fixture_profile or "WEB_APPLICATION_BASELINE").strip(),
+        "adapter_name": adapter_name,
+        "fixture_profile": effective_profile,
         "policy_version": (job_in.policy_version or "2026.1").strip(),
-        "config": job_in.config or {},
+        "config": config,
     }
     request_digest = hashlib.sha256(json.dumps(request_payload, sort_keys=True).encode("utf-8")).hexdigest()
 
@@ -129,19 +185,7 @@ def create_assessment_job(
                 )
             return existing_job
 
-    # 3. Pre-flight Scope Check: Verify candidate target is authorized before queueing
-    scope_eval = ScopeEngine.validate_target_in_scope(
-        db=db,
-        project_id=project_id,
-        target=job_in.target_input.strip(),
-    )
-    if not scope_eval["is_authorized"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Cannot initiate assessment: Target '{job_in.target_input}' is not authorized ({scope_eval['reason']})",
-        )
-
-    # 4. Compute immutable scope snapshot & digest
+    # 7. Compute immutable scope snapshot & digest
     policy_ver = job_in.policy_version or "2026.1"
     scope_snapshot, scope_snapshot_digest = AssessmentExecutionEngine.compute_scope_snapshot_and_digest(
         scope_eval=scope_eval,
@@ -151,16 +195,12 @@ def create_assessment_job(
     auth_ref = rule.get("id") or scope_eval.get("rule_id") or "SCOPE-PREFLIGHT-RULE"
     auth_status = "AUTHORIZED" if scope_eval.get("is_authorized") else "UNAUTHORIZED"
 
-    # 5. Create persistent assessment job in QUEUED status
-    config = dict(job_in.config or {})
-    if job_in.fixture_profile:
-        config["fixture_profile"] = job_in.fixture_profile
-
+    # 8. Create persistent assessment job in QUEUED status
     job = AssessmentJob(
         project_id=project_id,
         target_input=scope_eval["normalized_target"],
-        adapter_name=job_in.adapter_name.strip() if job_in.adapter_name else "local_fixture_adapter",
-        adapter_version="1.0.0",
+        adapter_name=adapter.name,
+        adapter_version=adapter.version,
         status=AssessmentStatus.QUEUED,
         idempotency_key=job_in.idempotency_key.strip() if job_in.idempotency_key else None,
         idempotency_digest=request_digest,
