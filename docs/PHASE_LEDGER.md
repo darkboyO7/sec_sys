@@ -26,5 +26,5 @@
 | **Phase 15** | Reporting & Export | **COMPLETED** | `0bdfbb1` | Migration b8c9d0e1f2a3, Executive/Technical/Governance reports, CSV formula defense, HTML XSS escaping |
 | **Phase 16** | Historical Security Digital Twin | **COMPLETED** | `9708c6c` | Migration c9d0e1f2a3b4, snapshot manifests, point-in-time reconstruction, diff engine |
 | **Phase 17** | Regression Detection & Change Intelligence | **COMPLETED** | `8b4232f` | Migration d0e1f2a3b4c5, baseline anchoring, 4 regression alert vectors, deduplication, disposition lifecycle |
-| **Phase 18** | Controlled AI Security Analyst | **COMPLETED** | In Progress Commit | Migration e1f2a3b4c5d6, prompt injection defense, grounded citations, advisory drafts, review gate |
+| **Phase 18** | Controlled AI Security Analyst | **COMPLETED** | `4180e16` | Migration e1f2a3b4c5d6, prompt injection defense, grounded citations, advisory drafts, review gate |
 | **Phases 19-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
