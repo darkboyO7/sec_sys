@@ -17,6 +17,6 @@
 | **Phase 7B** | Restricted Scanner Framework | **COMPLETED** | `487168d` | Formal typed contract, AdapterRegistry governance, passive header & SSL adapters |
 | **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **COMPLETED** | `b631cfa` | Thread-safe registry, multibyte truncation, findings clamp, 1MB limit |
 | **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **COMPLETED** | `0ee676f` | Migration b2c3d4e5f6a7, Merkle proofs, audit hash chaining, verify endpoints |
-| **Phase 9** | Advanced Finding Validation | **COMPLETED** | `HEAD` | Migration c3d4e5f6a7b8, validation outcomes, quality scoring, recurrence tracking |
+| **Phase 9** | Advanced Finding Validation | **COMPLETED** | `b3e334a` | Migration c3d4e5f6a7b8, validation outcomes, quality scoring, recurrence tracking |
 | **Phase 10** | Universal Security Knowledge Graph | **PLANNED** | Next Active Phase | 13 node types, 12 edge types, epistemic verification states, project isolation |
 | **Phases 11-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
