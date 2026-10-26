@@ -101,6 +101,11 @@ class RemediationRecommendationRead(BaseModel):
     rationale: str
     qualitative_benefit: str
     estimated_risk_reduction: Optional[float] = None
+    root_cause: Optional[str] = None
+    recommended_change: Optional[str] = None
+    estimated_effort: Optional[str] = None
+    related_controls: List[str] = Field(default_factory=list)
+    execution_governance_stage: str = "GENERATED"
     prerequisites: List[str] = Field(default_factory=list)
     operational_impact: str
     rollback_procedure: str
@@ -119,3 +124,7 @@ class RemediationRecommendationRead(BaseModel):
 class RemediationReviewRequest(BaseModel):
     status: RecommendationStatus
     review_notes: str = Field(..., min_length=3, max_length=1000)
+
+
+class AuthorizeChangeRequest(BaseModel):
+    change_ticket_ref: str = Field(..., min_length=3, max_length=255)

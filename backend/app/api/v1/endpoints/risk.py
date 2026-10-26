@@ -15,6 +15,7 @@ from app.schemas.risk import (
     AttackPathAnalysisResponse,
     RemediationRecommendationRead,
     RemediationReviewRequest,
+    AuthorizeChangeRequest,
 )
 from app.services.contextual_risk_service import ContextualRiskService
 from app.services.attack_path_service import AttackPathAnalysisService
@@ -398,3 +399,61 @@ def review_remediation_recommendation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+
+@router.post(
+    "/projects/{project_id}/risk/remediations/{recommendation_id}/authorize-change",
+    response_model=RemediationRecommendationRead,
+    summary="Authorize change execution for approved remediation recommendation",
+)
+@router.post(
+    "/projects/{project_id}/remediations/{recommendation_id}/authorize-change",
+    response_model=RemediationRecommendationRead,
+    summary="Authorize change execution for approved remediation recommendation",
+)
+def authorize_remediation_change(
+    project_id: str,
+    recommendation_id: str,
+    body: AuthorizeChangeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Authorize change execution for an APPROVED remediation recommendation.
+    Enforces that:
+    1. The recommendation is in APPROVED status.
+    2. The actor is a Project LEAD or System ADMIN.
+    3. A valid external change ticket reference is supplied.
+    4. Execution governance stage transitions to CHANGE_AUTHORIZED.
+    5. Pure advisory governance boundary: no automated shell/network changes executed.
+    """
+    verify_project_access(project_id, current_user, db)
+    authorizer_role = None
+    if current_user.system_role == SystemRole.ADMIN:
+        authorizer_role = ProjectRole.LEAD
+    else:
+        from app.models.project import ProjectMember
+        member = (
+            db.query(ProjectMember)
+            .filter(ProjectMember.project_id == project_id, ProjectMember.user_id == current_user.id)
+            .first()
+        )
+        authorizer_role = member.role if member else None
+
+    client_ip = get_client_ip(request)
+    try:
+        return RemediationPrioritizationService.authorize_change(
+            project_id=project_id,
+            recommendation_id=recommendation_id,
+            change_ticket_ref=body.change_ticket_ref,
+            authorizer=current_user,
+            authorizer_role=authorizer_role,
+            db=db,
+            client_ip=client_ip,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+

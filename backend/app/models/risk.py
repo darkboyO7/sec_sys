@@ -89,6 +89,13 @@ class RemediationRecommendation(Base, TimestampMixin):
     qualitative_benefit = Column(Text, nullable=False)
     estimated_risk_reduction = Column(Float, nullable=True)
 
+    # Phase 13: Enhanced Remediation Governance & Control Mapping
+    root_cause = Column(Text, nullable=True)
+    recommended_change = Column(Text, nullable=True)
+    estimated_effort = Column(String(50), nullable=True)  # e.g., "LOW (< 2h)", "MEDIUM (1-2d)", "HIGH (> 1w)"
+    related_controls = Column(JSON, nullable=False, default=list)
+    execution_governance_stage = Column(String(50), nullable=False, default="GENERATED")
+
     prerequisites = Column(JSON, nullable=False, default=list)
     operational_impact = Column(Text, nullable=False)
     rollback_procedure = Column(Text, nullable=False)

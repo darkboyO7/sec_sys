@@ -33,6 +33,10 @@ class RemediationPrioritizationService:
             "rationale": "Direct SQL concatenation allows untrusted user input to alter SQL grammar, leading to unauthorized data exposure.",
             "qualitative_benefit": "Eliminates input injection vector at application boundary; prevents unauthorized read/write access to persistent datastore.",
             "estimated_risk_reduction": 0.85,
+            "root_cause": "Dynamic SQL string concatenation without parameter binding in data-access layer.",
+            "recommended_change": "Replace string interpolation with parameterized prepared statements or ORM queries across all data-access call sites.",
+            "estimated_effort": "MEDIUM (1-2d)",
+            "related_controls": ["CIS-Control-16.11", "NIST-SP800-53-SI-10", "OWASP-A03:2021"],
             "prerequisites": [
                 "Locate query call sites in application data-access layer.",
                 "Ensure database driver supports parameterized prepared statements.",
@@ -57,6 +61,10 @@ class RemediationPrioritizationService:
             "rationale": "Unescaped user input reflected in DOM contexts enables arbitrary client-side script execution in user browser sessions.",
             "qualitative_benefit": "Neutralizes client-side script injection and cross-site cookie/token theft.",
             "estimated_risk_reduction": 0.75,
+            "root_cause": "Direct reflection of unencoded user-controlled inputs in dynamic HTML/template rendering.",
+            "recommended_change": "Enforce context-sensitive output escaping in UI templating engines and configure strict Content-Security-Policy (CSP).",
+            "estimated_effort": "LOW (< 2h)",
+            "related_controls": ["CIS-Control-16.12", "NIST-SP800-53-SC-18", "OWASP-A03:2021"],
             "prerequisites": [
                 "Audit web frontend templates for raw HTML unescaped interpolations.",
                 "Evaluate existing third-party scripts before enforcing strict CSP.",
@@ -80,6 +88,10 @@ class RemediationPrioritizationService:
             "rationale": "Known vulnerabilities in third-party libraries have public CVE signatures and readily available exploit patterns.",
             "qualitative_benefit": "Completely removes vulnerable binary symbols and known exploit entry points.",
             "estimated_risk_reduction": 0.90,
+            "root_cause": "Unpinned or unmaintained third-party library with published CVE identifiers.",
+            "recommended_change": "Update library version specification in package manifest to vendor-patched release and run regression tests.",
+            "estimated_effort": "LOW (< 2h)",
+            "related_controls": ["CIS-Control-2.2", "NIST-SP800-53-SI-2", "OWASP-A06:2021"],
             "prerequisites": [
                 "Inspect dependency lockfile and release notes for breaking API changes.",
                 "Execute integration test suite in staging environment.",
@@ -103,6 +115,10 @@ class RemediationPrioritizationService:
             "rationale": "Obsolete cryptographic protocols and weak ciphers are susceptible to passive eavesdropping and downgrade attacks.",
             "qualitative_benefit": "Ensures confidentiality and integrity of network transit against on-path eavesdroppers.",
             "estimated_risk_reduction": 0.70,
+            "root_cause": "Legacy TLS 1.0/1.1 protocols and weak cipher suites enabled on web/load-balancer endpoints.",
+            "recommended_change": "Disable legacy protocols, enforce TLS 1.2+ with forward-secret cipher suites and enable HSTS header.",
+            "estimated_effort": "LOW (< 2h)",
+            "related_controls": ["CIS-Control-3.10", "NIST-SP800-53-SC-8", "OWASP-A02:2021"],
             "prerequisites": [
                 "Verify connecting legacy clients support TLS 1.2.",
                 "Ensure valid certificate is installed.",
@@ -125,6 +141,10 @@ class RemediationPrioritizationService:
             "rationale": "Missing security headers expose browsers to MIME sniffing and clickjacking, while server banners reveal software fingerprints.",
             "qualitative_benefit": "Restricts browser vulnerability surfaces and denies reconnaissance information to automated scanners.",
             "estimated_risk_reduction": 0.40,
+            "root_cause": "Missing defensive HTTP response headers and verbose server banner disclosure.",
+            "recommended_change": "Inject X-Content-Type-Options, X-Frame-Options, Referrer-Policy and suppress Server/X-Powered-By banners.",
+            "estimated_effort": "LOW (< 2h)",
+            "related_controls": ["CIS-Control-4.1", "NIST-SP800-53-SC-5", "OWASP-A05:2021"],
             "prerequisites": [
                 "Check whether application requires framing in an authorized iframe portal.",
             ],
@@ -193,6 +213,10 @@ class RemediationPrioritizationService:
                 "rationale": "Unmapped vulnerability pattern requires human analyst review to avoid disruptive corrective actions.",
                 "qualitative_benefit": "Identifies precise remediation strategy tailored to specific custom software logic.",
                 "estimated_risk_reduction": 0.50,
+                "root_cause": "Unmapped security observation requiring manual triage and context-specific investigation.",
+                "recommended_change": "Engage software development team to audit finding context, isolate root cause, and implement defensive fix.",
+                "estimated_effort": "MEDIUM (1-2d)",
+                "related_controls": ["CIS-Control-16.1", "NIST-SP800-53-RA-5"],
                 "prerequisites": [
                     "Review scanner observation evidence and reproduction steps.",
                     "Engage application engineering owner.",
@@ -215,6 +239,11 @@ class RemediationPrioritizationService:
             rationale=matched_item["rationale"],
             qualitative_benefit=matched_item["qualitative_benefit"],
             estimated_risk_reduction=matched_item.get("estimated_risk_reduction"),
+            root_cause=matched_item.get("root_cause"),
+            recommended_change=matched_item.get("recommended_change"),
+            estimated_effort=matched_item.get("estimated_effort"),
+            related_controls=matched_item.get("related_controls", []),
+            execution_governance_stage="GENERATED",
             prerequisites=matched_item.get("prerequisites", []),
             operational_impact=matched_item["operational_impact"],
             rollback_procedure=matched_item["rollback_procedure"],
@@ -288,6 +317,15 @@ class RemediationPrioritizationService:
         rec.reviewed_at = utc_now()
         rec.review_notes = clean_notes
 
+        if new_status == RecommendationStatus.APPROVED:
+            rec.execution_governance_stage = "APPROVED"
+        elif new_status == RecommendationStatus.REJECTED:
+            rec.execution_governance_stage = "REJECTED"
+        elif new_status == RecommendationStatus.DEFERRED:
+            rec.execution_governance_stage = "DEFERRED"
+        else:
+            rec.execution_governance_stage = "UNDER_REVIEW"
+
         AuditService.log(
             db=db,
             action=f"REMEDIATION_RECOMMENDATION_{new_status.value}",
@@ -299,6 +337,78 @@ class RemediationPrioritizationService:
                 "finding_id": rec.finding_id,
                 "new_status": new_status.value,
                 "review_notes": rec.review_notes,
+                "governance_stage": rec.execution_governance_stage,
+            },
+        )
+        db.commit()
+        db.refresh(rec)
+        return rec
+
+    @classmethod
+    def authorize_change(
+        cls,
+        project_id: str,
+        recommendation_id: str,
+        change_ticket_ref: str,
+        authorizer: User,
+        authorizer_role: Optional[ProjectRole],
+        db: Session,
+        client_ip: Optional[str] = None,
+    ) -> RemediationRecommendation:
+        """
+        Authorizes a change implementation for an APPROVED remediation recommendation.
+        Strictly enforces that:
+        1. The recommendation is already in APPROVED status (cannot authorize unapproved or rejected recommendations).
+        2. The authorizer has Project LEAD or System ADMIN privileges.
+        3. A non-empty change ticket reference (e.g. Jira/ServiceNow ticket ID) is supplied.
+        4. No automated command, shell, or infrastructure modification is performed (pure governance boundary).
+        """
+        rec = (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.id == recommendation_id,
+                RemediationRecommendation.project_id == project_id,
+            )
+            .first()
+        )
+        if not rec:
+            raise ValueError(f"Remediation recommendation '{recommendation_id}' not found in project '{project_id}'.")
+
+        # Governance gate: must be APPROVED
+        if rec.status != RecommendationStatus.APPROVED:
+            raise ValueError(
+                f"Cannot authorize change: recommendation '{recommendation_id}' has status '{rec.status.value}', "
+                "must be 'APPROVED' first."
+            )
+
+        # RBAC gate: authorizer must be LEAD or ADMIN
+        is_lead = (authorizer_role == ProjectRole.LEAD)
+        is_admin = (authorizer.system_role == SystemRole.ADMIN)
+        if not (is_lead or is_admin):
+            raise PermissionError("Only Project LEAD or System ADMIN can authorize remediation changes.")
+
+        ticket = (change_ticket_ref or "").strip()
+        if len(ticket) < 3:
+            raise ValueError("Valid change ticket reference is mandatory (minimum 3 characters).")
+
+        rec.execution_governance_stage = "CHANGE_AUTHORIZED"
+        if rec.review_notes:
+            rec.review_notes = f"{rec.review_notes}\n[Change Authorized: {ticket}]"
+        else:
+            rec.review_notes = f"[Change Authorized: {ticket}]"
+
+        AuditService.log(
+            db=db,
+            action="REMEDIATION_CHANGE_AUTHORIZED",
+            actor_id=authorizer.id,
+            target_resource=f"remediation:{rec.id}",
+            project_id=project_id,
+            client_ip=client_ip,
+            details={
+                "finding_id": rec.finding_id,
+                "change_ticket_ref": ticket,
+                "governance_stage": rec.execution_governance_stage,
+                "status": rec.status.value,
             },
         )
         db.commit()
