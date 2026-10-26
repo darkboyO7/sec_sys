@@ -1,5 +1,6 @@
 import hashlib
 import math
+import threading
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Callable, Set, Tuple
@@ -289,14 +290,16 @@ class BaseScannerAdapter(ABC):
 
 class AdapterRegistry:
     """
-    Central Governance Registry for Approved Scanner Adapters (Phase 7B).
+    Central Governance Registry for Approved Scanner Adapters (Phase 7B / 7B.1).
     Enforces that only verified, permissioned adapters can be dispatched.
+    Thread-safe implementation with re-entrant lock synchronization.
     """
+    _lock = threading.RLock()
     _registry: Dict[str, BaseScannerAdapter] = {}
 
     @classmethod
     def register(cls, adapter: BaseScannerAdapter, allow_override: bool = False) -> None:
-        """Register and validate an approved scanner adapter."""
+        """Register and validate an approved scanner adapter with thread-safety."""
         import re
         if not isinstance(adapter, BaseScannerAdapter):
             raise TypeError(f"Adapter must inherit from BaseScannerAdapter, got {type(adapter)}")
@@ -320,40 +323,48 @@ class AdapterRegistry:
         if not adapter.supported_target_types or not isinstance(adapter.supported_target_types, list) or len(adapter.supported_target_types) == 0:
             raise ValueError(f"Adapter '{name}' must declare supported_target_types.")
 
-        if name in cls._registry:
-            if cls._registry[name] is adapter:
-                return
-            if not allow_override:
-                raise ValueError(f"Adapter '{name}' is already registered. Set allow_override=True to replace.")
+        with cls._lock:
+            if name in cls._registry:
+                if cls._registry[name] is adapter:
+                    return
+                if not allow_override:
+                    raise ValueError(f"Adapter '{name}' is already registered. Set allow_override=True to replace.")
 
-        cls._registry[name] = adapter
+            cls._registry[name] = adapter
 
     @classmethod
     def unregister(cls, name: str) -> bool:
         """Unregister an adapter by name. Returns True if removed, False if not present."""
-        if name in cls._registry:
-            del cls._registry[name]
-            return True
-        return False
+        with cls._lock:
+            if name in cls._registry:
+                del cls._registry[name]
+                return True
+            return False
 
     @classmethod
     def get(cls, name: str) -> Optional[BaseScannerAdapter]:
-        return cls._registry.get(name)
+        with cls._lock:
+            return cls._registry.get(name)
 
     @classmethod
     def is_approved(cls, name: str) -> bool:
-        adapter = cls._registry.get(name)
-        return adapter is not None and adapter.status != "DISABLED"
+        with cls._lock:
+            adapter = cls._registry.get(name)
+            return adapter is not None and adapter.status != "DISABLED"
 
     @classmethod
     def get_active_adapter(cls, name: str) -> Optional[BaseScannerAdapter]:
-        if cls.is_approved(name):
-            return cls._registry.get(name)
-        return None
+        with cls._lock:
+            if cls.is_approved(name):
+                return cls._registry.get(name)
+            return None
 
     @classmethod
     def list_capabilities(cls) -> List[Dict[str, Any]]:
         """List metadata and declared capabilities of all registered adapters."""
+        with cls._lock:
+            adapters_snapshot = list(cls._registry.values())
+
         return [
             {
                 "name": a.name,
@@ -370,15 +381,17 @@ class AdapterRegistry:
                 "status": a.status,
                 "health": a.get_health(),
             }
-            for a in cls._registry.values()
+            for a in adapters_snapshot
         ]
 
     @classmethod
     def get_by_capability(cls, capability: str) -> List[BaseScannerAdapter]:
         """Find approved adapters that provide the requested capability."""
         cap_clean = capability.strip().upper()
+        with cls._lock:
+            adapters_snapshot = list(cls._registry.values())
         return [
-            a for a in cls._registry.values()
+            a for a in adapters_snapshot
             if cls.is_approved(a.name) and any(c.upper() == cap_clean for c in a.declared_capabilities)
         ]
 
@@ -386,12 +399,15 @@ class AdapterRegistry:
     def get_by_target_type(cls, target_type: str) -> List[BaseScannerAdapter]:
         """Find approved adapters that support the specified target type."""
         t_clean = target_type.strip().upper()
+        with cls._lock:
+            adapters_snapshot = list(cls._registry.values())
         return [
-            a for a in cls._registry.values()
+            a for a in adapters_snapshot
             if cls.is_approved(a.name) and any(t.upper() == t_clean for t in a.supported_target_types)
         ]
 
     @classmethod
     def clear(cls) -> None:
         """Clear all registered adapters (useful for test isolation)."""
-        cls._registry.clear()
+        with cls._lock:
+            cls._registry.clear()
