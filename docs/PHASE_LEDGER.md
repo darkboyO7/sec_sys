@@ -22,5 +22,6 @@
 | **Phase 11** | Contextual Risk Intelligence | **COMPLETED** | `b757881` | Migration e5f6a7b8c9d0, formula v1.1.0, inherent vs residual risk, uncertainty bounds |
 | **Phase 12** | Evidence-Aware Attack-Path Analysis | **COMPLETED** | `fbbb5f7` | Stable path fingerprints, risk impact scoring, defensive chokepoints |
 | **Phase 13** | Remediation Planning & Governance | **COMPLETED** | `90e0c1f` | Migration f6a7b8c9d0e1, control mapping, effort tiers, change authorization boundary |
-| **Phase 14** | Independent Remediation Verification | **PLANNED** | Next Active Phase | Automated & passive re-testing, outcome states, regression validation |
-| **Phases 15-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
+| **Phase 14** | Independent Remediation Verification | **COMPLETED** | Checkpoint in progress | Migration a7b8c9d0e1f2, 4-outcome verification state space, re-testing, recurrence |
+| **Phase 15** | Reporting & Export | **PLANNED** | Next Active Phase | Executive, technical, governance reports, Merkle audit proofs, safe CSV/PDF/HTML |
+| **Phases 16-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |

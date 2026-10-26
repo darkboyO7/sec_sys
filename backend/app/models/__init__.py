@@ -37,6 +37,11 @@ from app.models.risk import (
     RiskAssessment,
     RemediationRecommendation,
 )
+from app.models.verification import (
+    VerificationOutcome,
+    VerificationMethod,
+    RemediationVerification,
+)
 
 __all__ = [
     "Base",
@@ -77,4 +82,7 @@ __all__ = [
     "RecommendationStatus",
     "RiskAssessment",
     "RemediationRecommendation",
+    "VerificationOutcome",
+    "VerificationMethod",
+    "RemediationVerification",
 ]

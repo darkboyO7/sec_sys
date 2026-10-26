@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     graph,
     risk,
     integrity,
+    verification,
 )
 
 api_router = APIRouter()
@@ -26,3 +27,4 @@ api_router.include_router(graph.router, tags=["Universal Security Knowledge Grap
 api_router.include_router(risk.router, tags=["Contextual Risk & Attack Paths"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit Ledger"])
 api_router.include_router(integrity.router, tags=["Cryptographic Integrity & Merkle Proofs"])
+api_router.include_router(verification.router, tags=["Independent Remediation Verification"])
