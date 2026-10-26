@@ -52,8 +52,10 @@ def main() -> int:
             sys.stdout.flush()
             return 0
 
-        # Execute adapter
+        # Execute adapter safely, protecting stdout from stray adapter prints
         start_time = time.perf_counter()
+        real_stdout = sys.stdout
+        sys.stdout = sys.stderr
         try:
             result = adapter.execute(
                 target=request.target_input,
@@ -70,17 +72,19 @@ def main() -> int:
                 worker_id=request.worker_id,
                 attempt_count=request.attempt_count,
                 success=False,
-                status_summary=f"Worker exception: {str(e)}",
+                status_summary=f"Worker exception: {str(e)}"[:1000],
                 failure_category="WORKER_EXCEPTION",
-                errors=[str(e)],
+                errors=[str(e)[:500]],
                 findings=[],
                 execution_duration_ms=duration_ms,
                 is_simulated=True,
                 process_stats={"pid": os.getpid()},
             )
-            sys.stdout.write(err_response.model_dump_json())
-            sys.stdout.flush()
+            real_stdout.write(err_response.model_dump_json())
+            real_stdout.flush()
             return 0
+        finally:
+            sys.stdout = real_stdout
 
         # Build successful/normal response
         response = WorkerIPCResponse(

@@ -1,0 +1,22 @@
+# VAPT System — Master Phase Ledger
+
+| Phase | Milestone Name | Status | Verified Checkpoint / Commit | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase 1** | Scope Boundary, Project Management & RBAC | **COMPLETED** | Initial Baseline | Dual-key authorization, strict CIDR/URL scope matching, SQLite WAL |
+| **Phase 2** | Finding Lifecycle & Verification Engine | **COMPLETED** | Prior Checkpoint | Finding state machine, false positive / risk acceptance controls |
+| **Phase 3** | Evidence Records & Cryptographic Integrity | **COMPLETED** | Prior Checkpoint | SHA-256 evidence hashing, immutable audit events |
+| **Phase 4** | Security Knowledge Graph Engine | **COMPLETED** | Prior Checkpoint | Cycle-safe BFS/DFS graph traversals, bounded depth, node isolation |
+| **Phase 4.1** | Deep Security Audit & Integration Validation | **COMPLETED** | `23766db` | Hardened graph queries, scope validation edge cases |
+| **Phase 5** | Contextual Risk Intelligence & Attack-Path Analysis | **COMPLETED** | `fe36269` | Rule-based risk scoring, attack-path modeling, explainability |
+| **Phase 5.1** | Risk-Model Validation & API Security Audit | **COMPLETED** | `68bb273` | Attack path correctness, cross-project graph isolation |
+| **Phase 6A** | Assessment Execution Boundary & Job Governance | **COMPLETED** | `c176c39` | Job state machine, synthetic mock execution, timeout policies |
+| **Phase 6B** | Execution Isolation, Concurrency & Worker Recovery | **COMPLETED** | `aae85af` | Concurrency locking, worker crash recovery, heartbeat monitoring |
+| **Phase 6B.1**| Independent Security Audit & Pre-Scanner Readiness | **COMPLETED** | `0ffe6f4` | Idempotency enforcement, boundary verification, audit records |
+| **Phase 7A** | Isolated Worker Process & IPC Boundary | **COMPLETED** | `305230a` | Subprocess execution, Alembic migration `a1b2c3d4e5f6` (worker_pid), stdio IPC |
+| **Phase 7A.1**| Independent Execution Security Review & Hardening | **COMPLETED** | In Progress (`HEAD`) | Win32 Job Object containment, stdout protection, schema sanitization |
+| **Phase 7B** | Restricted Scanner Framework | **PLANNED** | Next Active Phase | Capability-typed adapter contracts, restricted registry, no live probes |
+| **Phase 7B.1**| Scanner Readiness Gate & Adversarial Audit | **PLANNED** | Scheduled | Validates adapter schema constraints and synthetic execution safety |
+| **Phase 8** | Tamper-Evident Audit & Evidence Integrity | **PLANNED** | Scheduled | Merkle proofs, immutable evidence chains, non-repudiation |
+| **Phase 9** | Threat Modeling & Adaptive Asset Intelligence | **PLANNED** | Scheduled | Dynamic asset topology updates, passive risk enrichment |
+| **Phase 10** | Continuous Vulnerability Correlation | **PLANNED** | Scheduled | Multi-scanner deduplication, canonical CVE correlation |
+| **Phases 11-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |

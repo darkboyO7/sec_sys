@@ -116,6 +116,98 @@ def terminate_process_tree(pid: int, timeout_sec: float = 3.0) -> None:
         logger.warning(f"Error terminating process tree for PID {pid}: {e}")
 
 
+class WindowsJobObject:
+    """
+    Manages a Win32 Job Object for kernel-enforced process containment and teardown.
+    Limits active processes in tree (preventing fork-bombs) and guarantees that closing
+    the job handle or terminating the job forcefully kills all member processes.
+    """
+
+    def __init__(self, max_processes: int = 10):
+        self.handle = None
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                from ctypes import wintypes
+                kernel32 = ctypes.windll.kernel32
+                h = kernel32.CreateJobObjectW(None, None)
+                if h:
+                    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ('PerProcessUserTimeLimit', wintypes.LARGE_INTEGER),
+                            ('PerJobUserTimeLimit', wintypes.LARGE_INTEGER),
+                            ('LimitFlags', wintypes.DWORD),
+                            ('MinimumWorkingSetSize', ctypes.c_size_t),
+                            ('MaximumWorkingSetSize', ctypes.c_size_t),
+                            ('ActiveProcessLimit', wintypes.DWORD),
+                            ('Affinity', ctypes.c_size_t),
+                            ('PriorityClass', wintypes.DWORD),
+                            ('SchedulingClass', wintypes.DWORD),
+                        ]
+
+                    class IO_COUNTERS(ctypes.Structure):
+                        _fields_ = [
+                            ('ReadOperationCount', ctypes.c_uint64),
+                            ('WriteOperationCount', ctypes.c_uint64),
+                            ('OtherOperationCount', ctypes.c_uint64),
+                            ('ReadTransferCount', ctypes.c_uint64),
+                            ('WriteTransferCount', ctypes.c_uint64),
+                            ('OtherTransferCount', ctypes.c_uint64),
+                        ]
+
+                    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ('BasicLimitInformation', JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                            ('IoInfo', IO_COUNTERS),
+                            ('ProcessMemoryLimit', ctypes.c_size_t),
+                            ('JobMemoryLimit', ctypes.c_size_t),
+                            ('PeakProcessMemoryLimit', ctypes.c_size_t),
+                            ('PeakJobMemoryLimit', ctypes.c_size_t),
+                        ]
+
+                    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                    # 0x2000 = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                    # 0x0008 = JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+                    info.BasicLimitInformation.LimitFlags = 0x2000 | 0x0008
+                    info.BasicLimitInformation.ActiveProcessLimit = max_processes
+                    kernel32.SetInformationJobObject(
+                        h,
+                        9,  # JobObjectExtendedLimitInformation
+                        ctypes.byref(info),
+                        ctypes.sizeof(info),
+                    )
+                    self.handle = h
+            except Exception as e:
+                logger.warning(f"Failed to initialize Windows Job Object: {e}")
+
+    def assign_process(self, process_handle: int) -> bool:
+        if self.handle and process_handle:
+            try:
+                import ctypes
+                return bool(ctypes.windll.kernel32.AssignProcessToJobObject(self.handle, int(process_handle)))
+            except Exception as e:
+                logger.warning(f"Failed to assign process to Job Object: {e}")
+        return False
+
+    def terminate(self, exit_code: int = 1) -> None:
+        if self.handle:
+            try:
+                import ctypes
+                ctypes.windll.kernel32.TerminateJobObject(self.handle, exit_code)
+            except Exception as e:
+                logger.warning(f"Error terminating Job Object: {e}")
+
+    def close(self) -> None:
+        if self.handle:
+            try:
+                import ctypes
+                ctypes.windll.kernel32.CloseHandle(self.handle)
+            except Exception:
+                pass
+            finally:
+                self.handle = None
+
+
 class SubprocessWorkerRunner:
     """
     Supervises the execution of an isolated worker process.
@@ -190,6 +282,10 @@ class SubprocessWorkerRunner:
             )
 
         self.last_spawned_pid = proc.pid
+        job_object = WindowsJobObject(max_processes=10)
+        if hasattr(proc, "_handle") and proc._handle:
+            job_object.assign_process(proc._handle)
+
         if on_spawn:
             try:
                 on_spawn(proc.pid)
@@ -209,6 +305,7 @@ class SubprocessWorkerRunner:
                 if elapsed > timeout_seconds:
                     duration_ms = elapsed * 1000
                     logger.warning(f"Worker PID {proc.pid} exceeded timeout ({timeout_seconds}s). Terminating.")
+                    job_object.terminate(exit_code=1)
                     terminate_process_tree(proc.pid, timeout_sec=float(grace_period))
                     try:
                         proc.wait(timeout=grace_period)
@@ -231,6 +328,7 @@ class SubprocessWorkerRunner:
                 if cancellation_check and cancellation_check():
                     duration_ms = (time.perf_counter() - start_time) * 1000
                     logger.info(f"Cancellation requested for Worker PID {proc.pid}. Terminating.")
+                    job_object.terminate(exit_code=1)
                     terminate_process_tree(proc.pid, timeout_sec=float(grace_period))
                     try:
                         proc.wait(timeout=grace_period)
@@ -253,19 +351,20 @@ class SubprocessWorkerRunner:
                     inp = req_json_bytes if first_communicate else None
                     first_communicate = False
                     chunk_out, chunk_err = proc.communicate(input=inp, timeout=0.2)
-                    if chunk_out:
-                        stdout_data += chunk_out
-                    if chunk_err:
-                        stderr_data += chunk_err
+                    if chunk_out is not None:
+                        stdout_data = chunk_out
+                    if chunk_err is not None:
+                        stderr_data = chunk_err
                     break
                 except subprocess.TimeoutExpired as expired:
                     if expired.output:
-                        stdout_data += expired.output
+                        stdout_data = expired.output
                     if expired.stderr:
-                        stderr_data += expired.stderr
+                        stderr_data = expired.stderr
                     # Check maximum byte length of stream so far
                     if len(stdout_data) > max_bytes:
                         duration_ms = (time.perf_counter() - start_time) * 1000
+                        job_object.terminate(exit_code=1)
                         terminate_process_tree(proc.pid, timeout_sec=float(grace_period))
                         return AdapterResult(
                             adapter_name=request.adapter_name,
@@ -284,9 +383,11 @@ class SubprocessWorkerRunner:
             try:
                 proc.wait(timeout=grace_period)
             except Exception:
+                job_object.terminate(exit_code=1)
                 terminate_process_tree(proc.pid)
 
         finally:
+            job_object.close()
             # Ensure process file descriptors are closed safely
             for stream in (proc.stdin, proc.stdout, proc.stderr):
                 if stream and not stream.closed:
