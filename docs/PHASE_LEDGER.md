@@ -32,5 +32,5 @@
 | **Phase 21** | Professional Dashboard & User Experience | **COMPLETED** | `645ec90` | 16-view unified dashboard, remediation verification, reports, digital twin, regression alerts, AI analyst, model governance, adaptive defense |
 | **Phase 22** | PostgreSQL & Multi-Worker Readiness | **COMPLETED** | `9eca4dc` | Dialect pool config, DDL AST validation, atomic FOR UPDATE SKIP LOCKED claimer, deadlock retry, stale worker recovery |
 | **Phase 23** | Reliability, Performance & Resource Governance | **COMPLETED** | `575245e` | Migration b3c4d5e6f7a8, composite hot-path indexes, bounded pagination, queue backpressure (HTTP 429), cyclical graph clamping |
-| **Phase 24** | Backup, Recovery, and Data Lifecycle | **COMPLETED** | `PENDING_COMMIT` | Non-blocking online SQLite WAL backup, SHA-256 integrity, disposable restore sandbox, project manifest export, purge teardown, evidence retention |
+| **Phase 24** | Backup, Recovery, and Data Lifecycle | **COMPLETED** | `b2ffe66` | Non-blocking online SQLite WAL backup, SHA-256 integrity, disposable restore sandbox, project manifest export, purge teardown, evidence retention |
 | **Phases 25-26**| Autonomous Defensive Security Platform Roadmap | **PLANNED** | Scheduled | See `ROADMAP.md` and complete master specification |
