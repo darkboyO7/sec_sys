@@ -24,9 +24,11 @@ from app.schemas.finding import (
     AcceptRiskRequest,
     FalsePositiveRequest,
     ProposeRemediationRequest,
+    ValidateFindingRequest,
     FindingStatsResponse,
 )
 from app.services.finding_lifecycle_service import FindingLifecycleService
+from app.services.finding_validation_service import FindingValidationService
 from app.api.deps import get_current_user, verify_project_access, get_client_ip
 
 router = APIRouter()
@@ -466,6 +468,54 @@ def propose_remediation(
         client_ip=client_ip,
         remediation_notes=rem_in.remediation_notes,
         assigned_to_id=rem_in.assigned_to_id,
+    )
+    db.commit()
+
+    return _format_finding_detail(updated, db)
+
+
+@router.post("/projects/{project_id}/findings/{finding_id}/validate", response_model=VulnerabilityFindingDetail)
+def validate_finding(
+    project_id: str,
+    finding_id: str,
+    val_in: ValidateFindingRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Phase 9: Explicit finding validation by security analyst.
+    Records validation outcome, calculates evidence quality score,
+    and updates lifecycle state with full audit trail.
+    """
+    verify_project_access(project_id, current_user, db)
+
+    finding = (
+        db.query(VulnerabilityFinding)
+        .filter(
+            VulnerabilityFinding.id == finding_id,
+            VulnerabilityFinding.project_id == project_id,
+        )
+        .first()
+    )
+    if not finding:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Finding not found in specified project",
+        )
+
+    actor_role = _get_user_project_role(project_id, current_user, db)
+    client_ip = get_client_ip(request)
+
+    updated = FindingValidationService.validate_finding(
+        finding=finding,
+        validation_outcome=val_in.validation_outcome,
+        analyst_review_notes=val_in.analyst_review_notes,
+        analyst=current_user,
+        analyst_role=actor_role,
+        db=db,
+        client_ip=client_ip,
+        explicit_quality_score=val_in.evidence_quality_score,
     )
     db.commit()
 

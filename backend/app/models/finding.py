@@ -22,6 +22,14 @@ class FindingLifecycleStatus(str, enum.Enum):
     EXPIRED = "EXPIRED"
 
 
+class ValidationOutcome(str, enum.Enum):
+    CONFIRMED = "CONFIRMED"
+    FALSE_POSITIVE = "FALSE_POSITIVE"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    NEEDS_MANUAL_REVIEW = "NEEDS_MANUAL_REVIEW"
+    STALE_EVIDENCE = "STALE_EVIDENCE"
+
+
 class VulnerabilityFinding(Base, TimestampMixin):
     """
     Canonical, deduplicated project vulnerability tracked through the 13-state lifecycle.
@@ -82,6 +90,15 @@ class VulnerabilityFinding(Base, TimestampMixin):
     verification_job_id = Column(String(36), ForeignKey("assessment_jobs.id", ondelete="SET NULL"), nullable=True)
     verification_notes = Column(Text, nullable=True)
 
+    # Phase 9: Advanced Finding Validation & Recurrence
+    validation_outcome = Column(String(50), nullable=True)
+    evidence_quality_score = Column(Float, default=1.0, nullable=True)
+    analyst_review_notes = Column(Text, nullable=True)
+    reviewed_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    recurrence_detected = Column(Boolean, default=False, nullable=False)
+    recurrence_count = Column(Integer, default=0, nullable=False)
+
     # Relationships
     project = relationship("Project")
     asset = relationship("Asset", back_populates="findings")
@@ -90,6 +107,7 @@ class VulnerabilityFinding(Base, TimestampMixin):
     false_positive_by = relationship("User", foreign_keys=[false_positive_by_id])
     verified_by = relationship("User", foreign_keys=[verified_by_id])
     verification_job = relationship("AssessmentJob", foreign_keys=[verification_job_id])
+    reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
 
     observations = relationship("AssessmentFinding", back_populates="canonical_finding", order_by="AssessmentFinding.created_at.desc()")
     transitions = relationship("FindingTransition", back_populates="finding", cascade="all, delete-orphan", order_by="FindingTransition.created_at.desc()")

@@ -63,6 +63,15 @@ class VulnerabilityFindingRead(BaseModel):
     verification_job_id: Optional[str] = None
     verification_notes: Optional[str] = None
 
+    # Phase 9: Advanced Finding Validation & Recurrence
+    validation_outcome: Optional[str] = None
+    evidence_quality_score: Optional[float] = 1.0
+    analyst_review_notes: Optional[str] = None
+    reviewed_by_id: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    recurrence_detected: bool = False
+    recurrence_count: int = 0
+
     created_at: datetime
     updated_at: datetime
 
@@ -97,6 +106,12 @@ class FalsePositiveRequest(BaseModel):
 class ProposeRemediationRequest(BaseModel):
     remediation_notes: str = Field(..., min_length=5, max_length=2000)
     assigned_to_id: Optional[str] = None
+
+
+class ValidateFindingRequest(BaseModel):
+    validation_outcome: str = Field(..., description="CONFIRMED, FALSE_POSITIVE, INCONCLUSIVE, NEEDS_MANUAL_REVIEW, STALE_EVIDENCE")
+    analyst_review_notes: str = Field(..., min_length=5, max_length=3000)
+    evidence_quality_score: Optional[float] = Field(None, ge=0.0, le=1.0)
 
 
 class FindingStatsResponse(BaseModel):

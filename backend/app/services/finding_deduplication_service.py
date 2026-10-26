@@ -178,17 +178,20 @@ class FindingDeduplicationService:
                 ):
                     old_status = existing.status
                     existing.status = FindingLifecycleStatus.REOPENED
+                    existing.recurrence_detected = True
+                    existing.recurrence_count = (existing.recurrence_count or 0) + 1
 
                     reopen_transition = FindingTransition(
                         finding_id=existing.id,
                         from_status=old_status,
                         to_status=FindingLifecycleStatus.REOPENED,
                         actor_id=job.created_by_id,
-                        reason=f"Vulnerability re-detected in assessment job {job.id} after having been marked {old_status.value}.",
+                        reason=f"Vulnerability re-detected in assessment job {job.id} after having been marked {old_status.value}. Recurrence count: {existing.recurrence_count}.",
                         metadata_snapshot={
                             "job_id": job.id,
                             "reopened_at": now.isoformat(),
                             "prior_status": old_status.value,
+                            "recurrence_count": existing.recurrence_count,
                         },
                         created_at=now,
                     )
