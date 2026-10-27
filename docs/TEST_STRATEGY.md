@@ -66,26 +66,26 @@ Every test execution result is classified into one of four mutually exclusive st
 
 ### Full Backend Verification
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 ..\.venv\Scripts\pytest.exe -v
 ```
 
 ### Focused Security Suite
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 ..\.venv\Scripts\pytest.exe tests/test_phase4_security_audit.py tests/test_phase5_security_audit.py tests/test_phase6b1_security_audit.py tests/test_phase7a1_security_review.py tests/test_phase7b1_readiness_audit.py tests/test_phase25_deployment_hardening.py tests/test_phase26_final_security_assessment.py tests/test_integrations.py -v
 ```
 
 ### Frontend Tests & Production Compilation
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\frontend
+cd D:\alt\frontend
 npm test -- --run
 npm run build
 ```
 
 ### Disposable Database Migration Lifecycle Verification
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 $env:DATABASE_URL = "sqlite:///test_disp_verify.db"
 ..\.venv\Scripts\alembic.exe upgrade head
 ..\.venv\Scripts\alembic.exe downgrade base
@@ -95,7 +95,7 @@ Remove-Item test_disp_verify.db -ErrorAction SilentlyContinue
 
 ### PostgreSQL Staging Verification (When Staging Instance is Provisioned)
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 $env:POSTGRES_TEST_DATABASE_URL = "postgresql+psycopg://staging_user:secure_pass@192.168.1.50:5432/vapt_staging_test"
 ..\.venv\Scripts\pytest.exe tests/test_phase22_postgres_readiness.py -v
 ```

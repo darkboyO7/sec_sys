@@ -1,7 +1,7 @@
 # VAPT PLATFORM — POST-AUDIT END-TO-END OPERATIONAL ACCEPTANCE & READINESS REPORT
 
 **Audit Date:** 2026-10-27  
-**Primary Repository:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`  
+**Primary Repository:** `D:\alt`  
 **Secondary Mirror:** `D:\alt`  
 **Baseline Commit:** `b5c150ec1bcaab2675b62951142fe06d91753a7d`  
 **Auditor Mode:** Independent Operational Acceptance & PostgreSQL Concurrency Validation  
@@ -16,7 +16,7 @@
 
 | Parameter | Operational Value | Verification Command | Status |
 | :--- | :--- | :--- | :--- |
-| **Repository Root** | `C:\Users\Dark_Boy_\Downloads\VAPT_System` | Absolute path inspection | **VERIFIED** |
+| **Repository Root** | `D:\alt` | Absolute path inspection | **VERIFIED** |
 | **Active Git Branch** | `main` | `git branch --show-current` | **VERIFIED** |
 | **Baseline Git Commit** | `b5c150ec1bcaab2675b62951142fe06d91753a7d` | `git rev-parse HEAD` | **VERIFIED** |
 | **Working Tree Status** | Clean at baseline | `git status` | **VERIFIED** |
@@ -35,7 +35,7 @@
 All automated test suites were reproduced and recorded with exact commands, exit codes, and execution durations:
 
 ### 2.1 Complete Backend Automated Test Suite
-- **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\python -m pytest"`
+- **Command:** `cmd /c "cd /d D:\alt\backend && ..\.venv\Scripts\python -m pytest"`
 - **Exit Code:** `0` (SUCCESS)
 - **Collected Tests:** `254` items across 33 test files (including 16 Phase 22 PostgreSQL readiness tests, 9 Phase 8 integrity tests, and 7 Phase 23 performance resilience tests)
 - **Results:** **250 passed**, **4 skipped (BLOCKED: POSTGRES_TEST_DATABASE_URL not set; live staging server unavailable)**, 0 failed
@@ -44,14 +44,14 @@ All automated test suites were reproduced and recorded with exact commands, exit
 - **Status:** **VERIFIED (SQLite single-node certified; Live PostgreSQL BLOCKED pending staging server)**
 
 ### 2.2 Focused Security Regression Suite
-- **Command:** `powershell -Command "Set-Location 'C:\Users\Dark_Boy_\Downloads\VAPT_System\backend'; & ..\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_projects_isolation.py tests/test_scope_engine.py tests/test_phase6b1_security_audit.py tests/test_phase7a_worker_isolation.py tests/test_phase7b1_readiness_audit.py tests/test_phase8_evidence_integrity.py tests/test_phase18_ai_analyst.py tests/test_phase24_backup_recovery.py tests/test_phase26_final_security_assessment.py -v"`
+- **Command:** `powershell -Command "Set-Location 'D:\alt\backend'; & ..\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_projects_isolation.py tests/test_scope_engine.py tests/test_phase6b1_security_audit.py tests/test_phase7a_worker_isolation.py tests/test_phase7b1_readiness_audit.py tests/test_phase8_evidence_integrity.py tests/test_phase18_ai_analyst.py tests/test_phase24_backup_recovery.py tests/test_phase26_final_security_assessment.py -v"`
 - **Exit Code:** `0` (SUCCESS)
 - **Results:** **70 passed**, 0 failed, 0 skipped
 - **Duration:** 33.17 seconds
 - **Status:** **VERIFIED**
 
 ### 2.3 Phase 22 PostgreSQL Readiness & AST Suite
-- **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\pytest tests/test_phase22_postgres_readiness.py -v -rs"`
+- **Command:** `cmd /c "cd /d D:\alt\backend && ..\.venv\Scripts\pytest tests/test_phase22_postgres_readiness.py -v -rs"`
 - **Exit Code:** `0` (SUCCESS)
 - **Collected Tests:** 16 items
 - **Results:** **12 passed**, **4 skipped (BLOCKED)**, 0 failed
@@ -79,7 +79,7 @@ All automated test suites were reproduced and recorded with exact commands, exit
 ### 2.4 Disposable Database Migration Test
 - **Command:** 
   ```cmd
-  cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+  cd /d D:\alt\backend
   set DATABASE_URL=sqlite:///./data/disposable_test_gate2.db
   ..\.venv\Scripts\python -m alembic upgrade head
   ..\.venv\Scripts\python -m alembic downgrade base

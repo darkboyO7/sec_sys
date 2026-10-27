@@ -37,7 +37,7 @@ The platform test suite comprises over **200 automated backend tests** and a ded
 ### 3.1. Running the Full Backend Test Suite
 To execute all backend tests safely within Windows native PowerShell:
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 
 # Run complete test suite with coverage
 ..\.venv\Scripts\python -m pytest -v
@@ -62,7 +62,7 @@ For rapid iteration, tests can be run in functional groups:
 ### 3.3. Disposable Database Migration Test
 Validates that migrations cleanly upgrade, downgrade, and re-upgrade:
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 $env:DATABASE_URL="sqlite:///./data/disposable_test.db"
 ..\.venv\Scripts\python -m alembic upgrade head
 ..\.venv\Scripts\python -m alembic downgrade -1
@@ -73,7 +73,7 @@ Remove-Item env:DATABASE_URL
 
 ### 3.4. Frontend Vitest & Production Build
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\frontend
+cd D:\alt\frontend
 
 # Run Vitest unit tests
 npm test

@@ -3,7 +3,7 @@
 **Authoritative Governance Document**
 **Initial Baseline Commit:** `bfeaf15`
 **Evaluation Date:** October 27, 2026
-**Primary Repository:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`
+**Primary Repository:** `D:\alt`
 **Mirror Parity (`D:\alt`):** 100% in parity
 **Target Architecture:** Dual-Mode Defensive VAPT Platform (Native Windows SQLite WAL + Staging PostgreSQL 16)
 

@@ -16,7 +16,7 @@ The VAPT Platform is natively engineered for **Windows 11 / Windows Server 2022+
 ## 2. Directory Structure & Layout
 
 ```
-C:\Users\Dark_Boy_\Downloads\VAPT_System
+D:\alt
 ├── backend/
 │   ├── alembic/             # Database migration scripts
 │   ├── app/                 # FastAPI application core
@@ -43,7 +43,7 @@ C:\Users\Dark_Boy_\Downloads\VAPT_System
 ### 3.1. Backend Service Startup (PowerShell)
 ```powershell
 # Navigate to backend root
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
+cd D:\alt\backend
 
 # Run database migrations to head
 ..\.venv\Scripts\python -m alembic upgrade head
@@ -58,7 +58,7 @@ cd C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
 ### 3.2. Frontend Web Interface Startup (PowerShell)
 ```powershell
 # Navigate to frontend directory
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\frontend
+cd D:\alt\frontend
 
 # Start Vite development server
 npm run dev
@@ -67,7 +67,7 @@ npm run dev
 
 ### 3.3. Production Frontend Compilation
 ```powershell
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System\frontend
+cd D:\alt\frontend
 npm run build
 ```
 - Generates optimized static assets in `frontend/dist/`.
@@ -93,7 +93,7 @@ To maintain a backup mirror in `D:\alt` without risking accidental file loss:
 ### Approved Git Mirror Push Workflow:
 ```powershell
 # Check working tree in primary repository
-cd C:\Users\Dark_Boy_\Downloads\VAPT_System
+cd D:\alt
 git status
 
 # Commit changes locally

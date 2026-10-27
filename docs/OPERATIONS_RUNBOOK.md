@@ -11,7 +11,7 @@
 ### 1.1 Service Startup
 ```powershell
 # Navigate to backend
-Set-Location "C:\Users\Dark_Boy_\Downloads\VAPT_System\backend"
+Set-Location "D:\alt\backend"
 
 # Ensure SQLite data directory exists
 if (-not (Test-Path "data")) { New-Item -ItemType Directory -Path "data" }
