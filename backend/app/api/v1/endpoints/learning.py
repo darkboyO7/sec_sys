@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.user import User
 from app.models.project import ProjectRole
-from app.models.learning import LearningDataset, GovernedModel, ModelStatus
+from app.models.learning import (
+    LearningDataset,
+    GovernedModel,
+    ModelStatus,
+    PredictionLedger,
+    PredictionType,
+    PredictionEvaluationStatus,
+)
 from app.schemas.learning import (
     DatasetCurateRequest,
     LearningDatasetRead,
@@ -13,8 +20,13 @@ from app.schemas.learning import (
     ModelApprovalRequest,
     ModelRollbackRequest,
     GovernedModelRead,
+    PredictionRecordRequest,
+    PredictionEvaluateRequest,
+    PredictionInvalidateRequest,
+    PredictionLedgerRead,
+    ModelDriftMetricsRead,
 )
-from app.services.learning_service import ModelGovernanceService
+from app.services.learning_service import ModelGovernanceService, PredictionLedgerService
 from app.api.deps import get_current_user, verify_project_access, get_client_ip
 
 router = APIRouter()
@@ -267,3 +279,181 @@ def list_models(
     if status_filter:
         query = query.filter(GovernedModel.status == status_filter)
     return query.order_by(GovernedModel.created_at.desc()).all()
+
+
+# --- Prediction Ledger Endpoints (Phase 19.1 / Part X, Section 20) ---
+
+
+@router.post(
+    "/projects/{project_id}/learning/predictions",
+    response_model=PredictionLedgerRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record an immutable prediction in the persistent ledger before action is taken",
+)
+def record_prediction(
+    project_id: str,
+    payload: PredictionRecordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(
+        project_id,
+        current_user,
+        db,
+        required_project_roles=[ProjectRole.LEAD, ProjectRole.TESTER],
+    )
+    client_ip = get_client_ip(request)
+
+    try:
+        entry = PredictionLedgerService.record_prediction(
+            project_id=project_id,
+            target_entity_type=payload.target_entity_type,
+            target_entity_id=payload.target_entity_id,
+            prediction_type=payload.prediction_type,
+            predicted_outcome=payload.predicted_outcome,
+            confidence_score=payload.confidence_score,
+            feature_snapshot=payload.feature_snapshot,
+            model_id=payload.model_id,
+            model_version=payload.model_version or "heuristic-v1.0",
+            rule_version=payload.rule_version,
+            limitations=payload.limitations,
+            decision_action_taken=payload.decision_action_taken,
+            expected_evaluation_horizon=payload.expected_evaluation_horizon,
+            actor_id=current_user.id,
+            client_ip=client_ip,
+            db=db,
+        )
+        return entry
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get(
+    "/projects/{project_id}/learning/predictions",
+    response_model=List[PredictionLedgerRead],
+    status_code=status.HTTP_200_OK,
+    summary="Query prediction ledger records with filtering and pagination",
+)
+def list_predictions(
+    project_id: str,
+    target_entity_type: Optional[str] = Query(None),
+    target_entity_id: Optional[str] = Query(None),
+    prediction_type: Optional[PredictionType] = Query(None),
+    evaluation_status: Optional[PredictionEvaluationStatus] = Query(None),
+    model_version: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(project_id, current_user, db)
+
+    query = db.query(PredictionLedger).filter(PredictionLedger.project_id == project_id)
+    if target_entity_type:
+        query = query.filter(PredictionLedger.target_entity_type == target_entity_type)
+    if target_entity_id:
+        query = query.filter(PredictionLedger.target_entity_id == target_entity_id)
+    if prediction_type:
+        query = query.filter(PredictionLedger.prediction_type == prediction_type)
+    if evaluation_status:
+        query = query.filter(PredictionLedger.evaluation_status == evaluation_status)
+    if model_version:
+        query = query.filter(PredictionLedger.model_version == model_version)
+
+    return query.order_by(PredictionLedger.created_at.desc()).offset(offset).limit(limit).all()
+
+
+@router.post(
+    "/projects/{project_id}/learning/predictions/{prediction_id}/evaluate",
+    response_model=PredictionLedgerRead,
+    status_code=status.HTTP_200_OK,
+    summary="Evaluate an observed real-world outcome against a pending prediction",
+)
+def evaluate_prediction(
+    project_id: str,
+    prediction_id: str,
+    payload: PredictionEvaluateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(
+        project_id,
+        current_user,
+        db,
+        required_project_roles=[ProjectRole.LEAD, ProjectRole.TESTER],
+    )
+    client_ip = get_client_ip(request)
+
+    try:
+        evaluated = PredictionLedgerService.evaluate_prediction(
+            prediction_id=prediction_id,
+            project_id=project_id,
+            actual_outcome=payload.actual_outcome,
+            outcome_evidence=payload.outcome_evidence,
+            user=current_user,
+            status_override=payload.status_override,
+            notes=payload.notes,
+            client_ip=client_ip,
+            db=db,
+        )
+        return evaluated
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/projects/{project_id}/learning/predictions/{prediction_id}/invalidate",
+    response_model=PredictionLedgerRead,
+    status_code=status.HTTP_200_OK,
+    summary="Invalidate a prediction due to corrupted features or invalid scope",
+)
+def invalidate_prediction(
+    project_id: str,
+    prediction_id: str,
+    payload: PredictionInvalidateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(
+        project_id,
+        current_user,
+        db,
+        required_project_roles=[ProjectRole.LEAD],
+    )
+    client_ip = get_client_ip(request)
+
+    try:
+        invalidated = PredictionLedgerService.invalidate_prediction(
+            prediction_id=prediction_id,
+            project_id=project_id,
+            reason=payload.reason,
+            user=current_user,
+            client_ip=client_ip,
+            db=db,
+        )
+        return invalidated
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get(
+    "/projects/{project_id}/learning/predictions/drift",
+    response_model=ModelDriftMetricsRead,
+    status_code=status.HTTP_200_OK,
+    summary="Calculate empirical prediction accuracy, Brier calibration, and drift alerts",
+)
+def get_prediction_drift_metrics(
+    project_id: str,
+    model_version: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(project_id, current_user, db)
+    return PredictionLedgerService.calculate_drift_metrics(
+        project_id=project_id,
+        model_version=model_version,
+        db=db,
+    )

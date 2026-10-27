@@ -717,6 +717,58 @@ export interface GovernedModel {
   created_at: string;
 }
 
+// Phase 19.1: Persistent Prediction Ledger
+export type PredictionType =
+  | 'FALSE_POSITIVE_LIKELIHOOD'
+  | 'EXPLOITATION_PROBABILITY'
+  | 'REMEDIATION_EFFORT_HOURS'
+  | 'RISK_SCORE_FORECAST'
+  | 'ATTACK_PATH_REACHABILITY';
+
+export type PredictionEvaluationStatus =
+  | 'PENDING'
+  | 'VERIFIED_ACCURATE'
+  | 'VERIFIED_INACCURATE'
+  | 'INCONCLUSIVE'
+  | 'EXPIRED'
+  | 'INVALIDATED';
+
+export interface PredictionLedgerEntry {
+  id: string;
+  project_id: string;
+  model_id?: string | null;
+  model_version: string;
+  rule_version?: string | null;
+  target_entity_type: string;
+  target_entity_id: string;
+  prediction_type: PredictionType;
+  feature_snapshot: Record<string, any>;
+  predicted_outcome: string;
+  confidence_score: number;
+  limitations?: string | null;
+  decision_action_taken?: string | null;
+  expected_evaluation_horizon?: string | null;
+  actual_outcome?: string | null;
+  outcome_evidence?: Record<string, any> | null;
+  evaluation_status: PredictionEvaluationStatus;
+  invalidation_reason?: string | null;
+  evaluated_at?: string | null;
+  evaluated_by_id?: string | null;
+  created_at: string;
+}
+
+export interface ModelDriftMetrics {
+  total_predictions: number;
+  evaluated_count: number;
+  pending_count: number;
+  accurate_count: number;
+  inaccurate_count: number;
+  accuracy_rate: number;
+  brier_score: number;
+  drift_alert: boolean;
+  status: string;
+}
+
 // Phase 20: Morph-State Adaptive Defense and Recovery
 export type AdaptiveMorphState =
   | 'NORMAL'

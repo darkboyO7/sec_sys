@@ -63,9 +63,12 @@ from app.models.ai_analyst import (
 from app.models.learning import (
     DatasetSplit,
     ModelStatus,
+    PredictionType,
+    PredictionEvaluationStatus,
     LearningDataset,
     DatasetRecord,
     GovernedModel,
+    PredictionLedger,
 )
 from app.models.adaptive_defense import (
     AdaptiveMorphState,
@@ -130,9 +133,12 @@ __all__ = [
     "AIAnalystDraft",
     "DatasetSplit",
     "ModelStatus",
+    "PredictionType",
+    "PredictionEvaluationStatus",
     "LearningDataset",
     "DatasetRecord",
     "GovernedModel",
+    "PredictionLedger",
     "AdaptiveMorphState",
     "AdaptiveTransitionTrigger",
     "MorphStatePosture",

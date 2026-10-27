@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import type { LearningDataset, GovernedModel } from '../types';
+import type { LearningDataset, GovernedModel, PredictionLedgerEntry, ModelDriftMetrics } from '../types';
 
 interface ModelGovernanceViewProps {
   projectId: string;
@@ -9,9 +9,15 @@ interface ModelGovernanceViewProps {
 export const ModelGovernanceView: React.FC<ModelGovernanceViewProps> = ({ projectId }) => {
   const [datasets, setDatasets] = useState<LearningDataset[]>([]);
   const [models, setModels] = useState<GovernedModel[]>([]);
+  const [predictions, setPredictions] = useState<PredictionLedgerEntry[]>([]);
+  const [driftMetrics, setDriftMetrics] = useState<ModelDriftMetrics | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Prediction evaluation state
+  const [evaluatingPredId, setEvaluatingPredId] = useState<string | null>(null);
+  const [evalActualOutcome, setEvalActualOutcome] = useState('');
 
   // Curate dataset state
   const [datasetName, setDatasetName] = useState('curated_vapt_benchmark');
@@ -36,17 +42,40 @@ export const ModelGovernanceView: React.FC<ModelGovernanceViewProps> = ({ projec
     try {
       setLoading(true);
       setError(null);
-      const [dsets, mdls] = await Promise.all([
-        api.listDatasets(projectId),
-        api.listModels(projectId),
+      const [dsets, mdls, preds, drift] = await Promise.all([
+        api.listDatasets(projectId).catch(() => []),
+        api.listModels(projectId).catch(() => []),
+        api.listPredictions(projectId).catch(() => []),
+        api.getPredictionDrift(projectId).catch(() => null),
       ]);
       setDatasets(dsets || []);
       setModels(mdls || []);
+      setPredictions(preds || []);
+      setDriftMetrics(drift || null);
       if (dsets && dsets.length > 0 && !selectedDatasetId) {
         setSelectedDatasetId(dsets[0].id);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load model governance data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEvaluatePredictionSubmit = async (predictionId: string) => {
+    if (!evalActualOutcome.trim()) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await api.evaluatePrediction(projectId, predictionId, {
+        actual_outcome: evalActualOutcome.trim(),
+      });
+      setSuccess('Prediction outcome successfully evaluated.');
+      setEvaluatingPredId(null);
+      setEvalActualOutcome('');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to evaluate prediction');
     } finally {
       setLoading(false);
     }
@@ -444,6 +473,128 @@ export const ModelGovernanceView: React.FC<ModelGovernanceViewProps> = ({ projec
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Persistent Prediction Ledger & Calibration Tracker (Phase 19.1) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-white">4. Persistent Prediction Ledger & Calibration Tracker ({predictions.length})</h2>
+            <p className="text-xs text-slate-400">
+              Immutable audit ledger capturing inference-time feature snapshots, confidence bounds, and asynchronous real-world outcome evaluations.
+            </p>
+          </div>
+          {driftMetrics && (
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+                driftMetrics.drift_alert
+                  ? 'bg-rose-950 text-rose-300 border-rose-700'
+                  : 'bg-emerald-950 text-emerald-300 border-emerald-700'
+              }`}>
+                {driftMetrics.status} (Accuracy: {(driftMetrics.accuracy_rate * 100).toFixed(1)}%, Brier: {driftMetrics.brier_score.toFixed(3)})
+              </span>
+            </div>
+          )}
+        </div>
+
+        {predictions.length === 0 ? (
+          <p className="text-xs text-slate-500 italic py-6 text-center">No predictions recorded in ledger yet. Predictions are captured during automated analysis and triage.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400">
+                  <th className="py-2 px-3">Target Entity</th>
+                  <th className="py-2 px-3">Prediction Type</th>
+                  <th className="py-2 px-3">Predicted Outcome</th>
+                  <th className="py-2 px-3">Confidence</th>
+                  <th className="py-2 px-3">Actual Outcome</th>
+                  <th className="py-2 px-3">Status</th>
+                  <th className="py-2 px-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {predictions.map((p) => {
+                  const statusBg =
+                    p.evaluation_status === 'VERIFIED_ACCURATE'
+                      ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                      : p.evaluation_status === 'VERIFIED_INACCURATE'
+                      ? 'bg-rose-950 text-rose-400 border-rose-800'
+                      : p.evaluation_status === 'INVALIDATED'
+                      ? 'bg-slate-800 text-slate-400 border-slate-700'
+                      : 'bg-amber-950 text-amber-300 border-amber-800';
+
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-800/40">
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-300">
+                        {p.target_entity_type}:{p.target_entity_id.slice(0, 8)}...
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-slate-300">
+                        {p.prediction_type}
+                      </td>
+                      <td className="py-2.5 px-3 font-semibold text-white">
+                        {p.predicted_outcome}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {(p.confidence_score * 100).toFixed(0)}%
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px]">
+                        {p.actual_outcome || <span className="text-slate-500 italic">Pending</span>}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${statusBg}`}>
+                          {p.evaluation_status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {p.evaluation_status === 'PENDING' && (
+                          <div className="flex items-center gap-1.5">
+                            {evaluatingPredId === p.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={evalActualOutcome}
+                                  onChange={(e) => setEvalActualOutcome(e.target.value)}
+                                  placeholder="Observed outcome"
+                                  className="bg-slate-800 border border-slate-700 text-xs text-white rounded px-2 py-0.5 w-28"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleEvaluatePredictionSubmit(p.id)}
+                                  className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] rounded font-semibold"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEvaluatingPredId(null)}
+                                  className="px-1.5 py-0.5 bg-slate-700 text-slate-300 text-[10px] rounded"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEvaluatingPredId(p.id);
+                                  setEvalActualOutcome(p.predicted_outcome);
+                                }}
+                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 rounded text-[10px]"
+                              >
+                                Evaluate
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

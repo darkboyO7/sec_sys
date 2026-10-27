@@ -199,4 +199,97 @@ describe('ApiService', () => {
       })
     );
   });
+
+  it('handles persistent prediction ledger API endpoints correctly', async () => {
+    const mockPrediction = {
+      id: 'pred-101',
+      project_id: 'proj-123',
+      target_entity_type: 'finding',
+      target_entity_id: 'f-101',
+      prediction_type: 'FALSE_POSITIVE_LIKELIHOOD',
+      predicted_outcome: 'FALSE_POSITIVE',
+      confidence_score: 0.92,
+      evaluation_status: 'PENDING',
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [mockPrediction],
+      })
+    );
+
+    const list = await api.listPredictions('proj-123', { target_entity_type: 'finding' });
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe('pred-101');
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/projects/proj-123/learning/predictions?limit=50&target_entity_type=finding',
+      expect.any(Object)
+    );
+
+    // Evaluate prediction
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ...mockPrediction, evaluation_status: 'VERIFIED_ACCURATE', actual_outcome: 'FALSE_POSITIVE' }),
+      })
+    );
+
+    const evaluated = await api.evaluatePrediction('proj-123', 'pred-101', {
+      actual_outcome: 'FALSE_POSITIVE',
+    });
+    expect(evaluated.evaluation_status).toBe('VERIFIED_ACCURATE');
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/projects/proj-123/learning/predictions/pred-101/evaluate',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ actual_outcome: 'FALSE_POSITIVE' }),
+      })
+    );
+  });
+
+  it('handles enterprise integration API endpoints correctly', async () => {
+    const mockIntegrations = [
+      { name: 'CISA KEV Feed Adapter', version: '1.0.0', status: 'CONFIGURED' },
+      { name: 'Webhook Notifier Adapter', version: '1.0.0', status: 'CONFIGURED' },
+      { name: 'SIEM Audit Exporter Adapter', version: '1.0.0', status: 'CONFIGURED' },
+    ];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockIntegrations,
+      })
+    );
+
+    const statusList = await api.getIntegrationsStatus('proj-123');
+    expect(statusList).toHaveLength(3);
+    expect(statusList[0].name).toBe('CISA KEV Feed Adapter');
+    expect(fetch).toHaveBeenCalledWith('/api/v1/projects/proj-123/integrations/status', expect.any(Object));
+
+    // Test CISA KEV lookup
+    const mockKev = { cve_id: 'CVE-2021-44228', product: 'Log4j', known_ransomware_campaign_use: true };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockKev,
+      })
+    );
+
+    const kevData = await api.lookupCveKev('proj-123', 'CVE-2021-44228');
+    expect(kevData.cve_id).toBe('CVE-2021-44228');
+    expect(kevData.known_ransomware_campaign_use).toBe(true);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/projects/proj-123/integrations/kev/lookup?cve_id=CVE-2021-44228',
+      expect.any(Object)
+    );
+  });
 });

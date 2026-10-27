@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from app.models.learning import DatasetSplit, ModelStatus
+from app.models.learning import DatasetSplit, ModelStatus, PredictionType, PredictionEvaluationStatus
 
 
 class DatasetCurateRequest(BaseModel):
@@ -77,3 +77,68 @@ class GovernedModelRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PredictionRecordRequest(BaseModel):
+    target_entity_type: str = Field(..., min_length=2, max_length=50, description="Target entity category (finding, asset, remediation)")
+    target_entity_id: str = Field(..., min_length=1, max_length=36, description="Identifier of target entity")
+    prediction_type: PredictionType = Field(..., description="Category of prediction")
+    predicted_outcome: str = Field(..., min_length=1, max_length=255, description="Inferred or predicted outcome")
+    confidence_score: float = Field(0.5, ge=0.0, le=1.0, description="Confidence score between 0.0 and 1.0")
+    feature_snapshot: Dict[str, Any] = Field(default_factory=dict, description="Feature dictionary captured at inference time")
+    model_id: Optional[str] = Field(None, description="Optional ID of active GovernedModel")
+    model_version: Optional[str] = Field("heuristic-v1.0", max_length=32, description="Model version tag")
+    rule_version: Optional[str] = Field(None, max_length=32, description="Optional rule-set version")
+    limitations: Optional[str] = Field(None, description="Known epistemic caveats or limitations")
+    decision_action_taken: Optional[str] = Field(None, max_length=255, description="Initial triage action taken")
+    expected_evaluation_horizon: Optional[datetime] = Field(None, description="When outcome should be evaluated")
+
+
+class PredictionEvaluateRequest(BaseModel):
+    actual_outcome: str = Field(..., min_length=1, max_length=255, description="Observed real-world outcome")
+    outcome_evidence: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Supporting evidence details")
+    status_override: Optional[PredictionEvaluationStatus] = Field(None, description="Optional manual status override")
+    notes: Optional[str] = Field(None, max_length=500, description="Optional evaluation notes")
+
+
+class PredictionInvalidateRequest(BaseModel):
+    reason: str = Field(..., min_length=5, max_length=500, description="Reason for invalidating prediction")
+
+
+class PredictionLedgerRead(BaseModel):
+    id: str
+    project_id: str
+    model_id: Optional[str] = None
+    model_version: str
+    rule_version: Optional[str] = None
+    target_entity_type: str
+    target_entity_id: str
+    prediction_type: PredictionType
+    feature_snapshot: Dict[str, Any]
+    predicted_outcome: str
+    confidence_score: float
+    limitations: Optional[str] = None
+    decision_action_taken: Optional[str] = None
+    expected_evaluation_horizon: Optional[datetime] = None
+    actual_outcome: Optional[str] = None
+    outcome_evidence: Optional[Dict[str, Any]] = None
+    evaluation_status: PredictionEvaluationStatus
+    invalidation_reason: Optional[str] = None
+    evaluated_at: Optional[datetime] = None
+    evaluated_by_id: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ModelDriftMetricsRead(BaseModel):
+    total_predictions: int
+    evaluated_count: int
+    pending_count: int
+    accurate_count: int
+    inaccurate_count: int
+    accuracy_rate: float
+    brier_score: float
+    drift_alert: bool
+    status: str

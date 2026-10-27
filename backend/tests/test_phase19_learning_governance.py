@@ -13,10 +13,13 @@ from app.models.verification import RemediationVerification, VerificationOutcome
 from app.models.learning import (
     DatasetSplit,
     ModelStatus,
+    PredictionType,
+    PredictionEvaluationStatus,
     LearningDataset,
     GovernedModel,
+    PredictionLedger,
 )
-from app.services.learning_service import ModelGovernanceService
+from app.services.learning_service import ModelGovernanceService, PredictionLedgerService
 from app.models.base import utc_now
 
 
@@ -332,3 +335,218 @@ def test_phase19_api_endpoints_and_cross_project_isolation(
         headers=tester_headers,
     )
     assert iso_res.status_code == 404
+
+
+def test_phase19_1_prediction_ledger_service_lifecycle(
+    db: Session,
+    test_project: Project,
+    lead_user: User,
+):
+    """
+    Validate the persistent prediction ledger service lifecycle:
+    - Recording predictions with feature snapshot sanitization.
+    - Status evaluation against real observed outcomes.
+    - Calibration & Brier score calculations.
+    - Invalidation governance.
+    """
+    # 1. Record a prediction with sensitive tokens in feature snapshot
+    raw_features = {
+        "cve": "CVE-2023-12345",
+        "service": "https://user:secretpass@10.0.0.1/api",
+        "auth_header": "Bearer tok_abcdef123456",
+        "open_ports": [80, 443],
+    }
+
+    pred_entry = PredictionLedgerService.record_prediction(
+        project_id=test_project.id,
+        target_entity_type="finding",
+        target_entity_id="f-test-001",
+        prediction_type=PredictionType.FALSE_POSITIVE_LIKELIHOOD,
+        predicted_outcome="FALSE_POSITIVE",
+        confidence_score=0.88,
+        feature_snapshot=raw_features,
+        model_version="heuristic-classifier-v1",
+        limitations="Trained on static header signatures only",
+        decision_action_taken="DEFERRED_PRIORITY",
+        actor_id=lead_user.id,
+        db=db,
+    )
+
+    assert pred_entry.id is not None
+    assert pred_entry.evaluation_status == PredictionEvaluationStatus.PENDING
+    assert pred_entry.predicted_outcome == "FALSE_POSITIVE"
+    assert pred_entry.confidence_score == 0.88
+
+    # Verify sensitive data was sanitized in feature snapshot
+    saved_features = pred_entry.feature_snapshot
+    assert "secretpass" not in str(saved_features)
+    assert "tok_abcdef123456" not in str(saved_features)
+    assert "[AUTH_SCRUBBED]" in str(saved_features) or "[SCRUBBED]" in str(saved_features)
+
+    # 2. Evaluate prediction with matching outcome -> VERIFIED_ACCURATE
+    evaluated = PredictionLedgerService.evaluate_prediction(
+        prediction_id=pred_entry.id,
+        project_id=test_project.id,
+        actual_outcome="FALSE_POSITIVE",
+        outcome_evidence={"analyst_triage": "Confirmed header is not active in production."},
+        user=lead_user,
+        db=db,
+    )
+    assert evaluated.evaluation_status == PredictionEvaluationStatus.VERIFIED_ACCURATE
+    assert evaluated.actual_outcome == "FALSE_POSITIVE"
+    assert evaluated.evaluated_at is not None
+
+    # 3. Attempting to re-evaluate raises ValueError
+    with pytest.raises(ValueError, match="already been finalized"):
+        PredictionLedgerService.evaluate_prediction(
+            prediction_id=pred_entry.id,
+            project_id=test_project.id,
+            actual_outcome="CONFIRMED",
+            db=db,
+        )
+
+    # 4. Record a numeric prediction and evaluate with tolerance
+    num_pred = PredictionLedgerService.record_prediction(
+        project_id=test_project.id,
+        target_entity_type="remediation",
+        target_entity_id="rem-test-001",
+        prediction_type=PredictionType.REMEDIATION_EFFORT_HOURS,
+        predicted_outcome="5.0",
+        confidence_score=0.75,
+        feature_snapshot={"component": "openssl_upgrade"},
+        model_version="effort-estimator-v1",
+        actor_id=lead_user.id,
+        db=db,
+    )
+    # Outcome 5.5 is within 20% tolerance of 5.0 -> accurate
+    eval_num = PredictionLedgerService.evaluate_prediction(
+        prediction_id=num_pred.id,
+        project_id=test_project.id,
+        actual_outcome="5.5",
+        user=lead_user,
+        db=db,
+    )
+    assert eval_num.evaluation_status == PredictionEvaluationStatus.VERIFIED_ACCURATE
+
+    # 5. Record another prediction and invalidate it
+    inval_pred = PredictionLedgerService.record_prediction(
+        project_id=test_project.id,
+        target_entity_type="asset",
+        target_entity_id="ast-test-001",
+        prediction_type=PredictionType.EXPLOITATION_PROBABILITY,
+        predicted_outcome="0.95",
+        confidence_score=0.90,
+        feature_snapshot={"ip": "10.0.0.5"},
+        actor_id=lead_user.id,
+        db=db,
+    )
+    invalidated = PredictionLedgerService.invalidate_prediction(
+        prediction_id=inval_pred.id,
+        project_id=test_project.id,
+        reason="Target asset was decommissioned during evaluation window.",
+        user=lead_user,
+        db=db,
+    )
+    assert invalidated.evaluation_status == PredictionEvaluationStatus.INVALIDATED
+    assert "decommissioned" in invalidated.invalidation_reason
+
+    # 6. Verify drift and calibration metrics
+    drift = PredictionLedgerService.calculate_drift_metrics(
+        project_id=test_project.id,
+        db=db,
+    )
+    assert drift["total_predictions"] >= 3
+    assert drift["evaluated_count"] >= 2
+    assert drift["accuracy_rate"] == 1.0  # Both evaluated predictions were accurate
+    assert drift["drift_alert"] is False
+    assert drift["status"] == "STABLE"
+
+
+def test_phase19_1_prediction_ledger_api_endpoints(
+    client: TestClient,
+    test_project: Project,
+    lead_headers: dict,
+    tester_headers: dict,
+):
+    """Verify REST API endpoints for recording, listing, evaluating, and invalidating predictions."""
+    # 1. Record prediction via API
+    pred_payload = {
+        "target_entity_type": "finding",
+        "target_entity_id": "finding-uuid-001",
+        "prediction_type": "FALSE_POSITIVE_LIKELIHOOD",
+        "predicted_outcome": "FALSE_POSITIVE",
+        "confidence_score": 0.85,
+        "feature_snapshot": {"cve": "CVE-2024-0001", "vector": "NETWORK"},
+        "model_version": "heuristic-v1.0",
+        "limitations": "Evaluated against local policy rules",
+        "decision_action_taken": "MANUAL_REVIEW_FLAGGED",
+    }
+    create_res = client.post(
+        f"/api/v1/projects/{test_project.id}/learning/predictions",
+        headers=tester_headers,
+        json=pred_payload,
+    )
+    assert create_res.status_code == 201
+    pred_data = create_res.json()
+    pred_id = pred_data["id"]
+    assert pred_data["evaluation_status"] == "PENDING"
+    assert pred_data["confidence_score"] == 0.85
+
+    # 2. List predictions via API with filters
+    list_res = client.get(
+        f"/api/v1/projects/{test_project.id}/learning/predictions?target_entity_type=finding",
+        headers=tester_headers,
+    )
+    assert list_res.status_code == 200
+    items = list_res.json()
+    assert len(items) >= 1
+    assert any(p["id"] == pred_id for p in items)
+
+    # 3. Evaluate prediction via API
+    eval_res = client.post(
+        f"/api/v1/projects/{test_project.id}/learning/predictions/{pred_id}/evaluate",
+        headers=tester_headers,
+        json={
+            "actual_outcome": "FALSE_POSITIVE",
+            "outcome_evidence": {"source": "analyst_verification"},
+            "notes": "Verified by security analyst",
+        },
+    )
+    assert eval_res.status_code == 200
+    assert eval_res.json()["evaluation_status"] == "VERIFIED_ACCURATE"
+    assert eval_res.json()["actual_outcome"] == "FALSE_POSITIVE"
+
+    # 4. Record second prediction and invalidate it
+    pred2_res = client.post(
+        f"/api/v1/projects/{test_project.id}/learning/predictions",
+        headers=tester_headers,
+        json={
+            "target_entity_type": "asset",
+            "target_entity_id": "asset-uuid-002",
+            "prediction_type": "EXPLOITATION_PROBABILITY",
+            "predicted_outcome": "HIGH",
+            "confidence_score": 0.60,
+            "feature_snapshot": {"ports": [22]},
+        },
+    )
+    assert pred2_res.status_code == 201
+    pred2_id = pred2_res.json()["id"]
+
+    inval_res = client.post(
+        f"/api/v1/projects/{test_project.id}/learning/predictions/{pred2_id}/invalidate",
+        headers=lead_headers,
+        json={"reason": "Asset excluded from project scope after scan"},
+    )
+    assert inval_res.status_code == 200
+    assert inval_res.json()["evaluation_status"] == "INVALIDATED"
+
+    # 5. Get drift metrics via API
+    drift_res = client.get(
+        f"/api/v1/projects/{test_project.id}/learning/predictions/drift",
+        headers=tester_headers,
+    )
+    assert drift_res.status_code == 200
+    drift_data = drift_res.json()
+    assert "accuracy_rate" in drift_data
+    assert "brier_score" in drift_data
+    assert "status" in drift_data

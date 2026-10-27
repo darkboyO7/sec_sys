@@ -743,6 +743,68 @@ class ApiService {
   async getPostureHistory(projectId: string): Promise<any[]> {
     return this.request(`/projects/${projectId}/adaptive-defense/history`);
   }
+
+  // Phase 19.1: Persistent Prediction Ledger
+  async listPredictions(projectId: string, filters?: { target_entity_type?: string; evaluation_status?: string }): Promise<any[]> {
+    let url = `/projects/${projectId}/learning/predictions?limit=50`;
+    if (filters?.target_entity_type) url += `&target_entity_type=${encodeURIComponent(filters.target_entity_type)}`;
+    if (filters?.evaluation_status) url += `&evaluation_status=${encodeURIComponent(filters.evaluation_status)}`;
+    return this.request(url);
+  }
+
+  async recordPrediction(projectId: string, data: any): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/predictions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async evaluatePrediction(projectId: string, predictionId: string, data: { actual_outcome: string; outcome_evidence?: any; notes?: string }): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/predictions/${predictionId}/evaluate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async invalidatePrediction(projectId: string, predictionId: string, reason: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/predictions/${predictionId}/invalidate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async getPredictionDrift(projectId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/predictions/drift`);
+  }
+
+  // Phase 31: Enterprise Integrations
+  async getIntegrationsStatus(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/integrations/status`);
+  }
+
+  async lookupCveKev(projectId: string, cveId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/integrations/kev/lookup?cve_id=${encodeURIComponent(cveId)}`);
+  }
+
+  async searchKevCatalog(projectId: string, query?: string): Promise<any[]> {
+    const q = query ? `?query=${encodeURIComponent(query)}` : '';
+    return this.request(`/projects/${projectId}/integrations/kev/catalog${q}`);
+  }
+
+  async testWebhook(projectId: string, data: { event_type: string; custom_payload?: any }): Promise<any> {
+    return this.request(`/projects/${projectId}/integrations/webhook/test`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getWebhookHistory(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/integrations/webhook/history`);
+  }
+
+  async exportSiemAudit(projectId: string, formatType: string = 'CEF'): Promise<any> {
+    return this.request(`/projects/${projectId}/integrations/siem/export?format_type=${encodeURIComponent(formatType)}`);
+  }
 }
 
 export const api = new ApiService();

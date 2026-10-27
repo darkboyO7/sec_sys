@@ -28,6 +28,7 @@
 | **Phase 17** | Regression Detection & Change Intelligence | **COMPLETED** | `8b4232f` | Migration d0e1f2a3b4c5, baseline anchoring, 4 regression alert vectors, deduplication, disposition lifecycle |
 | **Phase 18** | Controlled AI Security Analyst | **COMPLETED** | `4180e16` | Migration e1f2a3b4c5d6, prompt injection defense, grounded citations, advisory drafts, review gate |
 | **Phase 19** | Controlled Learning & Model Governance | **COMPLETED** | `5ffe3f9` | Migration f1a2b3c4d5e6, dataset curation, train/val/test splits, empirical metrics, approval gate, atomic rollback |
+| **Phase 19.1** | Persistent Prediction Ledger & Calibration Tracker | **COMPLETED** | Current | Migration c4d5e6f7a8b9, feature snapshots, asynchronous outcome evaluation, Brier score, drift alert |
 | **Phase 20** | Morph-State Adaptive Defense & Recovery | **COMPLETED** | `f2c7d49` | Migration a2b3c4d5e6f7, 8-state adaptive lifecycle, cadence multipliers, emergency kill switch, immutable history |
 | **Phase 21** | Professional Dashboard & User Experience | **COMPLETED** | `645ec90` | 16-view unified dashboard, remediation verification, reports, digital twin, regression alerts, AI analyst, model governance, adaptive defense |
 | **Phase 22** | PostgreSQL & Multi-Worker Readiness | **COMPLETED** | `9eca4dc` | Dialect pool config, DDL AST validation, atomic FOR UPDATE SKIP LOCKED claimer, deadlock retry, stale worker recovery |
@@ -35,6 +36,7 @@
 | **Phase 24** | Backup, Recovery, and Data Lifecycle | **COMPLETED** | `b2ffe66` | Non-blocking online SQLite WAL backup, SHA-256 integrity, disposable restore sandbox, project manifest export, purge teardown, evidence retention |
 | **Phase 25** | Deployment Hardening & Release Readiness | **COMPLETED** | `99d54af` | Secret key policy enforcement, fail-closed production mode, OWASP security headers, API no-store caching, root/API readiness probes |
 | **Phase 26** | Final Independent Security Assessment & Defensive Release Gate | **COMPLETED** | `31e8824` | 8-gate end-to-end security audit, all release criteria verified, full roadmap complete |
+| **Phase 31** | Enterprise Integration Architecture | **COMPLETED** | Current | CISA KEV intelligence feed, HMAC-SHA256 signed webhooks, SIEM CEF/Syslog export |
 | **Phase 39** | External Audit Trust Anchor & Rollback Detection | **COMPLETED** | Current | `AppendOnlyArchiveTrustAnchor` with monotonic sequencing, hash chaining, key rotation, and DB rollback detection |
 | **Phase 43** | Capacity & Reliability Benchmarking | **COMPLETED** | Current | Bounded query latency under bulk workloads; hot index optimization |
 | **Phase 44** | Native Windows Deployment & Operations Runbook | **COMPLETED** | Current | `docs/DEPLOYMENT_WINDOWS.md`, `docs/OPERATIONS_RUNBOOK.md` |
