@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 from app.core.database import Base, engine
 from app.models.project import Project
 from app.models.scope import ScopeTarget, TargetType, AuthorizationStatus
-from app.models.assessment import AssessmentJob, AssessmentStatus, FindingSeverity
+from app.models.assessment import AssessmentJob, AssessmentStatus, FindingSeverity, AssessmentFinding, FindingConfidence
+from app.models.audit import AuditEvent
 from app.services.knowledge_graph_service import KnowledgeGraphService
 
 
@@ -246,3 +247,81 @@ def test_control_plane_health_and_readiness(client: TestClient):
     assert data["checks"]["database"] is True
     assert data["checks"]["storage_writable"] is True
     assert ready_latency_ms < 100, f"Readiness check latency {ready_latency_ms:.2f}ms exceeds threshold"
+
+
+def test_capacity_benchmark_under_bulk_workload(db: Session, test_project: Project, tester_user):
+    """
+    Phase 43 Capacity & Reliability Benchmark:
+    Verify that query execution and memory remain strictly bounded under a representative
+    bulk dataset (300 findings and 300 audit events).
+    """
+    now = datetime.now(timezone.utc)
+    job = AssessmentJob(
+        project_id=test_project.id,
+        adapter_name="scanner.passive_header",
+        target_input="benchmark.test.local",
+        created_by_id=tester_user.id,
+        status=AssessmentStatus.COMPLETED,
+    )
+    db.add(job)
+    db.commit()
+
+    # Bulk insert 300 findings
+    findings = [
+        AssessmentFinding(
+            project_id=test_project.id,
+            job_id=job.id,
+            title=f"Bulk Finding {i:04d}",
+            target_value="benchmark.test.local",
+            vuln_id=f"CVE-2026-{1000+i}",
+            severity=FindingSeverity.HIGH if i % 2 == 0 else FindingSeverity.MEDIUM,
+            confidence=FindingConfidence.CERTAIN,
+            description=f"Automated benchmark finding payload {i}",
+        )
+        for i in range(300)
+    ]
+    db.bulk_save_objects(findings)
+
+    # Bulk insert 300 audit events
+    audit_events = [
+        AuditEvent(
+            project_id=test_project.id,
+            action="BENCHMARK_OBSERVATION",
+            actor_id=tester_user.id,
+            target_type="Finding",
+            target_id=f"f-{i:04d}",
+            outcome="SUCCESS",
+            event_hash=f"hash-{i:04d}",
+            timestamp=now,
+        )
+        for i in range(300)
+    ]
+    db.bulk_save_objects(audit_events)
+    db.commit()
+
+    # Benchmark 1: Filtered query for High severity findings
+    t0 = time.perf_counter()
+    high_findings = (
+        db.query(AssessmentFinding)
+        .filter(
+            AssessmentFinding.project_id == test_project.id,
+            AssessmentFinding.severity == FindingSeverity.HIGH,
+        )
+        .all()
+    )
+    q1_elapsed_ms = (time.perf_counter() - t0) * 1000
+    assert len(high_findings) == 150
+    assert q1_elapsed_ms < 200, f"Query 1 latency {q1_elapsed_ms:.2f}ms exceeds 200ms threshold"
+
+    # Benchmark 2: Paginated chronological audit query
+    t1 = time.perf_counter()
+    recent_audits = (
+        db.query(AuditEvent)
+        .filter(AuditEvent.project_id == test_project.id)
+        .order_by(AuditEvent.timestamp.desc())
+        .limit(50)
+        .all()
+    )
+    q2_elapsed_ms = (time.perf_counter() - t1) * 1000
+    assert len(recent_audits) == 50
+    assert q2_elapsed_ms < 100, f"Query 2 latency {q2_elapsed_ms:.2f}ms exceeds 100ms threshold"

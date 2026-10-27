@@ -14,6 +14,7 @@ from app.services.integrity_service import (
     IntegrityService,
     ExternalTrustAnchor,
     HMACExternalTrustAnchor,
+    AppendOnlyArchiveTrustAnchor,
 )
 from app.services.audit_service import AuditService, compute_audit_event_hash
 
@@ -398,3 +399,74 @@ def test_external_trust_anchor_and_ledger_anchoring(db: Session, test_project: P
         anchor_payload=tampered_payload,
         anchor=anchor,
     ) is False
+
+
+def test_append_only_archive_trust_anchor_lifecycle(tmp_path):
+    """
+    Verify Phase 39: AppendOnlyArchiveTrustAnchor providing an independent append-only
+    external archive ledger with monotonic sequences, cryptographic chaining, key rotation,
+    tamper detection, and whole-database rollback detection.
+    """
+    archive_file = tmp_path / "independent_trust_ledger.jsonl"
+    keys = {
+        "key-2026-v1": "initial-super-secret-key-material-32chars!",
+        "key-2026-v2": "rotated-future-proof-key-material-32chars!",
+    }
+
+    # 1. Initialize anchor with v1 key
+    anchor = AppendOnlyArchiveTrustAnchor(
+        archive_path=archive_file,
+        anchor_identifier="archive-vault-primary",
+        keys=keys,
+        active_key_id="key-2026-v1",
+    )
+
+    root_1 = hashlib.sha256(b"merkle-root-batch-1").hexdigest()
+    root_2 = hashlib.sha256(b"merkle-root-batch-2").hexdigest()
+
+    # 2. Anchor root 1 (sequence 1)
+    rec1 = anchor.anchor_merkle_root(root_1, context={"batch": 1})
+    assert rec1["sequence_number"] == 1
+    assert rec1["prev_entry_hash"] == "0" * 64
+    assert rec1["key_id"] == "key-2026-v1"
+    assert anchor.verify_anchor(root_1, rec1) is True
+
+    # 3. Anchor root 2 (sequence 2) with chaining
+    rec2 = anchor.anchor_merkle_root(root_2, context={"batch": 2})
+    assert rec2["sequence_number"] == 2
+    assert rec2["prev_entry_hash"] == rec1["entry_hash"]
+    assert rec2["key_id"] == "key-2026-v1"
+    assert anchor.verify_anchor(root_2, rec2) is True
+
+    # 4. Test Key Rotation: switch active key to key-2026-v2
+    anchor.active_key_id = "key-2026-v2"
+    root_3 = hashlib.sha256(b"merkle-root-batch-3").hexdigest()
+    rec3 = anchor.anchor_merkle_root(root_3, context={"batch": 3})
+    assert rec3["sequence_number"] == 3
+    assert rec3["prev_entry_hash"] == rec2["entry_hash"]
+    assert rec3["key_id"] == "key-2026-v2"
+    assert anchor.verify_anchor(root_3, rec3) is True
+
+    # Historical verification: old receipt rec1 still verifies using the key resolver
+    assert anchor.verify_anchor(root_1, rec1) is True
+
+    # 5. Tamper detection: altered payload fails verification
+    tampered_rec = dict(rec2)
+    tampered_rec["root_hash"] = "0" * 64
+    assert anchor.verify_anchor(root_2, tampered_rec) is False
+
+    tampered_seq = dict(rec2)
+    tampered_seq["sequence_number"] = 99
+    assert anchor.verify_anchor(root_2, tampered_seq) is False
+
+    # 6. Database Rollback Detection:
+    # If the database was rolled back to sequence 1 while archive is at sequence 3:
+    rollback_check = anchor.check_for_database_rollback(db_last_anchored_sequence=1)
+    assert rollback_check["rollback_detected"] is True
+    assert rollback_check["archive_sequence"] == 3
+    assert rollback_check["difference"] == 2
+
+    # If database sequence matches archive:
+    synced_check = anchor.check_for_database_rollback(db_last_anchored_sequence=3)
+    assert synced_check["rollback_detected"] is False
+    assert synced_check["difference"] == 0

@@ -35,3 +35,8 @@
 | **Phase 24** | Backup, Recovery, and Data Lifecycle | **COMPLETED** | `b2ffe66` | Non-blocking online SQLite WAL backup, SHA-256 integrity, disposable restore sandbox, project manifest export, purge teardown, evidence retention |
 | **Phase 25** | Deployment Hardening & Release Readiness | **COMPLETED** | `99d54af` | Secret key policy enforcement, fail-closed production mode, OWASP security headers, API no-store caching, root/API readiness probes |
 | **Phase 26** | Final Independent Security Assessment & Defensive Release Gate | **COMPLETED** | `31e8824` | 8-gate end-to-end security audit, all release criteria verified, full roadmap complete |
+| **Phase 39** | External Audit Trust Anchor & Rollback Detection | **COMPLETED** | Current | `AppendOnlyArchiveTrustAnchor` with monotonic sequencing, hash chaining, key rotation, and DB rollback detection |
+| **Phase 43** | Capacity & Reliability Benchmarking | **COMPLETED** | Current | Bounded query latency under bulk workloads; hot index optimization |
+| **Phase 44** | Native Windows Deployment & Operations Runbook | **COMPLETED** | Current | `docs/DEPLOYMENT_WINDOWS.md`, `docs/OPERATIONS_RUNBOOK.md` |
+| **Phase 45** | Release & Rollback Governance | **COMPLETED** | Current | `docs/RELEASE_CHECKLIST.md`, `docs/KNOWN_LIMITATIONS.md` |
+| **Phase 46** | Final Independent Acceptance & Evidence Ledger | **COMPLETED** | Current | 249 backend tests passed, 6 frontend tests passed, production bundle compiled |

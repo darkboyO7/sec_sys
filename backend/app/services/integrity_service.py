@@ -3,7 +3,8 @@ import hashlib
 import hmac
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Tuple
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Tuple, Union
 from sqlalchemy.orm import Session
 
 from app.models.audit import AuditEvent
@@ -67,6 +68,132 @@ class HMACExternalTrustAnchor(ExternalTrustAnchor):
         message = f"{identifier}:{root_hash}:{timestamp}".encode("utf-8")
         expected_sig = hmac.new(self.secret, message, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected_sig, token)
+
+
+class AppendOnlyArchiveTrustAnchor(ExternalTrustAnchor):
+    """
+    Independent append-only archive trust anchor that persists cryptographic
+    receipts to an external append-only log file outside the database.
+    Supports strictly monotonic sequence numbers, cryptographic chaining between
+    receipts, key rotation via key identifiers, and whole-database rollback detection.
+    """
+
+    def __init__(
+        self,
+        archive_path: Union[Path, str],
+        anchor_identifier: str = "vapt-independent-archive-v1",
+        keys: Optional[Dict[str, str]] = None,
+        active_key_id: str = "key-2026-v1",
+    ):
+        self.archive_path = Path(archive_path)
+        self.anchor_identifier = anchor_identifier
+        self.keys = keys or {active_key_id: "default-independent-anchor-secret-32-chars!!"}
+        self.active_key_id = active_key_id
+        if self.active_key_id not in self.keys:
+            raise ValueError(f"Active key ID '{self.active_key_id}' not found in provided keys dictionary.")
+        self.archive_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _get_latest_entry(self) -> Optional[Dict[str, Any]]:
+        if not self.archive_path.exists() or self.archive_path.stat().st_size == 0:
+            return None
+        last_line = ""
+        with open(self.archive_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    last_line = line
+        if not last_line:
+            return None
+        try:
+            return json.loads(last_line)
+        except json.JSONDecodeError:
+            return None
+
+    def anchor_merkle_root(self, root_hash: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        latest = self._get_latest_entry()
+        prev_entry_hash = latest["entry_hash"] if latest else "0" * 64
+        sequence = (latest["sequence_number"] + 1) if latest else 1
+
+        # Idempotency check: if last anchored root matches current root, return existing receipt
+        if latest and latest.get("root_hash") == root_hash:
+            return latest
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        raw_message = f"{self.anchor_identifier}:{sequence}:{prev_entry_hash}:{root_hash}:{timestamp}"
+        entry_hash = hashlib.sha256(raw_message.encode("utf-8")).hexdigest()
+
+        secret = self.keys[self.active_key_id].encode("utf-8")
+        signature = hmac.new(secret, entry_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        entry = {
+            "anchor_type": "APPEND_ONLY_ARCHIVE",
+            "anchor_identifier": self.anchor_identifier,
+            "sequence_number": sequence,
+            "prev_entry_hash": prev_entry_hash,
+            "root_hash": root_hash,
+            "timestamp": timestamp,
+            "key_id": self.active_key_id,
+            "entry_hash": entry_hash,
+            "anchor_token": signature,
+            "context": context or {},
+        }
+
+        # Atomic append to file
+        with open(self.archive_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, sort_keys=True) + "\n")
+
+        return entry
+
+    def verify_anchor(self, root_hash: str, anchor_payload: Dict[str, Any]) -> bool:
+        if not anchor_payload or anchor_payload.get("root_hash") != root_hash:
+            return False
+
+        key_id = anchor_payload.get("key_id", self.active_key_id)
+        if key_id not in self.keys:
+            return False
+
+        sequence = anchor_payload.get("sequence_number")
+        prev_entry_hash = anchor_payload.get("prev_entry_hash")
+        timestamp = anchor_payload.get("timestamp")
+        identifier = anchor_payload.get("anchor_identifier", self.anchor_identifier)
+        token = anchor_payload.get("anchor_token")
+        entry_hash = anchor_payload.get("entry_hash")
+
+        if not all([sequence, prev_entry_hash, timestamp, token, entry_hash]):
+            return False
+
+        # Verify entry hash computation
+        raw_message = f"{identifier}:{sequence}:{prev_entry_hash}:{root_hash}:{timestamp}"
+        expected_entry_hash = hashlib.sha256(raw_message.encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(expected_entry_hash, entry_hash):
+            return False
+
+        # Verify signature with corresponding key (supporting historical keys)
+        secret = self.keys[key_id].encode("utf-8")
+        expected_sig = hmac.new(secret, entry_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_sig, token):
+            return False
+
+        return True
+
+    def check_for_database_rollback(self, db_last_anchored_sequence: int) -> Dict[str, Any]:
+        """
+        Detects if database has been rolled back relative to external trust archive.
+        If the external archive has advanced past the database's reported sequence,
+        a rollback or snapshot replay has occurred.
+        """
+        latest = self._get_latest_entry()
+        if not latest:
+            return {"rollback_detected": False, "archive_sequence": 0, "db_sequence": db_last_anchored_sequence}
+        archive_seq = latest["sequence_number"]
+        is_rollback = db_last_anchored_sequence < archive_seq
+        return {
+            "rollback_detected": is_rollback,
+            "archive_sequence": archive_seq,
+            "db_sequence": db_last_anchored_sequence,
+            "difference": archive_seq - db_last_anchored_sequence if is_rollback else 0,
+            "reason": "Database sequence lags external append-only archive" if is_rollback else "Sequence aligned",
+        }
 
 
 class MerkleTree:
