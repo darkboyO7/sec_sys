@@ -6,7 +6,7 @@ Create Date: 2026-10-27 02:00:00.000000
 
 """
 from typing import Sequence, Union
-from alembic import op
+from alembic import op, context
 import sqlalchemy as sa
 
 
@@ -17,6 +17,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    if context.is_offline_mode():
+        op.create_index('ix_assessment_jobs_project_status_created', 'assessment_jobs', ['project_id', 'status', 'created_at'], unique=False)
+        op.create_index('ix_assessment_findings_project_severity', 'assessment_findings', ['project_id', 'severity'], unique=False)
+        op.create_index('ix_audit_events_project_timestamp', 'audit_events', ['project_id', 'timestamp'], unique=False)
+        op.create_index('ix_regression_alerts_project_status_severity', 'regression_alerts', ['project_id', 'status', 'severity'], unique=False)
+        return
+
     conn = op.get_bind()
     inspector = sa.inspect(conn)
 
@@ -55,6 +62,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        op.drop_index('ix_regression_alerts_project_status_severity', table_name='regression_alerts')
+        op.drop_index('ix_audit_events_project_timestamp', table_name='audit_events')
+        op.drop_index('ix_assessment_findings_project_severity', table_name='assessment_findings')
+        op.drop_index('ix_assessment_jobs_project_status_created', table_name='assessment_jobs')
+        return
+
     conn = op.get_bind()
     inspector = sa.inspect(conn)
 

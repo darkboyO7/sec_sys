@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Generator
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.engine import make_url
 from app.core.config import settings
 
 # Ensure sqlite data directory exists if local sqlite path is used
@@ -14,22 +15,33 @@ if settings.DATABASE_URL.startswith("sqlite"):
         if parent_dir and not parent_dir.exists():
             parent_dir.mkdir(parents=True, exist_ok=True)
 
-connect_args = {}
-engine_kwargs = {
-    "pool_pre_ping": True,
-    "echo": settings.DEBUG,
-}
 
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
-    engine_kwargs["connect_args"] = connect_args
-elif settings.DATABASE_URL.startswith("postgresql"):
-    # Production-ready PostgreSQL connection pool configuration
-    engine_kwargs["pool_size"] = getattr(settings, "POSTGRES_POOL_SIZE", 20)
-    engine_kwargs["max_overflow"] = getattr(settings, "POSTGRES_MAX_OVERFLOW", 10)
-    engine_kwargs["pool_timeout"] = getattr(settings, "POSTGRES_POOL_TIMEOUT", 30)
-    engine_kwargs["pool_recycle"] = getattr(settings, "POSTGRES_POOL_RECYCLE", 1800)
+def get_engine_kwargs(db_url: str = settings.DATABASE_URL) -> dict:
+    """Return engine configuration arguments based on dialect."""
+    kwargs = {
+        "pool_pre_ping": True,
+        "echo": settings.DEBUG,
+    }
+    if db_url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+    elif db_url.startswith("postgresql"):
+        kwargs["pool_size"] = getattr(settings, "POSTGRES_POOL_SIZE", 20)
+        kwargs["max_overflow"] = getattr(settings, "POSTGRES_MAX_OVERFLOW", 10)
+        kwargs["pool_timeout"] = getattr(settings, "POSTGRES_POOL_TIMEOUT", 30)
+        kwargs["pool_recycle"] = getattr(settings, "POSTGRES_POOL_RECYCLE", 1800)
+    return kwargs
 
+
+def get_masked_database_url(url: str = settings.DATABASE_URL) -> str:
+    """Return database URL with sensitive credentials redacted."""
+    try:
+        parsed = make_url(url)
+        return parsed.render_as_string(hide_password=True)
+    except Exception:
+        return "<redacted>"
+
+
+engine_kwargs = get_engine_kwargs(settings.DATABASE_URL)
 engine = create_engine(
     settings.DATABASE_URL,
     **engine_kwargs,

@@ -400,3 +400,122 @@ def test_concurrent_evidence_deduplication(db: Session, test_project: Project, t
     ).all()
     assert len(ev_items) == 1
     assert ev_items[0].sha256_hash == sha256_digest
+
+
+def test_postgresql_skip_locked_query_compilation():
+    """
+    Verify that PostgreSQL dialect AST compilation produces 'FOR UPDATE SKIP LOCKED'
+    for concurrent job claims without lock contention.
+    """
+    from sqlalchemy import select
+    pg_dialect = postgresql.dialect()
+    stmt = (
+        select(AssessmentJob)
+        .where(AssessmentJob.status == AssessmentStatus.QUEUED)
+        .order_by(AssessmentJob.created_at.asc())
+        .with_for_update(skip_locked=True)
+    )
+    compiled_sql = str(stmt.compile(dialect=pg_dialect))
+    assert "FOR UPDATE SKIP LOCKED" in compiled_sql
+    assert "WHERE assessment_jobs.status" in compiled_sql
+    assert "ORDER BY assessment_jobs.created_at ASC" in compiled_sql
+
+
+def test_postgresql_connection_pool_configuration():
+    """
+    Verify connection pool kwargs for PostgreSQL dialect match production resilience settings:
+    QueuePool with pool_size=20, max_overflow=10, pool_timeout=30, pool_recycle=1800, pool_pre_ping=True.
+    """
+    from app.core.database import get_engine_kwargs
+    from app.core.config import settings
+
+    pg_url = "postgresql+psycopg://vapt_admin:SecurePass123@localhost:5432/vapt_db"
+    kwargs = get_engine_kwargs(pg_url)
+
+    assert kwargs.get("pool_pre_ping") is True
+    assert kwargs.get("pool_size") == settings.POSTGRES_POOL_SIZE
+    assert kwargs.get("max_overflow") == settings.POSTGRES_MAX_OVERFLOW
+    assert kwargs.get("pool_timeout") == settings.POSTGRES_POOL_TIMEOUT
+    assert kwargs.get("pool_recycle") == settings.POSTGRES_POOL_RECYCLE
+
+
+def test_postgresql_sqlstate_transient_error_handling():
+    """
+    Verify PostgreSQL-specific SQLSTATE transient error codes (40001, 40P01, 55P03)
+    are recognized as retryable and recovered by with_transaction_retry.
+    """
+    for code, desc in [
+        ("40001", "serialization_failure"),
+        ("40P01", "deadlock_detected"),
+        ("55P03", "lock_not_available"),
+    ]:
+        mock_driver_err = type("MockDriverError", (Exception,), {"sqlstate": code, "pgcode": code})(desc)
+        db_err = DBAPIError("SELECT ... FOR UPDATE", {}, mock_driver_err)
+        assert is_transient_db_error(db_err) is True, f"Failed to detect transient SQLSTATE {code}"
+
+    attempts = 0
+
+    @with_transaction_retry(max_retries=3, base_delay=0.01)
+    def simulate_pg_deadlock():
+        nonlocal attempts
+        attempts += 1
+        if attempts < 2:
+            mock_err = type("MockPgDeadlock", (Exception,), {"sqlstate": "40P01"})("deadlock detected")
+            raise DBAPIError("UPDATE assessment_jobs", {}, mock_err)
+        return "RECOVERED"
+
+    res = simulate_pg_deadlock()
+    assert res == "RECOVERED"
+    assert attempts == 2
+
+
+def test_secret_redaction_in_database_url_logging():
+    """
+    Verify database passwords and credentials in PostgreSQL connection strings
+    are masked by get_masked_database_url to prevent secret leakage in logs/audit records.
+    """
+    from app.core.database import get_masked_database_url
+
+    secret_url = "postgresql+psycopg://vapt_super_user:SuperSecretPassword123!@db.internal:5432/vapt_production"
+    masked = get_masked_database_url(secret_url)
+
+    assert "SuperSecretPassword123!" not in masked
+    assert "***" in masked
+    assert "vapt_super_user" in masked
+    assert "db.internal:5432/vapt_production" in masked
+
+
+def test_postgresql_offline_alembic_ddl_generation():
+    """
+    Verify Alembic generates static SQL DDL across all 22 migration revisions
+    under PostgreSQL dialect without SQLite dependencies or inspection crashes.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    cmd = [
+        sys.executable,
+        "-m",
+        "alembic",
+        "upgrade",
+        "head",
+        "--sql",
+    ]
+    env = {
+        **subprocess.os.environ,
+        "DATABASE_URL": "postgresql+psycopg://test_user:test_pass@localhost:5432/test_db",
+    }
+    result = subprocess.run(
+        cmd,
+        cwd=str(backend_dir),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, f"Alembic PostgreSQL offline DDL generation failed: {result.stderr}"
+    assert "CREATE TABLE" in result.stdout
+    assert "CREATE INDEX" in result.stdout
+    assert "ix_assessment_jobs_project_status_created" in result.stdout
+

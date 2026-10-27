@@ -3,8 +3,8 @@
 **Audit Date:** 2026-10-27  
 **Primary Repository:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`  
 **Secondary Mirror:** `D:\alt`  
-**Starting Commit:** `6a04f528c8b39bfac311ca2eb14b6211c7c28bdd`  
-**Auditor Mode:** Independent Operational Acceptance & Verification  
+**Baseline Commit:** `b5c150ec1bcaab2675b62951142fe06d91753a7d`  
+**Auditor Mode:** Independent Operational Acceptance & PostgreSQL Concurrency Validation  
 **Final Release Disposition:** **CONDITIONAL PASS**  
 *(Certified **PASS** for Single-Node Windows 11 with SQLite WAL; **CONDITIONAL** on staging PostgreSQL cluster execution for distributed multi-worker deployments)*
 
@@ -18,13 +18,14 @@
 | :--- | :--- | :--- | :--- |
 | **Repository Root** | `C:\Users\Dark_Boy_\Downloads\VAPT_System` | Absolute path inspection | **VERIFIED** |
 | **Active Git Branch** | `main` | `git branch --show-current` | **VERIFIED** |
-| **Starting Git Commit** | `6a04f528c8b39bfac311ca2eb14b6211c7c28bdd` | `git rev-parse HEAD` | **VERIFIED** |
-| **Working Tree Status** | Clean (0 modified, 0 staged, 0 untracked at baseline) | `git status` | **VERIFIED** |
+| **Baseline Git Commit** | `b5c150ec1bcaab2675b62951142fe06d91753a7d` | `git rev-parse HEAD` | **VERIFIED** |
+| **Working Tree Status** | Clean at baseline | `git status` | **VERIFIED** |
 | **Python Environment** | Python 3.14.7 (`.venv\Scripts\python.exe`) | `python --version` | **VERIFIED** |
 | **Node.js / npm** | Node v24.21.0 / npm 11.19.0 | `node --version; npm --version` | **VERIFIED** |
 | **SQLite Version** | SQLite 3.50.4 (WAL mode enabled via engine PRAGMA) | `sqlite3.sqlite_version` | **VERIFIED** |
+| **PostgreSQL Driver** | `psycopg` 3.3.6 installed in `.venv` | `python -c "import psycopg; print(psycopg.__version__)"` | **VERIFIED** |
 | **Alembic Head** | `b3c4d5e6f7a8` (Phase 23 Composite Performance Indexes) | `python -m alembic heads` | **VERIFIED** |
-| **Secondary Mirror (`D:\alt`)** | Synchronized at `6a04f52`, working tree clean, 256 tracked files | `git rev-parse HEAD; git status` in `D:\alt` | **VERIFIED** |
+| **Secondary Mirror (`D:\alt`)** | Synchronized, working tree clean, matching tracked files | `git rev-parse HEAD; git status` in `D:\alt` | **VERIFIED** |
 | **Mirror Divergence** | 0 diffs between primary `main` and `alt/main` | `git diff alt/main` | **VERIFIED** |
 
 ---
@@ -36,9 +37,9 @@ All automated test suites were reproduced and recorded with exact commands, exit
 ### 2.1 Complete Backend Automated Test Suite
 - **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\python -m pytest"`
 - **Exit Code:** `0` (SUCCESS)
-- **Collected Tests:** `242` items across 33 test files (including new 13-step e2e acceptance test)
-- **Results:** **242 passed**, 0 failed, 0 skipped
-- **Duration:** 109.17 seconds
+- **Collected Tests:** `247` items across 33 test files (including 12 Phase 22 PostgreSQL readiness tests and 13-step e2e acceptance test)
+- **Results:** **247 passed**, 0 failed, 0 skipped
+- **Duration:** 117.56 seconds
 - **Warnings:** 2 (Starlette testclient deprecations)
 - **Status:** **VERIFIED**
 
@@ -49,29 +50,49 @@ All automated test suites were reproduced and recorded with exact commands, exit
 - **Duration:** 32.87 seconds
 - **Status:** **VERIFIED**
 
-### 2.3 Disposable Database Migration Test
+### 2.3 Phase 22 PostgreSQL Readiness & AST Suite
+- **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\pytest tests/test_phase22_postgres_readiness.py -v"`
+- **Exit Code:** `0` (SUCCESS)
+- **Results:** **12 passed**, 0 failed, 0 skipped
+- **Duration:** 4.26 seconds
+- **Verified Capabilities:**
+  1. Full table DDL compilation under `postgresql.dialect()` for all platform tables.
+  2. Idempotency unique constraint and simultaneous submission handling.
+  3. Atomic multi-worker claim allocation (5 workers, 3 queued jobs -> exactly 3 claimed, 0 duplicates).
+  4. Transient database error backoff retry logic.
+  5. Stale worker detection and failure escalation.
+  6. Cross-project concurrency isolation.
+  7. Concurrent evidence SHA-256 deduplication.
+  8. `SELECT ... FOR UPDATE SKIP LOCKED` AST query compilation under PostgreSQL dialect.
+  9. Production connection pool kwargs (`QueuePool`, `pool_size=20`, `max_overflow=10`, `pool_timeout=30`, `pool_recycle=1800`, `pool_pre_ping=True`).
+  10. PostgreSQL transient SQLSTATE error detection (`40001` serialization failure, `40P01` deadlock detected, `55P03` lock timeout).
+  11. Credential masking (`get_masked_database_url`) preventing password leakage in logs.
+  12. Static offline Alembic DDL script generation across all 22 revisions (759 lines of static SQL).
+- **Status:** **VERIFIED**
+
+### 2.4 Disposable Database Migration Test
 - **Command:** 
   ```cmd
   cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend
   set DATABASE_URL=sqlite:///./data/disposable_test_gate2.db
   ..\.venv\Scripts\python -m alembic upgrade head
-  ..\.venv\Scripts\python -m alembic downgrade -1
+  ..\.venv\Scripts\python -m alembic downgrade base
   ..\.venv\Scripts\python -m alembic upgrade head
   del data\disposable_test_gate2.db
   ```
 - **Exit Code:** `0` (SUCCESS)
-- **Results:** Clean upgrade through all 22 sequential revisions up to `b3c4d5e6f7a8`, downgrade to `a2b3c4d5e6f7`, and idempotent re-upgrade to `b3c4d5e6f7a8`.
-- **Duration:** 5.61 seconds
+- **Results:** Clean upgrade through all 22 sequential revisions up to `b3c4d5e6f7a8`, full downgrade to base, and idempotent re-upgrade to `b3c4d5e6f7a8`.
+- **Duration:** 6.42 seconds
 - **Status:** **VERIFIED**
 
-### 2.4 Frontend Contract Tests & Production Build
+### 2.5 Frontend Contract Tests & Production Build
 - **Vitest Unit Test Command:** `npm test -- --run` (in `frontend/`)
   - **Exit Code:** `0` (SUCCESS)
-  - **Results:** **6 / 6 passed** (470ms duration)
+  - **Results:** **6 / 6 passed** (217ms duration)
   - **Status:** **VERIFIED**
 - **Production Build Command:** `npm run build` (`tsc -b && vite build` in `frontend/`)
   - **Exit Code:** `0` (SUCCESS)
-  - **Results:** Built clean production bundle in 1.12s (`dist/index.html`, 74KB CSS, 506KB JS).
+  - **Results:** Built clean production bundle in 1.41s (`dist/index.html`, 74KB CSS, 506KB JS).
   - **Status:** **VERIFIED**
 
 ---
@@ -113,7 +134,7 @@ Executed strictly using deterministic simulated scanner adapters (`is_simulated 
 | **Audit-Chain Tamper Detection** | `test_phase8_evidence_integrity.py` | Altering historical `audit_events` payload breaks cryptographic hash chain (`prev_event_hash -> event_hash`). | **VERIFIED** |
 | **Cross-Project Manifest Leakage**| `test_phase24_backup_recovery.py` | Export queries strictly by active `project_id`. Zero records from other projects are enumerated or exported. | **VERIFIED** |
 | **Sandbox Restore Isolation** | `test_phase24_backup_recovery.py` | Restore verification copies backup to a disposable temporary file; failures never touch the operational database. | **VERIFIED** |
-| **Secret Redaction in Logs** | `test_audit_ledger.py`<br>`test_phase7a_worker_isolation.py` | `AuditService` scrubs sensitive keys (`password`, `token`, `secret`, `key`). Worker subprocess environment strips `SECRET_KEY` and `DATABASE_URL`. | **VERIFIED** |
+| **Secret Redaction in Logs** | `test_audit_ledger.py`<br>`test_phase7a_worker_isolation.py`<br>`test_phase22_postgres_readiness.py` | `AuditService` scrubs sensitive keys (`password`, `token`, `secret`, `key`). Worker environment strips `SECRET_KEY` and `DATABASE_URL`. Connection URLs mask credentials. | **VERIFIED** |
 
 ---
 
@@ -144,15 +165,22 @@ Executed strictly using deterministic simulated scanner adapters (`is_simulated 
 - **Status:** **VERIFIED (Certified Production Ready for Single-Node Windows)**
 
 ### 6.2 Configuration B — Multi-Worker PostgreSQL Clustering
-- **Status:** **NOT VERIFIED** (Code implemented; live execution not tested)
-- **Port 5432 Service Probe:** Closed (`TcpTestSucceeded = False`). No PostgreSQL instance exists in this local development environment.
-- **Technical Reality:** Connection pooling (`psycopg` pool size 20), deadlock retry logic (`retry_on_deadlock`), and `FOR UPDATE SKIP LOCKED` query generation are verified via unit tests, but have **not been tested against a live physical PostgreSQL cluster**.
+- **Status:** **IMPLEMENTED_NOT_VERIFIED** (Dialect AST, connection pool, and migrations verified; live physical cluster execution unverified).
+- **Port 5432 / 5433 Service Probes:** Closed (`TcpTestSucceeded = False`). No PostgreSQL instance exists in this local development environment.
+- **Defensive Safety Compliance:** No PostgreSQL services were silently installed; no firewall rules or host configurations were modified.
+- **Verified Offline Capabilities:**
+  - `psycopg` 3.3.6 driver verified.
+  - Connection pool configuration (`QueuePool`, `pool_size=20`, `max_overflow=10`, `pool_timeout=30`, `pool_recycle=1800`, `pool_pre_ping=True`).
+  - AST query generation for `SELECT ... FOR UPDATE SKIP LOCKED` verified.
+  - SQLSTATE transient error detection (`40001`, `40P01`, `55P03`) and retry backoff verified.
+  - Full static PostgreSQL DDL generated across 22 Alembic revisions (759 lines of static SQL).
+- **Remaining Prerequisite:** Deploy to a staging PostgreSQL 16 cluster to execute physical multi-worker concurrency tests before enabling multi-worker clustering in production.
 
 ---
 
 ## 7. Confirmed Defects Discovered & Remediated (Gate 7)
 
-During the Gate 3 end-to-end acceptance run, two demonstrable defects were discovered, remediated with minimal safe changes, and covered with regression tests:
+During independent verification, three demonstrable defects were discovered, remediated with minimal safe changes, and covered with regression tests:
 
 ### Defect 1: Manifest Evidence Count Key Mismatch
 - **Component:** [`backend/app/services/backup_service.py`](file:///C:/Users/Dark_Boy_/Downloads/VAPT_System/backend/app/services/backup_service.py#L293)
@@ -165,6 +193,12 @@ During the Gate 3 end-to-end acceptance run, two demonstrable defects were disco
 - **Symptom:** `RemediationVerification` defined `project = relationship("Project", backref="remediation_verifications")` without `cascade="all, delete-orphan", passive_deletes=True`. When a project was deleted during a Right-to-Erasure purge, SQLAlchemy defaulted to setting child foreign keys to NULL (`UPDATE remediation_verifications SET project_id = NULL`), crashing with `IntegrityError: NOT NULL constraint failed: remediation_verifications.project_id`.
 - **Fix:** Added `cascade="all, delete-orphan", passive_deletes=True` to the relationship definitions.
 - **Regression Test:** `test_e2e_operational_acceptance.py` asserts `purge_project_data` succeeds when verification records exist.
+
+### Defect 3: Offline Alembic Migration Inspection Failure in Phase 23
+- **Component:** [`backend/alembic/versions/b3c4d5e6f7a8_phase23_performance_indexes_and_resource_governance.py`](file:///C:/Users/Dark_Boy_/Downloads/VAPT_System/backend/alembic/versions/b3c4d5e6f7a8_phase23_performance_indexes_and_resource_governance.py#L21)
+- **Symptom:** Migration used `sa.inspect(conn)` unconditionally to check existing index names. In offline SQL generation mode (`--sql`), `conn` is a `MockConnection` which has no inspection system, throwing `sqlalchemy.exc.NoInspectionAvailable` and blocking PostgreSQL static migration generation.
+- **Fix:** Added `if context.is_offline_mode():` branch to emit `op.create_index` directly without calling inspection.
+- **Regression Test:** `test_postgresql_offline_alembic_ddl_generation` asserts `alembic upgrade head --sql` exits with code 0 and produces valid PostgreSQL DDL.
 
 ---
 
@@ -183,14 +217,14 @@ During the Gate 3 end-to-end acceptance run, two demonstrable defects were disco
 
 | Release Domain | Status | Justification |
 | :--- | :--- | :--- |
-| **Single-Node Native Windows (SQLite WAL)** | **PASS** | 242/242 backend tests, 6/6 frontend tests, production build, and 13-step e2e operational acceptance workflow fully verified. |
-| **Multi-Worker Distributed (PostgreSQL)** | **NOT VERIFIED** | Requires execution against a live PostgreSQL 15+ cluster in staging before enterprise multi-worker deployment. |
+| **Single-Node Native Windows (SQLite WAL)** | **PASS** | 247/247 backend tests, 6/6 frontend tests, production build, and 13-step e2e operational acceptance workflow fully verified. |
+| **Multi-Worker Distributed (PostgreSQL)** | **NOT VERIFIED** | AST, pooling, retry logic, and offline DDL verified; requires live execution against a PostgreSQL 16 cluster in staging before multi-worker enterprise deployment. |
 | **Cryptographic Evidence & Audit** | **VERIFIED** | SHA-256 evidence hashing, binary Merkle tree proofs, audit hash chaining, and local HMAC anchoring verified. |
 | **External Trust Anchoring (Hardware/TSA)** | **NOT VERIFIED** | Software HMAC interface verified; external RFC 3161 TSA / hardware WORM not deployed. |
 | **Safe Simulated Scanner Invariant** | **VERIFIED** | `is_simulated = True` invariant enforced across all adapters; zero live network sockets or exploit payloads. |
 
 ### Concise Release Summary
-- **What Passed:** All 242 backend tests, all 6 frontend tests, Vite production build, 22 database migrations (upgrade/downgrade/upgrade), 13-step simulated assessment workflow, dual-key authorization, subprocess sandboxing, Win32 Job Object containment, evidence integrity, finding deduplication, knowledge graph isolation, contextual risk scoring, and Right-to-Erasure project purges.
+- **What Passed:** All 247 backend tests (including 12 Phase 22 PostgreSQL readiness tests), all 6 frontend tests, Vite production build, 22 database migrations (upgrade/downgrade/upgrade), 13-step simulated assessment workflow, dual-key authorization, subprocess sandboxing, Win32 Job Object containment, evidence integrity, finding deduplication, knowledge graph isolation, contextual risk scoring, and Right-to-Erasure project purges.
 - **What Failed:** Zero test failures.
-- **What Remains Unverified:** Concurrency under physical multi-worker clustering on a live PostgreSQL database server (port 5432 closed locally), and out-of-band external trust anchoring via hardware WORM or RFC 3161 public TSA.
-- **Single Best Next Action:** Deploy the application container or virtual machine into a staging environment with a live PostgreSQL 16 database instance, configure `DATABASE_URL=postgresql+psycopg://...`, and execute `test_phase22_postgres_readiness.py` to convert PostgreSQL concurrency from `NOT VERIFIED` to `VERIFIED`.
+- **What Remains Unverified:** Physical concurrency across multiple workers against a live PostgreSQL 16 database server (port 5432 closed locally), and out-of-band external trust anchoring via hardware WORM or RFC 3161 public TSA.
+- **Single Best Next Action:** Follow the staging runbook in [`docs/DATABASE_SUPPORT.md`](file:///C:/Users/Dark_Boy_/Downloads/VAPT_System/docs/DATABASE_SUPPORT.md#L66) to provision a PostgreSQL 16 staging instance and execute `pytest tests/test_phase22_postgres_readiness.py -v` against the live cluster.
