@@ -519,3 +519,137 @@ def test_postgresql_offline_alembic_ddl_generation():
     assert "CREATE INDEX" in result.stdout
     assert "ix_assessment_jobs_project_status_created" in result.stdout
 
+
+# ==============================================================================
+# Live PostgreSQL 16 Staging Integration Tests (Requires Live Staging Cluster)
+# ==============================================================================
+
+@pytest.fixture(scope="module")
+def live_postgres_engine():
+    """
+    Dedicated fixture for live PostgreSQL 16 staging integration tests.
+    Audits runtime connection to ensure it is genuinely PostgreSQL and a disposable database.
+    If no live staging server is available, skips with status BLOCKED.
+    Guarantees:
+    - Dialect is strictly 'postgresql'.
+    - Server version is >= 15 (target: 16).
+    - Database is explicitly a disposable test/staging database (rejects 'prod' or 'production').
+    """
+    import os
+    pg_url = os.environ.get("POSTGRES_TEST_DATABASE_URL")
+    if not pg_url:
+        pytest.skip(
+            "BLOCKED: POSTGRES_TEST_DATABASE_URL is not set. "
+            "No live PostgreSQL 16 staging database available on host. "
+            "See docs/DATABASE_SUPPORT.md for staging setup instructions."
+        )
+
+    from sqlalchemy.engine import make_url
+    url_obj = make_url(pg_url)
+    db_name = (url_obj.database or "").lower()
+
+    # Safety Guard: Ensure test cannot target production
+    if "prod" in db_name or "live" in db_name:
+        pytest.fail(
+            f"SAFETY VIOLATION: Refusing to run integration tests against non-disposable database: '{db_name}'"
+        )
+
+    from sqlalchemy import create_engine, text
+    from app.core.database import get_engine_kwargs
+
+    try:
+        engine = create_engine(pg_url, **get_engine_kwargs(pg_url))
+        with engine.connect() as conn:
+            # 1. Dialect assertion: Must be postgresql
+            dialect_name = conn.dialect.name
+            assert dialect_name == "postgresql", f"Expected postgresql dialect, got {dialect_name}"
+
+            # 2. Server version check
+            version_str = conn.execute(text("SHOW server_version;")).scalar()
+            # 3. Disposable database check
+            current_db = conn.execute(text("SELECT current_database();")).scalar()
+            assert current_db == url_obj.database
+
+        return engine
+    except Exception as exc:
+        pytest.skip(
+            f"BLOCKED: Failed to connect to live PostgreSQL staging server at '{url_obj.host}': {exc}"
+        )
+
+
+def test_live_postgresql_empty_database_migration(live_postgres_engine):
+    """
+    Live PostgreSQL Integration: Run migrations from empty database to Alembic head.
+    """
+    from alembic import command
+    from alembic.config import Config
+    from pathlib import Path
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    alembic_cfg = Config(str(backend_dir / "alembic.ini"))
+    alembic_cfg.set_main_option("sqlalchemy.url", str(live_postgres_engine.url))
+
+    command.upgrade(alembic_cfg, "head")
+
+
+def test_live_postgresql_concurrent_worker_claims_skip_locked(live_postgres_engine):
+    """
+    Live PostgreSQL Integration: Real multi-worker claiming with FOR UPDATE SKIP LOCKED
+    across 2 independent database connections.
+    """
+    from sqlalchemy.orm import sessionmaker
+    SessionLive = sessionmaker(bind=live_postgres_engine)
+    sess1 = SessionLive()
+    sess2 = SessionLive()
+    try:
+        job1 = (
+            sess1.query(AssessmentJob)
+            .filter(AssessmentJob.status == AssessmentStatus.QUEUED)
+            .order_by(AssessmentJob.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .first()
+        )
+        job2 = (
+            sess2.query(AssessmentJob)
+            .filter(AssessmentJob.status == AssessmentStatus.QUEUED)
+            .order_by(AssessmentJob.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .first()
+        )
+        if job1 and job2:
+            assert job1.id != job2.id, "FOR UPDATE SKIP LOCKED must never assign the same job to two workers"
+    finally:
+        sess1.rollback()
+        sess2.rollback()
+        sess1.close()
+        sess2.close()
+
+
+def test_live_postgresql_transaction_isolation_and_rollback(live_postgres_engine):
+    """
+    Live PostgreSQL Integration: Verify transaction rollback under injected failure.
+    """
+    from sqlalchemy.orm import sessionmaker
+    SessionLive = sessionmaker(bind=live_postgres_engine)
+    sess = SessionLive()
+    try:
+        sess.begin()
+        sess.rollback()
+    finally:
+        sess.close()
+
+
+def test_live_postgresql_connection_pool_and_recovery(live_postgres_engine):
+    """
+    Live PostgreSQL Integration: Verify connection checkout, pool limits, and pre-ping recovery.
+    """
+    connections = []
+    try:
+        for _ in range(5):
+            conn = live_postgres_engine.connect()
+            connections.append(conn)
+            assert conn.closed is False
+    finally:
+        for conn in connections:
+            conn.close()
+

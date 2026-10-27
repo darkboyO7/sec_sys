@@ -27,3 +27,7 @@
 ### 1.5 Historical Key Rotation
 - **Limitation:** When using symmetric HMAC anchoring (`HMACExternalTrustAnchor`), rotating `SECRET_KEY` without preserving historical keys in a keyring will cause legacy anchor verifications to fail.
 - **Operational Boundary:** Key rotation is supported in `AppendOnlyArchiveTrustAnchor` via multi-key dictionaries (`keys={"key-v1": "...", "key-v2": "..."}`). When rotating the primary system key, legacy key material must be preserved in the trust anchor configuration.
+
+### 1.6 Cryptographic Integrity Hashes vs Asymmetric Digital Signatures
+- **Limitation:** Exported manifests and evidence records contain cryptographic SHA-256 digests (`manifest_sha256`) of canonical JSON for tamper detection and audit trail anchoring. This is an integrity check, not an asymmetric public-key digital signature (e.g. Ed25519 or RSA-PSS with X.509 certificates).
+- **Operational Boundary:** While SHA-256 digests detect data modification within the operational boundary, public non-repudiation and external third-party attestation require deploying an enterprise PKI digital signing service.

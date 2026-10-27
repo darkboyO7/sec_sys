@@ -37,11 +37,11 @@ All automated test suites were reproduced and recorded with exact commands, exit
 ### 2.1 Complete Backend Automated Test Suite
 - **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\python -m pytest"`
 - **Exit Code:** `0` (SUCCESS)
-- **Collected Tests:** `249` items across 33 test files (including 12 Phase 22 PostgreSQL readiness tests, 8 Phase 8 integrity tests, and 7 Phase 23 performance resilience tests)
-- **Results:** **249 passed**, 0 failed, 0 skipped
-- **Duration:** 116.78 seconds
+- **Collected Tests:** `254` items across 33 test files (including 16 Phase 22 PostgreSQL readiness tests, 9 Phase 8 integrity tests, and 7 Phase 23 performance resilience tests)
+- **Results:** **250 passed**, **4 skipped (BLOCKED: POSTGRES_TEST_DATABASE_URL not set; live staging server unavailable)**, 0 failed
+- **Duration:** 120.23 seconds
 - **Warnings:** 2 (Starlette testclient deprecations)
-- **Status:** **VERIFIED**
+- **Status:** **VERIFIED (SQLite single-node certified; Live PostgreSQL BLOCKED pending staging server)**
 
 ### 2.2 Focused Security Regression Suite
 - **Command:** `powershell -Command "Set-Location 'C:\Users\Dark_Boy_\Downloads\VAPT_System\backend'; & ..\.venv\Scripts\python.exe -m pytest tests/test_auth.py tests/test_projects_isolation.py tests/test_scope_engine.py tests/test_phase6b1_security_audit.py tests/test_phase7a_worker_isolation.py tests/test_phase7b1_readiness_audit.py tests/test_phase8_evidence_integrity.py tests/test_phase18_ai_analyst.py tests/test_phase24_backup_recovery.py tests/test_phase26_final_security_assessment.py -v"`
@@ -51,11 +51,12 @@ All automated test suites were reproduced and recorded with exact commands, exit
 - **Status:** **VERIFIED**
 
 ### 2.3 Phase 22 PostgreSQL Readiness & AST Suite
-- **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\pytest tests/test_phase22_postgres_readiness.py -v"`
+- **Command:** `cmd /c "cd /d C:\Users\Dark_Boy_\Downloads\VAPT_System\backend && ..\.venv\Scripts\pytest tests/test_phase22_postgres_readiness.py -v -rs"`
 - **Exit Code:** `0` (SUCCESS)
-- **Results:** **12 passed**, 0 failed, 0 skipped
-- **Duration:** 4.26 seconds
-- **Verified Capabilities:**
+- **Collected Tests:** 16 items
+- **Results:** **12 passed**, **4 skipped (BLOCKED)**, 0 failed
+- **Duration:** 4.27 seconds
+- **Verified Capabilities (12 passed):**
   1. Full table DDL compilation under `postgresql.dialect()` for all platform tables.
   2. Idempotency unique constraint and simultaneous submission handling.
   3. Atomic multi-worker claim allocation (5 workers, 3 queued jobs -> exactly 3 claimed, 0 duplicates).
@@ -68,7 +69,12 @@ All automated test suites were reproduced and recorded with exact commands, exit
   10. PostgreSQL transient SQLSTATE error detection (`40001` serialization failure, `40P01` deadlock detected, `55P03` lock timeout).
   11. Credential masking (`get_masked_database_url`) preventing password leakage in logs.
   12. Static offline Alembic DDL script generation across all 22 revisions (759 lines of static SQL).
-- **Status:** **VERIFIED**
+- **Blocked Live Tests (4 skipped):**
+  1. `test_live_postgresql_empty_database_migration`: Blocked pending live PostgreSQL 16 staging database.
+  2. `test_live_postgresql_concurrent_worker_claims_skip_locked`: Blocked pending live PostgreSQL 16 staging database.
+  3. `test_live_postgresql_transaction_isolation_and_rollback`: Blocked pending live PostgreSQL 16 staging database.
+  4. `test_live_postgresql_connection_pool_and_recovery`: Blocked pending live PostgreSQL 16 staging database.
+- **Status:** **DIALECT & AST VERIFIED / LIVE CONCURRENCY BLOCKED**
 
 ### 2.4 Disposable Database Migration Test
 - **Command:** 

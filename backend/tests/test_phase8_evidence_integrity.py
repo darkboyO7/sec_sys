@@ -470,3 +470,54 @@ def test_append_only_archive_trust_anchor_lifecycle(tmp_path):
     synced_check = anchor.check_for_database_rollback(db_last_anchored_sequence=3)
     assert synced_check["rollback_detected"] is False
     assert synced_check["difference"] == 0
+
+
+def test_append_only_archive_trust_anchor_edge_cases(tmp_path):
+    """
+    Verify Phase C edge cases for AppendOnlyArchiveTrustAnchor:
+    - Empty archive handling
+    - Unknown key_id rejection
+    - Corrupted JSON lines in archive
+    - Tampered prev_entry_hash rejection
+    - Missing required fields rejection
+    """
+    archive_file = tmp_path / "edge_case_archive.jsonl"
+    keys = {"key-2026-v1": "primary-secret-key-32-bytes-long!"}
+    anchor = AppendOnlyArchiveTrustAnchor(
+        archive_path=archive_file,
+        keys=keys,
+        active_key_id="key-2026-v1",
+    )
+
+    # 1. Non-existent / empty archive
+    assert anchor._get_latest_entry() is None
+    rollback_empty = anchor.check_for_database_rollback(db_last_anchored_sequence=0)
+    assert rollback_empty["rollback_detected"] is False
+
+    # 2. Anchor first root
+    root = hashlib.sha256(b"edge-case-root").hexdigest()
+    rec = anchor.anchor_merkle_root(root)
+    assert anchor.verify_anchor(root, rec) is True
+
+    # 3. Unknown key_id fails verification
+    unknown_key_rec = dict(rec)
+    unknown_key_rec["key_id"] = "unknown-key-99"
+    assert anchor.verify_anchor(root, unknown_key_rec) is False
+
+    # 4. Tampered prev_entry_hash fails verification
+    tampered_prev = dict(rec)
+    tampered_prev["prev_entry_hash"] = "1" * 64
+    assert anchor.verify_anchor(root, tampered_prev) is False
+
+    # 5. Missing payload fields fail verification
+    for missing_field in ["sequence_number", "prev_entry_hash", "timestamp", "anchor_token", "entry_hash"]:
+        incomplete_rec = dict(rec)
+        del incomplete_rec[missing_field]
+        assert anchor.verify_anchor(root, incomplete_rec) is False
+
+    # 6. Corrupted JSON lines in file are handled safely
+    with open(archive_file, "a", encoding="utf-8") as f:
+        f.write("{corrupted-json-line\n")
+    # Latest entry skips corrupted line or recovers safely
+    latest = anchor._get_latest_entry()
+    assert latest is None or latest.get("sequence_number") == 1
