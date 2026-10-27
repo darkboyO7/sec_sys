@@ -10,6 +10,7 @@ from app.services.scanner_adapters.base import (
 from app.services.scanner_adapters.local_fixture_adapter import LocalFixtureAdapter
 from app.services.scanner_adapters.passive_header_adapter import PassiveHeaderAuditAdapter
 from app.services.scanner_adapters.ssl_cipher_adapter import SslTlsCipherAuditAdapter
+from app.services.scanner_adapters.live_network_adapter import LiveNetworkAuditorAdapter
 
 __all__ = [
     "BaseScannerAdapter",
@@ -22,4 +23,5 @@ __all__ = [
     "LocalFixtureAdapter",
     "PassiveHeaderAuditAdapter",
     "SslTlsCipherAuditAdapter",
+    "LiveNetworkAuditorAdapter",
 ]

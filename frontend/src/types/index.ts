@@ -819,3 +819,49 @@ export interface MorphStateHistory {
   created_at: string;
 }
 
+
+
+// Phase 31: Enterprise Integration Architecture
+export interface IntegrationHealth {
+  name: string;
+  version: string;
+  status: string;
+  details: Record<string, any>;
+}
+
+export interface KevEntry {
+  cve_id: string;
+  vendor_project: string;
+  product: string;
+  vulnerability_name: string;
+  date_added: string;
+  short_description: string;
+  required_action: string;
+  known_ransomware_campaign_use: boolean;
+}
+
+export interface WebhookTestRequest {
+  event_type: string;
+  target_url?: string;
+  custom_payload?: Record<string, any>;
+}
+
+export interface WebhookDelivery {
+  event_id: string;
+  event_type: string;
+  project_id: string;
+  timestamp: string;
+  signature: string;
+  payload_size: number;
+  payload: Record<string, any>;
+  delivered: boolean;
+  delivered_at: string;
+}
+
+export interface SiemExportResponse {
+  project_id: string;
+  format: string;
+  total_events: number;
+  stream: string[];
+  exported_at: string;
+}

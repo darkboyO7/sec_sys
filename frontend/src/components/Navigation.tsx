@@ -16,6 +16,7 @@ import {
   Bot,
   Scale,
   Shield,
+  Layers,
 } from 'lucide-react';
 
 export type NavigationTab =
@@ -34,7 +35,8 @@ export type NavigationTab =
   | 'learning'
   | 'adaptive-defense'
   | 'audit'
-  | 'health';
+  | 'health'
+  | 'integrations';
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -124,6 +126,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       id: 'learning' as NavigationTab,
       label: 'Model Governance',
       icon: Scale,
+    },
+    {
+      id: 'integrations' as NavigationTab,
+      label: 'Integrations & Feeds',
+      icon: Layers,
     },
     {
       id: 'adaptive-defense' as NavigationTab,

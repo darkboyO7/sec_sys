@@ -18,6 +18,7 @@ import { RegressionAlertsView } from './views/RegressionAlertsView';
 import { AIAnalystView } from './views/AIAnalystView';
 import { ModelGovernanceView } from './views/ModelGovernanceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
+import { IntegrationsView } from './views/IntegrationsView';
 import { AuthModal } from './components/AuthModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { api } from './services/api';
@@ -173,6 +174,7 @@ export const App: React.FC = () => {
     'ai-analyst',
     'learning',
     'adaptive-defense',
+    'integrations',
   ].includes(activeTab);
 
   return (
@@ -298,6 +300,10 @@ export const App: React.FC = () => {
 
             {activeTab === 'adaptive-defense' && (
               <AdaptiveDefenseView projectId={activeProject.id} />
+            )}
+
+{activeTab === 'integrations' && (
+              <IntegrationsView projectId={activeProject.id} />
             )}
           </>
         )}

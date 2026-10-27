@@ -39,6 +39,7 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
 
   // Form state
   const [targetInput, setTargetInput] = useState('');
+  const [adapterName, setAdapterName] = useState('local_fixture_adapter');
   const [fixtureProfile, setFixtureProfile] = useState('WEB_APPLICATION_BASELINE');
   const [timeoutSeconds, setTimeoutSeconds] = useState(300);
   const [idempotencyKey, setIdempotencyKey] = useState('');
@@ -55,7 +56,7 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
     try {
       await api.createAssessment(project.id, {
         target_input: targetInput.trim(),
-        adapter_name: 'local_fixture_adapter',
+        adapter_name: adapterName,
         fixture_profile: fixtureProfile,
         timeout_seconds: Number(timeoutSeconds),
         idempotency_key: idempotencyKey.trim() || undefined,
@@ -207,6 +208,48 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
         );
     }
   };
+
+  const adapterOptions = [
+    {
+      id: 'local_fixture_adapter',
+      name: 'Local Fixture Simulator (Deterministic Offline Test)',
+      profiles: [
+        { id: 'WEB_APPLICATION_BASELINE', label: 'WEB_APPLICATION_BASELINE — CSP, Clickjacking & Security Headers' },
+        { id: 'TLS_CONFIGURATION_CHECK', label: 'TLS_CONFIGURATION_CHECK — Legacy Protocol & Cipher Weakness' },
+        { id: 'HARDENED_HOST_BASELINE', label: 'HARDENED_HOST_BASELINE — Clean Host Benchmark (0 Findings)' },
+        { id: 'SIMULATED_CRITICAL_EXPOSURE', label: 'SIMULATED_CRITICAL_EXPOSURE — Unauthenticated SQLi Demo' },
+      ],
+    },
+    {
+      id: 'live_network_auditor_adapter',
+      name: 'Live Network Auditor (Genuine Non-Intrusive Probe)',
+      profiles: [
+        { id: 'LIVE_HTTP_HEADERS', label: 'LIVE_HTTP_HEADERS — Live Real HTTP Response Headers & Cookies' },
+        { id: 'LIVE_TLS_HANDSHAKE', label: 'LIVE_TLS_HANDSHAKE — Live Real TLS Handshake & Certificate Audit' },
+        { id: 'LIVE_TCP_BANNER', label: 'LIVE_TCP_BANNER — Live Real Service Banner Grab' },
+      ],
+    },
+    {
+      id: 'passive_header_adapter',
+      name: 'Passive Header Auditor (OWASP Secure Headers Standards)',
+      profiles: [
+        { id: 'OWASP_SECURE_HEADERS', label: 'OWASP_SECURE_HEADERS — HSTS, CSP, and X-Content-Type' },
+        { id: 'STRICT_TRANSPORT_AUDIT', label: 'STRICT_TRANSPORT_AUDIT — Strict Transport & Subdomains' },
+        { id: 'COOKIE_SECURITY_CHECK', label: 'COOKIE_SECURITY_CHECK — Secure & HttpOnly Cookie Flags' },
+      ],
+    },
+    {
+      id: 'ssl_cipher_adapter',
+      name: 'SSL/TLS Cipher Suite Auditor (Protocol & Cipher Evaluation)',
+      profiles: [
+        { id: 'TLS_SECURITY_AUDIT', label: 'TLS_SECURITY_AUDIT — Comprehensive Protocol & Cipher Matrix' },
+        { id: 'CIPHER_SUITE_MINIMUM_TLS12', label: 'CIPHER_SUITE_MINIMUM_TLS12 — Verify TLS 1.2+ Enforcement' },
+        { id: 'CERTIFICATE_SAN_VALIDATION', label: 'CERTIFICATE_SAN_VALIDATION — Subject Alternative Name Check' },
+      ],
+    },
+  ];
+
+  const currentProfiles = adapterOptions.find(a => a.id === adapterName)?.profiles || adapterOptions[0].profiles;
 
   return (
     <div className="space-y-6">
@@ -514,27 +557,35 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Local Fixture Test Profile</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Scanner Adapter Engine *</label>
+                <select
+                  value={adapterName}
+                  onChange={(e) => {
+                    const nextAdapter = e.target.value;
+                    setAdapterName(nextAdapter);
+                    const opt = adapterOptions.find(a => a.id === nextAdapter);
+                    if (opt && opt.profiles.length > 0) {
+                      setFixtureProfile(opt.profiles[0].id);
+                    }
+                  }}
+                  className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
+                >
+                  {adapterOptions.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Assessment Profile *</label>
                 <select
                   value={fixtureProfile}
                   onChange={(e) => setFixtureProfile(e.target.value)}
                   className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
                 >
-                  <option value="WEB_APPLICATION_BASELINE">
-                    WEB_APPLICATION_BASELINE — CSP, Clickjacking & Security Headers
-                  </option>
-                  <option value="TLS_CONFIGURATION_CHECK">
-                    TLS_CONFIGURATION_CHECK — Legacy Protocol & Cipher Weakness
-                  </option>
-                  <option value="HARDENED_HOST_BASELINE">
-                    HARDENED_HOST_BASELINE — Clean Host Benchmark (0 Findings)
-                  </option>
-                  <option value="SIMULATED_CRITICAL_EXPOSURE">
-                    SIMULATED_CRITICAL_EXPOSURE — Unauthenticated SQLi Demonstration
-                  </option>
-                  <option value="PARTIAL_FAILURE_PROFILE">
-                    PARTIAL_FAILURE_PROFILE — Simulated Partial Module Timeout
-                  </option>
+                  {currentProfiles.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
                 </select>
               </div>
 
