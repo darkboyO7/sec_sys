@@ -106,6 +106,15 @@ def test_project_manifest_export(db: Session, test_project: Project, tester_user
     assert len(manifest["manifest_sha256"]) == 64
     assert len(manifest["targets"]) >= 1
 
+    # Verify export with evidence integrity verification enabled
+    manifest_verified = BackupRecoveryService.export_project_manifest(
+        db, test_project.id, actor_id=tester_user.id, verify_evidence_integrity=True
+    )
+    assert manifest_verified["project"]["id"] == test_project.id
+    assert "evidence_integrity" in manifest_verified
+    assert manifest_verified["evidence_integrity"]["verified"] is True
+    assert len(manifest_verified["manifest_sha256"]) == 64
+
 
 def test_project_purge_lifecycle_and_tombstone(db: Session, test_project: Project, tester_user):
     """

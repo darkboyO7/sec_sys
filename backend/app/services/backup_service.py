@@ -239,10 +239,12 @@ class BackupRecoveryService:
         db: Session,
         project_id: str,
         actor_id: Optional[str] = None,
+        verify_evidence_integrity: bool = False,
     ) -> Dict[str, Any]:
         """
         Generates a comprehensive, verifiable JSON export manifest of all project data:
         scopes, exclusions, jobs, findings, knowledge graph nodes, risk assessments, and audits.
+        Optionally verifies SHA-256 cryptographic hashes for all evidence payloads.
         """
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
@@ -280,6 +282,26 @@ class BackupRecoveryService:
             ],
         }
 
+        if verify_evidence_integrity:
+            from app.services.integrity_service import IntegrityService
+
+            total_items = 0
+            corrupted = []
+            merkle_roots = {}
+            for j in jobs:
+                res = IntegrityService.verify_evidence_integrity(db, j.id)
+                total_items += res.get("total_evidence_items", 0)
+                corrupted.extend(res.get("corrupted_evidence_ids", []))
+                if res.get("merkle_root"):
+                    merkle_roots[j.id] = res.get("merkle_root")
+
+            manifest_data["evidence_integrity"] = {
+                "verified": len(corrupted) == 0,
+                "total_evidence_items": total_items,
+                "corrupted_evidence_ids": corrupted,
+                "job_merkle_roots": merkle_roots,
+            }
+
         canonical_json = json.dumps(manifest_data, sort_keys=True, separators=(",", ":"))
         manifest_digest = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
         manifest_data["manifest_sha256"] = manifest_digest
@@ -292,7 +314,11 @@ class BackupRecoveryService:
             target_id=project_id,
             project_id=project_id,
             actor_id=actor_id,
-            details={"manifest_sha256": manifest_digest, "findings_count": len(findings)},
+            details={
+                "manifest_sha256": manifest_digest,
+                "findings_count": len(findings),
+                "evidence_verified": verify_evidence_integrity,
+            },
         )
         db.commit()
 

@@ -280,7 +280,10 @@ class ContextualRiskService:
         final_score = round(max(0.0, min(100.0, raw_composite)), 1)
         residual_score = final_score
 
-        # 10. Explicit Uncertainty Range (Phase 11)
+        # 10. Contextual Heuristic Uncertainty Range (Score Margin)
+        # Note: This is an explainable heuristic uncertainty margin derived from epistemic data completeness,
+        # tentative finding confidence, and multi-scanner contradictory observations.
+        # It is explicitly NOT a parametric statistical confidence interval or calibrated probability distribution.
         uncertainty_margin = 3.0
         if finding.confidence == FindingConfidence.TENTATIVE:
             uncertainty_margin += 7.0

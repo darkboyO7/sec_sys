@@ -1,5 +1,8 @@
 import json
 import hashlib
+import hmac
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
@@ -7,6 +10,63 @@ from app.models.audit import AuditEvent
 from app.models.assessment import AssessmentJob, AssessmentFinding, FindingEvidence
 from app.services.scanner_adapters.base import MAX_EVIDENCE_PAYLOAD_BYTES
 from app.services.audit_service import compute_audit_event_hash, SENSITIVE_KEYS
+
+
+class ExternalTrustAnchor(ABC):
+    """
+    Abstract interface for out-of-band external trust anchoring (e.g. RFC 3161 Time-Stamp Protocol,
+    cloud WORM storage commit, or public bulletin ledger).
+    Enables cryptographic binding of internal Merkle roots to an external trust boundary.
+    """
+    @abstractmethod
+    def anchor_merkle_root(self, root_hash: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Submits a Merkle root to the external trust anchor.
+        Returns anchor token or confirmation payload with signature/timestamp.
+        """
+        pass
+
+    @abstractmethod
+    def verify_anchor(self, root_hash: str, anchor_payload: Dict[str, Any]) -> bool:
+        """
+        Verifies that an external anchor payload attests to root_hash.
+        """
+        pass
+
+
+class HMACExternalTrustAnchor(ExternalTrustAnchor):
+    """
+    Default hardened cryptographic anchor using an isolated system HMAC secret key.
+    Provides verifiable cryptographic binding without requiring an external network roundtrip.
+    """
+    def __init__(self, anchor_secret: str, anchor_identifier: str = "vapt-internal-vault-v1"):
+        self.secret = anchor_secret.encode("utf-8") if isinstance(anchor_secret, str) else anchor_secret
+        self.anchor_identifier = anchor_identifier
+
+    def anchor_merkle_root(self, root_hash: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        message = f"{self.anchor_identifier}:{root_hash}:{timestamp}".encode("utf-8")
+        signature = hmac.new(self.secret, message, hashlib.sha256).hexdigest()
+        return {
+            "anchor_type": "HMAC_SECRET",
+            "anchor_identifier": self.anchor_identifier,
+            "root_hash": root_hash,
+            "timestamp": timestamp,
+            "anchor_token": signature,
+            "context": context or {},
+        }
+
+    def verify_anchor(self, root_hash: str, anchor_payload: Dict[str, Any]) -> bool:
+        if not anchor_payload or anchor_payload.get("root_hash") != root_hash:
+            return False
+        timestamp = anchor_payload.get("timestamp")
+        token = anchor_payload.get("anchor_token")
+        identifier = anchor_payload.get("anchor_identifier", self.anchor_identifier)
+        if not timestamp or not token:
+            return False
+        message = f"{identifier}:{root_hash}:{timestamp}".encode("utf-8")
+        expected_sig = hmac.new(self.secret, message, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected_sig, token)
 
 
 class MerkleTree:
@@ -271,3 +331,48 @@ class IntegrityService:
                 f"{len(tampered_ids)} tampered records detected."
             ),
         }
+
+    @classmethod
+    def anchor_audit_ledger(
+        cls,
+        db: Session,
+        project_id: str,
+        anchor: Optional[ExternalTrustAnchor] = None,
+    ) -> Dict[str, Any]:
+        """
+        Verifies the project audit ledger and anchors its Merkle root to an external trust boundary.
+        If no anchor is provided, uses HMACExternalTrustAnchor with the application SECRET_KEY.
+        """
+        from app.core.config import settings
+
+        verification = cls.verify_audit_ledger_integrity(db, project_id)
+        if not verification["is_valid"]:
+            raise ValueError(f"Cannot anchor corrupted audit ledger for project '{project_id}': tampered events detected.")
+
+        merkle_root = verification["merkle_root"]
+        active_anchor = anchor or HMACExternalTrustAnchor(anchor_secret=settings.SECRET_KEY)
+        anchor_receipt = active_anchor.anchor_merkle_root(
+            root_hash=merkle_root,
+            context={"project_id": project_id, "total_events": verification["total_events_checked"]},
+        )
+        return {
+            "project_id": project_id,
+            "merkle_root": merkle_root,
+            "anchor_receipt": anchor_receipt,
+            "ledger_verified": True,
+        }
+
+    @classmethod
+    def verify_external_anchor(
+        cls,
+        root_hash: str,
+        anchor_payload: Dict[str, Any],
+        anchor: Optional[ExternalTrustAnchor] = None,
+    ) -> bool:
+        """
+        Verifies an external anchor payload against a target Merkle root.
+        """
+        from app.core.config import settings
+
+        active_anchor = anchor or HMACExternalTrustAnchor(anchor_secret=settings.SECRET_KEY)
+        return active_anchor.verify_anchor(root_hash, anchor_payload)

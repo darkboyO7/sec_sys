@@ -28,13 +28,16 @@ class BackupVerifyRequest(BaseModel):
 @router.get("/projects/{project_id}/lifecycle/export")
 def export_project(
     project_id: str,
+    verify_evidence: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Generate and return a cryptographic export manifest of all project data."""
     verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
     try:
-        manifest = BackupRecoveryService.export_project_manifest(db, project_id, actor_id=current_user.id)
+        manifest = BackupRecoveryService.export_project_manifest(
+            db, project_id, actor_id=current_user.id, verify_evidence_integrity=verify_evidence
+        )
         return manifest
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

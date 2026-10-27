@@ -9,7 +9,12 @@ from app.models.project import Project
 from app.models.scope import ScopeTarget, TargetType, AuthorizationStatus
 from app.models.audit import AuditEvent
 from app.models.assessment import AssessmentJob, AssessmentFinding, FindingEvidence
-from app.services.integrity_service import MerkleTree, IntegrityService
+from app.services.integrity_service import (
+    MerkleTree,
+    IntegrityService,
+    ExternalTrustAnchor,
+    HMACExternalTrustAnchor,
+)
 from app.services.audit_service import AuditService, compute_audit_event_hash
 
 
@@ -342,3 +347,54 @@ def test_integrity_edge_cases_and_non_existent_resources(
     assert empty_report["is_valid"] is True
     assert empty_report["total_events_checked"] == 0
     assert empty_report["merkle_root"] == "0" * 64
+
+
+def test_external_trust_anchor_and_ledger_anchoring(db: Session, test_project: Project, tester_user: User):
+    """
+    Verifies that audit ledgers can be anchored to an external trust anchor (e.g. HMACExternalTrustAnchor),
+    producing a verifiable receipt that fails closed if tampered.
+    """
+    # 1. Record an event
+    AuditService.record_event(
+        db=db,
+        action="ANCHOR_TEST_EVENT",
+        target_type="Project",
+        outcome="SUCCESS",
+        project_id=test_project.id,
+        actor_id=tester_user.id,
+    )
+    db.commit()
+
+    # 2. Anchor ledger using HMACExternalTrustAnchor
+    anchor = HMACExternalTrustAnchor(anchor_secret="test-isolated-anchor-secret-32-chars!!")
+    receipt = IntegrityService.anchor_audit_ledger(db=db, project_id=test_project.id, anchor=anchor)
+
+    assert receipt["ledger_verified"] is True
+    assert len(receipt["merkle_root"]) == 64
+    anchor_receipt = receipt["anchor_receipt"]
+    assert anchor_receipt["anchor_type"] == "HMAC_SECRET"
+    assert anchor_receipt["root_hash"] == receipt["merkle_root"]
+    assert "anchor_token" in anchor_receipt
+
+    # 3. Verify valid anchor payload
+    is_valid = IntegrityService.verify_external_anchor(
+        root_hash=receipt["merkle_root"],
+        anchor_payload=anchor_receipt,
+        anchor=anchor,
+    )
+    assert is_valid is True
+
+    # 4. Tampered anchor token or root hash fails verification
+    assert IntegrityService.verify_external_anchor(
+        root_hash="f" * 64,
+        anchor_payload=anchor_receipt,
+        anchor=anchor,
+    ) is False
+
+    tampered_payload = dict(anchor_receipt)
+    tampered_payload["anchor_token"] = "0" * 64
+    assert IntegrityService.verify_external_anchor(
+        root_hash=receipt["merkle_root"],
+        anchor_payload=tampered_payload,
+        anchor=anchor,
+    ) is False
