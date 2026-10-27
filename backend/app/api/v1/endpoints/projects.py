@@ -264,3 +264,104 @@ def add_project_member(
         user_email=target_user.email,
         user_full_name=target_user.full_name,
     )
+
+
+@router.put("/{project_id}/members/{user_id}", response_model=ProjectMemberResponse)
+def update_project_member_role(
+    project_id: str,
+    user_id: str,
+    member_in: ProjectMemberAdd,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update role for an existing project member. Requires project LEAD or system ADMIN."""
+    client_ip = get_client_ip(request)
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
+
+    member = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project_id, ProjectMember.user_id == user_id)
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project member not found")
+
+    old_role = member.role
+    member.role = member_in.role
+    db.commit()
+    db.refresh(member)
+
+    AuditService.record_event(
+        db=db,
+        action="PROJECT_MEMBER_ROLE_UPDATE",
+        target_type="project_member",
+        target_id=member.id,
+        project_id=project_id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=client_ip,
+        details={"user_id": user_id, "old_role": old_role.value, "new_role": member_in.role.value},
+    )
+
+    target_user = db.query(User).filter(User.id == user_id).first()
+    return ProjectMemberResponse(
+        id=member.id,
+        user_id=member.user_id,
+        role=member.role,
+        created_at=member.created_at,
+        user_email=target_user.email if target_user else None,
+        user_full_name=target_user.full_name if target_user else None,
+    )
+
+
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_project_member(
+    project_id: str,
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a member from the project. Requires project LEAD or system ADMIN."""
+    client_ip = get_client_ip(request)
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
+
+    member = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project_id, ProjectMember.user_id == user_id)
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project member not found")
+
+    # Prevent removing the last LEAD
+    if member.role == ProjectRole.LEAD:
+        lead_count = (
+            db.query(ProjectMember)
+            .filter(ProjectMember.project_id == project_id, ProjectMember.role == ProjectRole.LEAD)
+            .count()
+        )
+        if lead_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove the last project LEAD. Reassign LEAD role to another member first.",
+            )
+
+    db.delete(member)
+    db.commit()
+
+    AuditService.record_event(
+        db=db,
+        action="PROJECT_MEMBER_REMOVE",
+        target_type="project_member",
+        target_id=member.id,
+        project_id=project_id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=client_ip,
+        details={"removed_user_id": user_id},
+    )
+    return None

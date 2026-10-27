@@ -1,6 +1,8 @@
 import type {
   User,
   Project,
+  ProjectMember,
+  ProjectRole,
   ScopeTarget,
   ScopeExclusion,
   ScopeValidationResult,
@@ -129,6 +131,10 @@ class ApiService {
     return this.request('/auth/me');
   }
 
+async listUsers(): Promise<User[]> {
+    return this.request('/auth/users');
+  }
+
   logout() {
     this.setToken(null);
   }
@@ -144,6 +150,38 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  async updateProject(projectId: string, data: { name?: string; description?: string; is_active?: boolean }): Promise<Project> {
+    return this.request(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listProjectMembers(projectId: string): Promise<ProjectMember[]> {
+    return this.request(`/projects/${projectId}/members`);
+  }
+
+  async addProjectMember(projectId: string, data: { user_id: string; role: ProjectRole }): Promise<ProjectMember> {
+    return this.request(`/projects/${projectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProjectMemberRole(projectId: string, userId: string, role: ProjectRole): Promise<ProjectMember> {
+    return this.request(`/projects/${projectId}/members/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_id: userId, role }),
+    });
+  }
+
+  async removeProjectMember(projectId: string, userId: string): Promise<void> {
+    return this.request(`/projects/${projectId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
 
   // Scopes & Authorizations
   async listScopeTargets(projectId: string): Promise<ScopeTarget[]> {

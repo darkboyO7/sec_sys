@@ -40,6 +40,16 @@ export interface Project {
   scope_exclusion_count?: number;
 }
 
+export interface ProjectMember {
+  id: string;
+  user_id: string;
+  role: ProjectRole;
+  created_at: string;
+  user_email?: string | null;
+  user_full_name?: string | null;
+}
+
+
 export interface ScopeTarget {
   id: string;
   project_id: string;

@@ -19,6 +19,7 @@ import { AIAnalystView } from './views/AIAnalystView';
 import { ModelGovernanceView } from './views/ModelGovernanceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
+import { SettingsView } from './views/SettingsView';
 import { AuthModal } from './components/AuthModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { api } from './services/api';
@@ -175,6 +176,7 @@ export const App: React.FC = () => {
     'learning',
     'adaptive-defense',
     'integrations',
+    'settings',
   ].includes(activeTab);
 
   return (
@@ -304,6 +306,17 @@ export const App: React.FC = () => {
 
 {activeTab === 'integrations' && (
               <IntegrationsView projectId={activeProject.id} />
+            )}
+
+{activeTab === 'settings' && (
+              <SettingsView
+                currentProject={activeProject}
+                currentUser={currentUser}
+                onProjectUpdated={(updated) => {
+                  setActiveProject(updated);
+                  loadProjects();
+                }}
+              />
             )}
           </>
         )}

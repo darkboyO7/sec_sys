@@ -1,3 +1,4 @@
+from typing import List
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -149,3 +150,13 @@ def get_current_user_profile(
 ):
     """Retrieve profile of currently authenticated actor."""
     return current_user
+
+
+@router.get("/users", response_model=List[UserResponse])
+def list_organization_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve registered users in organization for access governance."""
+    users = db.query(User).filter(User.is_active == True).order_by(User.full_name).all()
+    return users

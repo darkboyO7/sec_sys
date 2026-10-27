@@ -17,6 +17,7 @@ import {
   Scale,
   Shield,
   Layers,
+  Settings,
 } from 'lucide-react';
 
 export type NavigationTab =
@@ -36,7 +37,8 @@ export type NavigationTab =
   | 'adaptive-defense'
   | 'audit'
   | 'health'
-  | 'integrations';
+  | 'integrations'
+  | 'settings';
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -142,6 +144,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'Audit Ledger',
       icon: FileText,
       badge: auditCount > 0 ? auditCount : undefined,
+    },
+    {
+      id: 'settings' as NavigationTab,
+      label: 'Team & Settings',
+      icon: Settings,
     },
     {
       id: 'health' as NavigationTab,
