@@ -1,11 +1,23 @@
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SecuritySnapshotCreate(BaseModel):
-    snapshot_label: str = Field(..., min_length=3, max_length=255)
+    snapshot_label: Optional[str] = Field(None, min_length=3, max_length=255)
+    name: Optional[str] = Field(None, min_length=3, max_length=255)
     as_of_time: Optional[datetime] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_label(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            label = data.get("snapshot_label") or data.get("name")
+            if not label:
+                raise ValueError("snapshot_label or name is required (minimum 3 characters)")
+            data["snapshot_label"] = label
+            data["name"] = label
+        return data
 
 
 class SecuritySnapshotRead(BaseModel):

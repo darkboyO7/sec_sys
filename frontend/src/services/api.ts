@@ -641,7 +641,7 @@ async listUsers(): Promise<User[]> {
   async captureSnapshot(projectId: string, name: string, description?: string): Promise<any> {
     return this.request(`/projects/${projectId}/digital-twin/snapshots`, {
       method: 'POST',
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ snapshot_label: name, name, description }),
     });
   }
 

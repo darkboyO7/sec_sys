@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Lock } from 'lucide-react';
 import { Header } from './components/Header';
-import { Navigation } from './components/Navigation';
-import type { NavigationTab } from './components/Navigation';
+import { Sidebar } from './components/Sidebar';
+import type { NavigationTab } from './components/Sidebar';
 import { OverviewView } from './views/OverviewView';
 import { ScopeManagementView } from './views/ScopeManagementView';
 import { AssessmentJobsView } from './views/AssessmentJobsView';
@@ -26,8 +27,9 @@ import { api } from './services/api';
 import type { User, Project, ScopeTarget, ScopeExclusion, AssessmentJob, AuditEvent, ReadinessResponse } from './types';
 
 export const App: React.FC = () => {
-  // Navigation & Modals
+  // Navigation & UI State
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 
@@ -180,7 +182,7 @@ export const App: React.FC = () => {
   ].includes(activeTab);
 
   return (
-    <div className="min-h-screen bg-cyber-900 text-slate-100 flex flex-col font-sans selection:bg-accent-cyan/30">
+    <div className="h-screen w-screen bg-cyber-900 text-slate-100 flex flex-col font-sans overflow-hidden selection:bg-accent-cyan/30">
       <Header
         user={currentUser}
         projects={projects}
@@ -190,159 +192,180 @@ export const App: React.FC = () => {
         onAuthClick={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         readiness={readiness}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
 
-      <Navigation
-        activeTab={activeTab}
-        onTabChange={(t) => setActiveTab(t)}
-        targetCount={targets.length}
-        assessmentCount={assessmentJobs.length}
-        findingCount={findingCount}
-        assetCount={assetCount}
-        auditCount={auditEvents.length}
-      />
+      <div className="flex flex-1 overflow-hidden relative">
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={(t) => setActiveTab(t)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          targetCount={targets.length}
+          assessmentCount={assessmentJobs.length}
+          findingCount={findingCount}
+          assetCount={assetCount}
+          auditCount={auditEvents.length}
+        />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6">
-        {activeTab === 'overview' && (
-          <OverviewView
-            activeProject={activeProject}
-            targets={targets}
-            exclusions={exclusions}
-            recentAudits={auditEvents}
-            findingCount={findingCount}
-            assetCount={assetCount}
-            onCreateProjectClick={() => setIsCreateProjectOpen(true)}
-            onNavigateToScopes={() => setActiveTab('scopes')}
-            onNavigateToFindings={() => setActiveTab('findings')}
-            onNavigateToAssets={() => setActiveTab('assets')}
-            onNavigateToGraph={() => setActiveTab('graph')}
-            onNavigateToAudit={() => setActiveTab('audit')}
-          />
-        )}
+        <main className="flex-1 overflow-y-auto p-5 sm:p-6 lg:p-8 w-full bg-cyber-950/40">
+          {activeTab === 'overview' && (
+            <OverviewView
+              activeProject={activeProject}
+              targets={targets}
+              exclusions={exclusions}
+              recentAudits={auditEvents}
+              findingCount={findingCount}
+              assetCount={assetCount}
+              assessmentJobs={assessmentJobs}
+              onCreateProjectClick={() => setIsCreateProjectOpen(true)}
+              onNavigateToScopes={() => setActiveTab('scopes')}
+              onNavigateToFindings={() => setActiveTab('findings')}
+              onNavigateToAssets={() => setActiveTab('assets')}
+              onNavigateToGraph={() => setActiveTab('graph')}
+              onNavigateToAssessments={() => setActiveTab('assessments')}
+              onNavigateToAudit={() => setActiveTab('audit')}
+              onNavigateToRisk={() => setActiveTab('risk')}
+            />
+          )}
 
-        {requiresProjectTab && !activeProject && (
-          <div className="py-16 text-center text-slate-400 bg-cyber-850/40 border border-cyber-750 rounded-lg">
-            <p className="text-sm">Please authenticate and select an active project to access this view.</p>
-          </div>
-        )}
+          {requiresProjectTab && !activeProject && (
+            <div className="py-20 text-center text-slate-400 bg-cyber-850/40 border border-cyber-750 rounded-xl max-w-2xl mx-auto shadow-lg">
+              <div className="w-12 h-12 rounded-xl bg-accent-blue/10 border border-accent-blue/30 text-accent-cyan flex items-center justify-center mx-auto mb-3">
+                <Lock className="w-6 h-6 text-accent-cyan" />
+              </div>
+              <h3 className="text-base font-bold text-white mb-1">Authentication or Project Selection Required</h3>
+              <p className="text-xs text-slate-400 mb-4 max-w-md mx-auto">
+                Select an active assessment project from the header or authenticate to access governed security intelligence.
+              </p>
+              {!currentUser && (
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-4 py-2 rounded-lg bg-accent-blue hover:bg-accent-blue/90 text-white text-xs font-semibold"
+                >
+                  Sign In to Control Plane
+                </button>
+              )}
+            </div>
+          )}
 
-        {activeProject && (
-          <>
-            {activeTab === 'scopes' && (
-              <ScopeManagementView
-                project={activeProject}
-                targets={targets}
-                exclusions={exclusions}
-                currentUser={currentUser}
-                onRefresh={loadProjectData}
-              />
-            )}
+          {activeProject && (
+            <>
+              {activeTab === 'scopes' && (
+                <ScopeManagementView
+                  project={activeProject}
+                  targets={targets}
+                  exclusions={exclusions}
+                  currentUser={currentUser}
+                  onRefresh={loadProjectData}
+                />
+              )}
 
-            {activeTab === 'assessments' && (
-              <AssessmentJobsView
-                project={activeProject}
-                authorizedTargets={authorizedTargets}
-                jobs={assessmentJobs}
-                onRefresh={loadProjectData}
-                loading={loading}
-              />
-            )}
+              {activeTab === 'assessments' && (
+                <AssessmentJobsView
+                  project={activeProject}
+                  authorizedTargets={authorizedTargets}
+                  jobs={assessmentJobs}
+                  onRefresh={loadProjectData}
+                  loading={loading}
+                  onNavigateToScopes={() => setActiveTab('scopes')}
+                  onNavigateToFindings={() => setActiveTab('findings')}
+                />
+              )}
 
-            {activeTab === 'findings' && (
-              <FindingLifecycleView currentProject={activeProject} />
-            )}
+              {activeTab === 'findings' && (
+                <FindingLifecycleView currentProject={activeProject} />
+              )}
 
-            {activeTab === 'assets' && (
-              <AssetInventoryView
-                currentProject={activeProject}
-                onNavigateToGraph={(nodeId) => {
-                  if (nodeId) setGraphRootNodeId(nodeId);
-                  setActiveTab('graph');
-                }}
-              />
-            )}
+              {activeTab === 'assets' && (
+                <AssetInventoryView
+                  currentProject={activeProject}
+                  onNavigateToGraph={(nodeId) => {
+                    if (nodeId) setGraphRootNodeId(nodeId);
+                    setActiveTab('graph');
+                  }}
+                />
+              )}
 
-            {activeTab === 'graph' && (
-              <KnowledgeGraphView
-                currentProject={activeProject}
-                initialNodeId={graphRootNodeId}
-              />
-            )}
+              {activeTab === 'graph' && (
+                <KnowledgeGraphView
+                  currentProject={activeProject}
+                  initialNodeId={graphRootNodeId}
+                />
+              )}
 
-            {activeTab === 'risk' && (
-              <ContextualRiskView
-                currentProject={activeProject}
-                currentUserRole={currentUser?.system_role}
-              />
-            )}
+              {activeTab === 'risk' && (
+                <ContextualRiskView
+                  currentProject={activeProject}
+                  currentUserRole={currentUser?.system_role}
+                />
+              )}
 
-            {activeTab === 'verification' && (
-              <RemediationVerificationView currentProject={activeProject} />
-            )}
+              {activeTab === 'verification' && (
+                <RemediationVerificationView currentProject={activeProject} />
+              )}
 
-            {activeTab === 'reports' && (
-              <ReportingView currentProject={activeProject} />
-            )}
+              {activeTab === 'reports' && (
+                <ReportingView currentProject={activeProject} />
+              )}
 
-            {activeTab === 'digital-twin' && (
-              <DigitalTwinView currentProject={activeProject} />
-            )}
+              {activeTab === 'digital-twin' && (
+                <DigitalTwinView currentProject={activeProject} />
+              )}
 
-            {activeTab === 'regression' && (
-              <RegressionAlertsView currentProject={activeProject} />
-            )}
+              {activeTab === 'regression' && (
+                <RegressionAlertsView currentProject={activeProject} />
+              )}
 
-            {activeTab === 'ai-analyst' && (
-              <AIAnalystView currentProject={activeProject} />
-            )}
+              {activeTab === 'ai-analyst' && (
+                <AIAnalystView currentProject={activeProject} />
+              )}
 
-            {activeTab === 'learning' && (
-              <ModelGovernanceView projectId={activeProject.id} />
-            )}
+              {activeTab === 'learning' && (
+                <ModelGovernanceView projectId={activeProject.id} />
+              )}
 
-            {activeTab === 'adaptive-defense' && (
-              <AdaptiveDefenseView projectId={activeProject.id} />
-            )}
+              {activeTab === 'adaptive-defense' && (
+                <AdaptiveDefenseView projectId={activeProject.id} />
+              )}
 
-{activeTab === 'integrations' && (
-              <IntegrationsView projectId={activeProject.id} />
-            )}
+              {activeTab === 'integrations' && (
+                <IntegrationsView projectId={activeProject.id} />
+              )}
 
-{activeTab === 'settings' && (
-              <SettingsView
-                currentProject={activeProject}
-                currentUser={currentUser}
-                onProjectUpdated={(updated) => {
-                  setActiveProject(updated);
-                  loadProjects();
-                }}
-              />
-            )}
-          </>
-        )}
+              {activeTab === 'settings' && (
+                <SettingsView
+                  currentProject={activeProject}
+                  currentUser={currentUser}
+                  onProjectUpdated={(updated) => {
+                    setActiveProject(updated);
+                    loadProjects();
+                  }}
+                />
+              )}
+            </>
+          )}
 
-        {activeTab === 'audit' && (
-          <AuditLedgerView
-            events={auditEvents}
-            activeProject={activeProject}
-            onRefresh={loadProjectData}
-            loading={loading}
-          />
-        )}
+          {activeTab === 'audit' && (
+            <AuditLedgerView
+              events={auditEvents}
+              activeProject={activeProject}
+              onRefresh={loadProjectData}
+              loading={loading}
+            />
+          )}
 
-        {activeTab === 'health' && (
-          <SystemHealthView
-            health={health}
-            readiness={readiness}
-            onRefresh={loadSystemDiagnostics}
-            loading={loading}
-          />
-        )}
-      </main>
-
-      <footer className="border-t border-cyber-800 bg-cyber-900/80 py-4 px-6 text-center text-slate-500 text-xs font-mono">
-        VAPT Platform Phase 21: Unified Enterprise Defensive Intelligence Dashboard · Windows-Native Control Plane
-      </footer>
+          {activeTab === 'health' && (
+            <SystemHealthView
+              health={health}
+              readiness={readiness}
+              onRefresh={loadSystemDiagnostics}
+              loading={loading}
+            />
+          )}
+        </main>
+      </div>
 
       {/* Modals */}
       <AuthModal

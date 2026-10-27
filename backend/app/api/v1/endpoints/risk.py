@@ -250,7 +250,7 @@ def recalculate_all_project_risks(
 @router.post("/projects/{project_id}/graph/paths/analyze", response_model=AttackPathAnalysisResponse)
 def analyze_attack_paths(
     project_id: str,
-    req: AttackPathRequest,
+    req: Optional[AttackPathRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -260,6 +260,8 @@ def analyze_attack_paths(
     Enforces project boundaries and parameter limits.
     """
     verify_project_access(project_id, current_user, db)
+    if req is None:
+        req = AttackPathRequest()
 
     try:
         return AttackPathAnalysisService.analyze_attack_paths(

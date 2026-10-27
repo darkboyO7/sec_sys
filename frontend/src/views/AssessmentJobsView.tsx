@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   PlayCircle,
   CheckCircle2,
@@ -8,9 +8,16 @@ import {
   RefreshCw,
   Plus,
   X,
-  FileCode,
   Hash,
-  Info,
+  Shield,
+  Zap,
+  TestTube2,
+  Search,
+  Filter,
+  ExternalLink,
+  ChevronRight,
+  ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import type { Project, AssessmentJob, AssessmentFinding, ScopeTarget, FindingSeverity } from '../types';
 import { api } from '../services/api';
@@ -22,6 +29,8 @@ interface AssessmentJobsViewProps {
   jobs: AssessmentJob[];
   onRefresh: () => void;
   loading: boolean;
+  onNavigateToScopes?: () => void;
+  onNavigateToFindings?: () => void;
 }
 
 export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
@@ -30,6 +39,8 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   jobs,
   onRefresh,
   loading,
+  onNavigateToScopes,
+  onNavigateToFindings,
 }) => {
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<AssessmentJob | null>(null);
@@ -37,7 +48,12 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const [loadingFindings, setLoadingFindings] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState<AssessmentFinding | null>(null);
 
-  // Form state
+  // Search & Filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [modeFilter, setModeFilter] = useState('ALL');
+
+  // Launch Form state
   const [targetInput, setTargetInput] = useState('');
   const [adapterName, setAdapterName] = useState('local_fixture_adapter');
   const [fixtureProfile, setFixtureProfile] = useState('WEB_APPLICATION_BASELINE');
@@ -46,9 +62,97 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const adapterOptions = [
+    {
+      id: 'local_fixture_adapter',
+      name: 'Local Fixture Simulator',
+      mode: 'SIMULATED',
+      description: 'Deterministic offline fixture engine. Generates reproducible test findings without network traffic.',
+      profiles: [
+        { id: 'WEB_APPLICATION_BASELINE', label: 'WEB_APPLICATION_BASELINE — CSP, Clickjacking & Security Headers' },
+        { id: 'TLS_CONFIGURATION_CHECK', label: 'TLS_CONFIGURATION_CHECK — Legacy Protocol & Cipher Weakness' },
+        { id: 'HARDENED_HOST_BASELINE', label: 'HARDENED_HOST_BASELINE — Clean Host Benchmark (0 Findings)' },
+        { id: 'SIMULATED_CRITICAL_EXPOSURE', label: 'SIMULATED_CRITICAL_EXPOSURE — Unauthenticated SQLi Demo' },
+      ],
+    },
+    {
+      id: 'live_network_auditor_adapter',
+      name: 'Live Network Auditor',
+      mode: 'GENUINE_LIVE',
+      description: 'Genuine non-intrusive live probe. Performs real HTTP GET/HEAD inspection, TLS handshake, or TCP banner grab.',
+      profiles: [
+        { id: 'LIVE_HTTP_HEADERS', label: 'LIVE_HTTP_HEADERS — Live Real HTTP Response Headers & Cookies' },
+        { id: 'LIVE_TLS_HANDSHAKE', label: 'LIVE_TLS_HANDSHAKE — Live Real TLS Handshake & Certificate Audit' },
+        { id: 'LIVE_TCP_BANNER', label: 'LIVE_TCP_BANNER — Live Real Service Banner Grab' },
+      ],
+    },
+    {
+      id: 'passive_header_adapter',
+      name: 'Passive Header Auditor',
+      mode: 'PASSIVE',
+      description: 'Passive header compliance auditor evaluating HSTS, CSP, and MIME-sniffing against OWASP standards.',
+      profiles: [
+        { id: 'OWASP_SECURE_HEADERS', label: 'OWASP_SECURE_HEADERS — HSTS, CSP, and X-Content-Type' },
+        { id: 'STRICT_TRANSPORT_AUDIT', label: 'STRICT_TRANSPORT_AUDIT — Strict Transport & Subdomains' },
+        { id: 'COOKIE_SECURITY_CHECK', label: 'COOKIE_SECURITY_CHECK — Secure & HttpOnly Cookie Flags' },
+      ],
+    },
+    {
+      id: 'ssl_cipher_adapter',
+      name: 'SSL/TLS Cipher Suite Auditor',
+      mode: 'PASSIVE',
+      description: 'SSL/TLS cipher evaluation evaluating weak ciphers, deprecated SSLv3/TLS 1.0/1.1 protocols.',
+      profiles: [
+        { id: 'TLS_SECURITY_AUDIT', label: 'TLS_SECURITY_AUDIT — Comprehensive Protocol & Cipher Matrix' },
+        { id: 'CIPHER_SUITE_MINIMUM_TLS12', label: 'CIPHER_SUITE_MINIMUM_TLS12 — Verify TLS 1.2+ Enforcement' },
+        { id: 'CERTIFICATE_SAN_VALIDATION', label: 'CERTIFICATE_SAN_VALIDATION — Subject Alternative Name Check' },
+      ],
+    },
+  ];
+
+  const currentAdapter = adapterOptions.find((a) => a.id === adapterName) || adapterOptions[0];
+  const currentProfiles = currentAdapter.profiles;
+
+  // Selected target authorization check
+  const isSelectedTargetAuthorized = useMemo(() => {
+    if (!targetInput) return false;
+    return authorizedTargets.some((t) => t.target_value === targetInput);
+  }, [targetInput, authorizedTargets]);
+
+  // Filtered jobs
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((j) => {
+      const matchesSearch =
+        j.target_input.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        j.adapter_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        j.id.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = statusFilter === 'ALL' || j.status === statusFilter;
+
+      const matchesMode =
+        modeFilter === 'ALL' ||
+        (modeFilter === 'SIMULATED' && j.is_simulated) ||
+        (modeFilter === 'GENUINE_LIVE' && !j.is_simulated);
+
+      return matchesSearch && matchesStatus && matchesMode;
+    });
+  }, [jobs, searchTerm, statusFilter, modeFilter]);
+
+  // Metric counts
+  const totalJobsCount = jobs.length;
+  const completedJobsCount = jobs.filter((j) => j.status === 'COMPLETED').length;
+  const activeJobsCount = jobs.filter((j) => ['QUEUED', 'PREFLIGHT', 'READY', 'RUNNING'].includes(j.status)).length;
+  const simulatedJobsCount = jobs.filter((j) => j.is_simulated).length;
+  const liveJobsCount = jobs.filter((j) => !j.is_simulated).length;
+
   const handleLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetInput.trim()) return;
+
+    if (!isSelectedTargetAuthorized) {
+      setError('Cannot dispatch assessment: Target is not in the AUTHORIZED scope for this project.');
+      return;
+    }
 
     setLaunching(true);
     setError(null);
@@ -88,7 +192,7 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   };
 
   const handleCancelJob = async (jobId: string) => {
-    if (!window.confirm('Are you sure you want to request cancellation for this assessment?')) return;
+    if (!window.confirm('Are you sure you want to cancel this active assessment job?')) return;
     try {
       await api.cancelAssessment(project.id, jobId);
       onRefresh();
@@ -105,73 +209,82 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
     switch (status) {
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3 h-3" /> COMPLETED
           </span>
         );
       case 'READY':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
             <CheckCircle2 className="w-3 h-3" /> READY
           </span>
         );
       case 'PREFLIGHT':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 animate-pulse">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 animate-pulse">
             <RefreshCw className="w-3 h-3 animate-spin" /> PREFLIGHT
           </span>
         );
       case 'RUNNING':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/30 animate-pulse">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-accent-blue/10 text-accent-blue border border-accent-blue/30 animate-pulse">
             <RefreshCw className="w-3 h-3 animate-spin" /> RUNNING
           </span>
         );
       case 'CANCELLATION_REQUESTED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 animate-pulse">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 animate-pulse">
             <Clock className="w-3 h-3 animate-spin" /> CANCEL REQ
           </span>
         );
       case 'QUEUED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
             <Clock className="w-3 h-3" /> QUEUED
           </span>
         );
       case 'PARTIAL':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
             <AlertTriangle className="w-3 h-3" /> PARTIAL
           </span>
         );
       case 'FAILED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
             <Ban className="w-3 h-3" /> FAILED
-          </span>
-        );
-      case 'REJECTED':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
-            <Ban className="w-3 h-3" /> REJECTED
           </span>
         );
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30">
             <Ban className="w-3 h-3" /> CANCELLED
           </span>
         );
       case 'TIMED_OUT':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-300 border border-rose-500/30">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-mono font-bold bg-rose-500/10 text-rose-300 border border-rose-500/30">
             <Clock className="w-3 h-3" /> TIMED OUT
           </span>
         );
       default:
-        return null;
+        return <span className="font-mono text-slate-400 text-xs">{status}</span>;
     }
+  };
+
+  const getModeBadge = (isSimulated: boolean) => {
+    if (isSimulated) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+          <TestTube2 className="w-3 h-3" /> SIMULATED FIXTURE
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+        <Zap className="w-3 h-3" /> GENUINE LIVE PROBE
+      </span>
+    );
   };
 
   const getSeverityBadge = (sev: FindingSeverity) => {
@@ -209,69 +322,67 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
     }
   };
 
-  const adapterOptions = [
-    {
-      id: 'local_fixture_adapter',
-      name: 'Local Fixture Simulator (Deterministic Offline Test)',
-      profiles: [
-        { id: 'WEB_APPLICATION_BASELINE', label: 'WEB_APPLICATION_BASELINE — CSP, Clickjacking & Security Headers' },
-        { id: 'TLS_CONFIGURATION_CHECK', label: 'TLS_CONFIGURATION_CHECK — Legacy Protocol & Cipher Weakness' },
-        { id: 'HARDENED_HOST_BASELINE', label: 'HARDENED_HOST_BASELINE — Clean Host Benchmark (0 Findings)' },
-        { id: 'SIMULATED_CRITICAL_EXPOSURE', label: 'SIMULATED_CRITICAL_EXPOSURE — Unauthenticated SQLi Demo' },
-      ],
-    },
-    {
-      id: 'live_network_auditor_adapter',
-      name: 'Live Network Auditor (Genuine Non-Intrusive Probe)',
-      profiles: [
-        { id: 'LIVE_HTTP_HEADERS', label: 'LIVE_HTTP_HEADERS — Live Real HTTP Response Headers & Cookies' },
-        { id: 'LIVE_TLS_HANDSHAKE', label: 'LIVE_TLS_HANDSHAKE — Live Real TLS Handshake & Certificate Audit' },
-        { id: 'LIVE_TCP_BANNER', label: 'LIVE_TCP_BANNER — Live Real Service Banner Grab' },
-      ],
-    },
-    {
-      id: 'passive_header_adapter',
-      name: 'Passive Header Auditor (OWASP Secure Headers Standards)',
-      profiles: [
-        { id: 'OWASP_SECURE_HEADERS', label: 'OWASP_SECURE_HEADERS — HSTS, CSP, and X-Content-Type' },
-        { id: 'STRICT_TRANSPORT_AUDIT', label: 'STRICT_TRANSPORT_AUDIT — Strict Transport & Subdomains' },
-        { id: 'COOKIE_SECURITY_CHECK', label: 'COOKIE_SECURITY_CHECK — Secure & HttpOnly Cookie Flags' },
-      ],
-    },
-    {
-      id: 'ssl_cipher_adapter',
-      name: 'SSL/TLS Cipher Suite Auditor (Protocol & Cipher Evaluation)',
-      profiles: [
-        { id: 'TLS_SECURITY_AUDIT', label: 'TLS_SECURITY_AUDIT — Comprehensive Protocol & Cipher Matrix' },
-        { id: 'CIPHER_SUITE_MINIMUM_TLS12', label: 'CIPHER_SUITE_MINIMUM_TLS12 — Verify TLS 1.2+ Enforcement' },
-        { id: 'CERTIFICATE_SAN_VALIDATION', label: 'CERTIFICATE_SAN_VALIDATION — Subject Alternative Name Check' },
-      ],
-    },
-  ];
-
-  const currentProfiles = adapterOptions.find(a => a.id === adapterName)?.profiles || adapterOptions[0].profiles;
-
   return (
     <div className="space-y-6">
-      {/* Policy Notice & Header */}
-      <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <PlayCircle className="w-5 h-5 text-accent-cyan" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-              Controlled Assessment Orchestration
-            </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyber-800 text-amber-400 border border-cyber-750">
-              Deterministic Fixture Mode
-            </span>
+      {/* 1. Header & Engine Telemetry Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+            <span>Total Assessment Jobs</span>
+            <PlayCircle className="w-4 h-4 text-accent-cyan" />
           </div>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            Execute governed assessment jobs against authorized targets. All observations are generated through
-            reproducible, validated local fixtures. Live network socket scanning remains strictly disabled by policy.
-          </p>
+          <div className="text-2xl font-bold font-mono text-white">{totalJobsCount}</div>
+          <p className="text-[11px] text-slate-500 mt-1">{completedJobsCount} successfully completed</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+            <span>Active Executions</span>
+            <RefreshCw className={`w-4 h-4 ${activeJobsCount > 0 ? 'text-accent-blue animate-spin' : 'text-slate-500'}`} />
+          </div>
+          <div className="text-2xl font-bold font-mono text-accent-blue">{activeJobsCount}</div>
+          <p className="text-[11px] text-slate-500 mt-1">Under Win32 512MB Job Object</p>
+        </div>
+
+        <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+            <span>Simulated Fixtures</span>
+            <TestTube2 className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-amber-400">{simulatedJobsCount}</div>
+          <p className="text-[11px] text-slate-500 mt-1">Deterministic offline validation</p>
+        </div>
+
+        <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+            <span>Genuine Live Probes</span>
+            <Zap className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-emerald-400">{liveJobsCount}</div>
+          <p className="text-[11px] text-slate-500 mt-1">Real non-intrusive network audits</p>
+        </div>
+      </div>
+
+      {/* 2. Mode Explanation Banner */}
+      <div className="bg-cyber-850/80 border border-cyber-750 rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Shield className="w-5 h-5 text-accent-cyan shrink-0 mt-0.5" />
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                Multi-Engine Assessment Orchestration
+              </h3>
+              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-medium bg-cyber-800 text-emerald-400 border border-emerald-500/30">
+                Fail-Closed Preflight Boundary Active
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Target authorization is re-verified at runtime immediately before process worker dispatch. Both deterministic simulated fixtures and genuine non-intrusive network audits are supported and cryptographically distinguished.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onRefresh}
             disabled={loading}
@@ -285,31 +396,87 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
               setError(null);
               setIsLaunchModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent-blue hover:bg-accent-blue/90 text-white text-xs font-semibold transition-colors shrink-0 shadow-sm"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-blue hover:bg-accent-blue/90 text-white text-xs font-semibold transition-colors shadow-sm"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
             Launch Assessment Job
           </button>
         </div>
       </div>
 
-      {/* Main Grid: Jobs List & Job Details Drawer */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Assessment Jobs Table */}
-        <div className="lg:col-span-2 bg-cyber-850 border border-cyber-750 rounded-xl overflow-hidden shadow-lg">
-          <div className="p-4 border-b border-cyber-750 bg-cyber-900/60 flex items-center justify-between">
-            <span className="text-xs font-bold text-white uppercase font-mono tracking-wider">
-              Execution Job History ({jobs.length})
-            </span>
+      {/* 3. Search & Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-cyber-850/60 p-3 rounded-xl border border-cyber-750">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by target, adapter, or job ID..."
+            className="w-full bg-cyber-900 border border-cyber-700 rounded-lg pl-9 pr-3 py-1.5 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-accent-cyan"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-1 bg-cyber-900 border border-cyber-700 rounded-lg px-2.5 py-1 text-xs">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-transparent text-slate-300 font-mono text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="RUNNING">RUNNING</option>
+              <option value="QUEUED">QUEUED</option>
+              <option value="FAILED">FAILED</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
           </div>
 
-          {jobs.length === 0 ? (
-            <div className="p-8">
+          <div className="flex items-center gap-1 bg-cyber-900 border border-cyber-700 rounded-lg px-2.5 py-1 text-xs">
+            <select
+              value={modeFilter}
+              onChange={(e) => setModeFilter(e.target.value)}
+              className="bg-transparent text-slate-300 font-mono text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Modes</option>
+              <option value="SIMULATED">Simulated Fixtures</option>
+              <option value="GENUINE_LIVE">Genuine Live Probes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Main Two-Column Workflow: Execution Table & Detail Inspector */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left: Assessment Jobs Table */}
+        <div className={`bg-cyber-850 border border-cyber-750 rounded-xl overflow-hidden shadow-lg ${selectedJob ? 'xl:col-span-2' : 'xl:col-span-3'}`}>
+          <div className="p-4 border-b border-cyber-750 bg-cyber-900/60 flex items-center justify-between">
+            <span className="text-xs font-bold text-white uppercase font-mono tracking-wider">
+              Execution Job History ({filteredJobs.length})
+            </span>
+            {authorizedTargets.length === 0 && onNavigateToScopes && (
+              <button
+                onClick={onNavigateToScopes}
+                className="text-xs text-amber-400 hover:underline flex items-center gap-1 font-mono"
+              >
+                <AlertCircle className="w-3.5 h-3.5" /> No authorized targets. Configure Scopes →
+              </button>
+            )}
+          </div>
+
+          {filteredJobs.length === 0 ? (
+            <div className="p-12">
               <EmptyState
                 icon={PlayCircle}
-                title="No Assessments Dispatched Yet"
-                description="No assessment jobs have been executed for this project. Launch an assessment against an authorized target to test the execution pipeline."
-                actionLabel="Launch Assessment"
+                title={searchTerm || statusFilter !== 'ALL' || modeFilter !== 'ALL' ? 'No Matching Assessments Found' : 'No Assessments Dispatched Yet'}
+                description={
+                  searchTerm || statusFilter !== 'ALL' || modeFilter !== 'ALL'
+                    ? 'Adjust search keywords or clear filters to see other execution jobs.'
+                    : 'Select an authorized target and launch an assessment job using the offline simulator or live network auditor.'
+                }
+                actionLabel="Launch Assessment Job"
                 onAction={() => setIsLaunchModalOpen(true)}
               />
             </div>
@@ -318,16 +485,17 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
               <table className="w-full text-left border-collapse text-xs font-mono">
                 <thead>
                   <tr className="border-b border-cyber-750 bg-cyber-900/40 text-slate-400 text-[11px]">
-                    <th className="py-3 px-4">Target Input</th>
-                    <th className="py-3 px-4">Adapter</th>
+                    <th className="py-3 px-4">Target Assessment Scope</th>
+                    <th className="py-3 px-4">Execution Engine</th>
+                    <th className="py-3 px-4">Mode</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4">Findings</th>
-                    <th className="py-3 px-4">Queued</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4">Queued Time</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cyber-800">
-                  {jobs.map((j) => {
+                  {filteredJobs.map((j) => {
                     const isSelected = selectedJob?.id === j.id;
                     return (
                       <tr
@@ -337,35 +505,37 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                           isSelected ? 'bg-cyber-800 text-white' : 'hover:bg-cyber-800/40 text-slate-300'
                         }`}
                       >
-                        <td className="py-3 px-4 font-semibold text-slate-200">
-                          <div>{j.target_input}</div>
-                          {j.is_simulated && (
-                            <span className="text-[9px] text-amber-400 font-normal">SIMULATED FIXTURE</span>
-                          )}
+                        <td className="py-3.5 px-4 font-semibold text-slate-200">
+                          <div className="text-sm font-mono text-white">{j.target_input}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">Job: {j.id.slice(0, 8)}...</div>
                         </td>
-                        <td className="py-3 px-4 text-slate-400">
+                        <td className="py-3.5 px-4 text-slate-300">
                           <div>{j.adapter_name}</div>
                           <div className="text-[10px] text-slate-500">v{j.adapter_version}</div>
                         </td>
-                        <td className="py-3 px-4">{getStatusBadge(j.status)}</td>
-                        <td className="py-3 px-4 text-slate-300 font-bold">
+                        <td className="py-3.5 px-4">{getModeBadge(j.is_simulated)}</td>
+                        <td className="py-3.5 px-4">{getStatusBadge(j.status)}</td>
+                        <td className="py-3.5 px-4 text-slate-200 font-bold">
                           {j.summary_stats?.findings_count ?? 0}
                         </td>
-                        <td className="py-3 px-4 text-slate-400 text-[11px]">
+                        <td className="py-3.5 px-4 text-slate-400 text-[11px]">
                           {new Date(j.queued_at).toLocaleTimeString()}
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          {['QUEUED', 'PREFLIGHT', 'READY', 'RUNNING'].includes(j.status) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancelJob(j.id);
-                              }}
-                              className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-[10px] font-semibold transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          )}
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {['QUEUED', 'PREFLIGHT', 'READY', 'RUNNING'].includes(j.status) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelJob(j.id);
+                                }}
+                                className="px-2 py-1 text-[11px] rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            <ChevronRight className="w-4 h-4 text-slate-500" />
+                          </div>
                         </td>
                       </tr>
                     );
@@ -376,130 +546,142 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
           )}
         </div>
 
-        {/* Right: Job Details & Findings Drawer */}
-        <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-5 shadow-lg flex flex-col min-h-[450px]">
-          {selectedJob ? (
-            <div className="space-y-4 flex-1">
-              <div className="flex items-center justify-between pb-3 border-b border-cyber-750">
+        {/* Right: Job Detail Inspector */}
+        {selectedJob && (
+          <div className="bg-cyber-850 border border-cyber-750 rounded-xl overflow-hidden shadow-lg flex flex-col">
+            <div className="p-4 border-b border-cyber-750 bg-cyber-900/60 flex items-center justify-between">
+              <span className="text-xs font-bold text-white uppercase font-mono tracking-wider">
+                Execution Detail & Evidence
+              </span>
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="text-slate-400 hover:text-white p-1 rounded hover:bg-cyber-750"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 overflow-y-auto max-h-[700px] text-xs font-mono">
+              <div>
+                <div className="text-slate-400 text-[10px] uppercase">Target Scope</div>
+                <div className="text-base font-bold text-white mt-0.5">{selectedJob.target_input}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 p-3 bg-cyber-900 rounded-lg border border-cyber-800">
                 <div>
-                  <h4 className="text-xs font-bold text-white uppercase font-mono">Job Details</h4>
-                  <div className="text-[10px] font-mono text-slate-500">ID: {selectedJob.id}</div>
+                  <span className="text-slate-500 text-[10px]">Status:</span>
+                  <div className="mt-0.5">{getStatusBadge(selectedJob.status)}</div>
                 </div>
-                <div>{getStatusBadge(selectedJob.status)}</div>
+                <div>
+                  <span className="text-slate-500 text-[10px]">Observation Mode:</span>
+                  <div className="mt-0.5">{getModeBadge(selectedJob.is_simulated)}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[10px]">Scanner Engine:</span>
+                  <div className="text-slate-200 mt-0.5">{selectedJob.adapter_name}</div>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[10px]">Findings Discovered:</span>
+                  <div className="text-slate-200 font-bold mt-0.5">{selectedJob.summary_stats?.findings_count ?? 0}</div>
+                </div>
               </div>
 
-              {/* Stats overview */}
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <div className="p-2.5 bg-cyber-900 rounded border border-cyber-800">
-                  <div className="text-[10px] text-slate-500">Target</div>
-                  <div className="font-semibold text-slate-200 truncate">{selectedJob.target_input}</div>
-                </div>
-                <div className="p-2.5 bg-cyber-900 rounded border border-cyber-800">
-                  <div className="text-[10px] text-slate-500">Duration</div>
-                  <div className="font-semibold text-slate-200">
-                    {selectedJob.summary_stats?.duration_ms
-                      ? `${selectedJob.summary_stats.duration_ms.toFixed(1)} ms`
-                      : 'N/A'}
+              {/* Preflight Scope Snapshot */}
+              {selectedJob.scope_snapshot && (
+                <div className="p-3 bg-cyber-900/80 rounded-lg border border-cyber-800 space-y-1">
+                  <div className="text-slate-400 font-semibold flex items-center gap-1.5 text-[11px]">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Preflight Scope Authorization Proof
                   </div>
-                </div>
-              </div>
-
-              {/* Phase 6A Governance Contract Details */}
-              <div className="p-2.5 bg-cyber-900 rounded border border-cyber-800 text-[11px] font-mono space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Policy:</span>
-                  <span className="text-accent-cyan font-bold">{selectedJob.policy_version || '2026.1'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Auth Status:</span>
-                  <span className="text-emerald-400 font-bold">{selectedJob.authorization_status || 'AUTHORIZED'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Scope Digest:</span>
-                  <span className="text-slate-300 truncate max-w-[140px]" title={selectedJob.scope_snapshot_digest || ''}>
-                    {selectedJob.scope_snapshot_digest ? `${selectedJob.scope_snapshot_digest.substring(0, 12)}...` : 'N/A'}
-                  </span>
-                </div>
-                {selectedJob.failure_category && (
-                  <div className="flex justify-between pt-1 border-t border-cyber-800">
-                    <span className="text-rose-400 font-bold">Failure Category:</span>
-                    <span className="text-rose-300 font-bold">{selectedJob.failure_category}</span>
+                  <div className="text-slate-300 text-[11px]">
+                    Normalized: <span className="text-accent-cyan">{selectedJob.scope_snapshot.normalized_target || selectedJob.target_input}</span>
                   </div>
-                )}
-              </div>
-
-              {selectedJob.error_message && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs text-rose-300 font-mono">
-                  {selectedJob.error_message}
+                  <div className="text-slate-500 text-[10px]">
+                    Evaluated: {new Date(selectedJob.scope_snapshot.snapshot_at).toLocaleString()}
+                  </div>
                 </div>
               )}
 
-              {/* Findings section */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h5 className="text-xs font-bold text-white uppercase font-mono">
-                    Observed Findings ({jobFindings.length})
-                  </h5>
+              {/* Findings List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300 font-semibold text-xs">
+                    Discovered Findings ({jobFindings.length})
+                  </span>
+                  {onNavigateToFindings && jobFindings.length > 0 && (
+                    <button
+                      onClick={onNavigateToFindings}
+                      className="text-[11px] text-accent-cyan hover:underline flex items-center gap-1"
+                    >
+                      Triage in Lifecycle <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
 
                 {loadingFindings ? (
-                  <div className="text-center py-6 text-xs text-slate-500">
+                  <div className="py-8 text-center text-slate-500">
                     <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-1 text-accent-cyan" />
                     Loading findings...
                   </div>
                 ) : jobFindings.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-500 bg-cyber-900 rounded border border-cyber-800 p-4">
-                    {selectedJob.status === 'COMPLETED'
-                      ? 'No vulnerabilities detected by this fixture profile.'
-                      : 'No findings recorded for this execution.'}
+                  <div className="p-4 bg-cyber-900/40 border border-cyber-800 rounded text-center text-slate-500 text-xs">
+                    No vulnerabilities observed during this execution.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
                     {jobFindings.map((f) => (
                       <div
                         key={f.id}
-                        onClick={() => setSelectedFinding(f)}
-                        className="p-3 bg-cyber-900 hover:bg-cyber-800 border border-cyber-750 rounded-lg cursor-pointer transition-colors"
+                        onClick={() => setSelectedFinding(selectedFinding?.id === f.id ? null : f)}
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          selectedFinding?.id === f.id
+                            ? 'bg-cyber-800 border-accent-cyan'
+                            : 'bg-cyber-900/90 border-cyber-800 hover:border-cyber-700'
+                        }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-slate-200 truncate">{f.title}</span>
                           {getSeverityBadge(f.severity)}
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {f.vuln_id || 'GENERAL_FINDING'}
-                          </span>
                         </div>
-                        <div className="text-xs font-semibold text-slate-200 mb-1">{f.title}</div>
-                        <p className="text-[11px] text-slate-400 line-clamp-2">{f.description}</p>
-                        <div className="mt-2 text-[10px] text-accent-cyan hover:underline flex items-center gap-1 font-mono">
-                          <Hash className="w-3 h-3" /> Inspect Evidence Provenance ({f.evidence_items?.length || 0})
+                        <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+                          <span>Vuln ID: {f.vuln_id}</span>
+                          {f.cvss_score !== undefined && f.cvss_score !== null && (
+                            <span className="text-amber-400">CVSS: {f.cvss_score}</span>
+                          )}
                         </div>
+                        {selectedFinding?.id === f.id && (
+                          <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-cyber-800">
+                            {f.description}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Raw Process Evidence Info */}
+              <div className="p-3 bg-cyber-900/60 rounded-lg border border-cyber-800 space-y-1">
+                <div className="text-slate-400 text-[10px] uppercase">Cryptographic Execution Anchor</div>
+                <div className="text-[10px] text-slate-500 font-mono break-all flex items-center gap-1">
+                  <Hash className="w-3.5 h-3.5 text-accent-cyan shrink-0" />
+                  <span>Job UUID: {selectedJob.id}</span>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500">
-              <PlayCircle className="w-10 h-10 mb-2 text-cyber-700" />
-              <div className="text-xs font-semibold text-slate-400">No Job Selected</div>
-              <p className="text-[11px] max-w-xs mt-1">
-                Select an assessment job from the history table to view findings, safe error reports, and cryptographic
-                evidence provenance.
-              </p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Modal: Launch Assessment */}
+      {/* 5. Governed Launch Assessment Modal */}
       {isLaunchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-cyber-850 border border-cyber-700 rounded-xl shadow-2xl p-5">
-            <div className="flex items-center justify-between pb-3 border-b border-cyber-750">
+          <div className="w-full max-w-xl bg-cyber-850 border border-cyber-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-cyber-750 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <PlayCircle className="w-5 h-5 text-accent-cyan" />
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                  Dispatch Controlled Assessment
+                  Dispatch Controlled Assessment Job
                 </h3>
               </div>
               <button
@@ -510,21 +692,15 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
               </button>
             </div>
 
-            <div className="my-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300 font-mono flex items-start gap-2">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Safety Control: In accordance with Phase 2 requirements, executions operate deterministically using safe
-                local fixtures. Real network socket scans are disabled.
-              </span>
-            </div>
-
             {error && (
-              <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded text-xs text-rose-300 mb-3 font-mono">
-                {error}
+              <div className="m-5 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs text-rose-300 font-mono flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
               </div>
             )}
 
-            <form onSubmit={handleLaunch} className="space-y-4">
+            <form onSubmit={handleLaunch} className="p-5 space-y-4">
+              {/* Target Scope Selection */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Target Assessment Scope *</label>
                 {authorizedTargets.length > 0 ? (
@@ -534,36 +710,34 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                     required
                     className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
                   >
-                    <option value="">Select from authorized targets...</option>
+                    <option value="">Select from authorized project targets...</option>
                     {authorizedTargets.map((t) => (
                       <option key={t.id} value={t.target_value}>
-                        {t.target_value} ({t.target_type})
+                        {t.target_value} ({t.target_type}) — AUTHORIZED
                       </option>
                     ))}
                   </select>
                 ) : (
-                  <input
-                    type="text"
-                    required
-                    value={targetInput}
-                    onChange={(e) => setTargetInput(e.target.value)}
-                    placeholder="e.g. api.target.corp, 192.168.1.50"
-                    className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-accent-cyan"
-                  />
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300">
+                    No targets are currently AUTHORIZED for this project. Navigate to Scopes & Targets to register and authorize assessment scopes before executing.
+                  </div>
                 )}
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Target will be verified against active Rules of Engagement and exclusions before execution.
-                </p>
+                {targetInput && isSelectedTargetAuthorized && (
+                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-mono">
+                    <CheckCircle2 className="w-3 h-3" /> Target scope verified and authorized.
+                  </p>
+                )}
               </div>
 
+              {/* Scanner Engine Selector */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Scanner Adapter Engine *</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Scanner Engine *</label>
                 <select
                   value={adapterName}
                   onChange={(e) => {
                     const nextAdapter = e.target.value;
                     setAdapterName(nextAdapter);
-                    const opt = adapterOptions.find(a => a.id === nextAdapter);
+                    const opt = adapterOptions.find((a) => a.id === nextAdapter);
                     if (opt && opt.profiles.length > 0) {
                       setFixtureProfile(opt.profiles[0].id);
                     }
@@ -571,11 +745,15 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                   className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
                 >
                   {adapterOptions.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.mode === 'GENUINE_LIVE' ? 'LIVE NETWORK PROBE' : 'SIMULATED'})
+                    </option>
                   ))}
                 </select>
+                <p className="text-[11px] text-slate-400 mt-1 font-mono">{currentAdapter.description}</p>
               </div>
 
+              {/* Assessment Profile */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Assessment Profile *</label>
                 <select
@@ -584,11 +762,14 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                   className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
                 >
                   {currentProfiles.map((p) => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
                   ))}
                 </select>
               </div>
 
+              {/* Timeout & Idempotency Key */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Timeout (Seconds)</label>
@@ -607,114 +788,30 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                     type="text"
                     value={idempotencyKey}
                     onChange={(e) => setIdempotencyKey(e.target.value)}
-                    placeholder="e.g. sched-2026-10-25"
+                    placeholder="e.g. audit-q4-run-01"
                     className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-accent-cyan"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-cyber-750">
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-cyber-750">
                 <button
                   type="button"
                   onClick={() => setIsLaunchModalOpen(false)}
-                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-cyber-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={launching || !targetInput.trim()}
-                  className="px-4 py-2 bg-accent-blue hover:bg-accent-blue/90 disabled:bg-cyber-750 text-white rounded-lg text-xs font-semibold"
+                  disabled={launching || !isSelectedTargetAuthorized}
+                  className="px-5 py-2 rounded-lg bg-accent-blue hover:bg-accent-blue/90 disabled:bg-cyber-750 disabled:text-slate-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
                 >
-                  {launching ? 'Executing Pipeline...' : 'Dispatch Assessment'}
+                  <PlayCircle className="w-4 h-4" />
+                  {launching ? 'Dispatching...' : 'Dispatch Assessment Job'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Evidence Provenance Inspection */}
-      {selectedFinding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-cyber-850 border border-cyber-700 rounded-xl shadow-2xl p-5 font-mono text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-cyber-750">
-              <div className="flex items-center gap-2">
-                <FileCode className="w-5 h-5 text-accent-cyan" />
-                <h4 className="font-bold text-white uppercase truncate max-w-md">{selectedFinding.title}</h4>
-              </div>
-              <button
-                onClick={() => setSelectedFinding(null)}
-                className="text-slate-400 hover:text-white p-1 rounded hover:bg-cyber-750"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-4 max-h-[500px] overflow-y-auto">
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <span className="text-slate-500">Severity: </span>
-                  {getSeverityBadge(selectedFinding.severity)}
-                </div>
-                <div>
-                  <span className="text-slate-500">Confidence: </span>
-                  <span className="text-slate-200 font-bold">{selectedFinding.confidence}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Vuln ID: </span>
-                  <span className="text-accent-cyan">{selectedFinding.vuln_id || 'N/A'}</span>
-                </div>
-              </div>
-
-              {selectedFinding.reproduction_steps && (
-                <div>
-                  <div className="text-slate-500 font-semibold mb-1">Reproduction Method:</div>
-                  <div className="p-2.5 bg-cyber-900 border border-cyber-800 rounded text-slate-300 font-sans text-xs">
-                    {selectedFinding.reproduction_steps}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <div className="text-slate-500 font-semibold mb-2">Cryptographic Evidence Artifacts:</div>
-                {selectedFinding.evidence_items && selectedFinding.evidence_items.length > 0 ? (
-                  <div className="space-y-3">
-                    {selectedFinding.evidence_items.map((ev, idx) => (
-                      <div key={ev.id || idx} className="p-3 bg-cyber-900 border border-cyber-800 rounded-lg space-y-2">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-accent-cyan font-bold">{ev.evidence_type}</span>
-                          <span className="text-slate-500">Observed: {new Date(ev.observed_at).toISOString()}</span>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-slate-500">SHA-256 Digest:</div>
-                          <div className="text-[10px] text-emerald-400 break-all">{ev.sha256_hash}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-slate-500 mb-1">Raw Evidence Transcript:</div>
-                          <pre className="p-2.5 bg-cyber-950 border border-cyber-800/80 rounded text-[11px] text-slate-300 overflow-x-auto whitespace-pre-wrap">
-                            {ev.payload}
-                          </pre>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-3 bg-cyber-900 border border-cyber-800 rounded text-slate-500">
-                    No raw evidence payloads attached to this finding.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                onClick={() => setSelectedFinding(null)}
-                className="px-3.5 py-1.5 rounded bg-cyber-750 hover:bg-cyber-700 text-white text-xs font-semibold"
-              >
-                Close Provenance Inspector
-              </button>
-            </div>
           </div>
         </div>
       )}
