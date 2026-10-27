@@ -290,7 +290,7 @@ class BackupRecoveryService:
             merkle_roots = {}
             for j in jobs:
                 res = IntegrityService.verify_evidence_integrity(db, j.id)
-                total_items += res.get("total_evidence_items", 0)
+                total_items += res.get("total_evidence_checked", res.get("total_evidence_items", 0))
                 corrupted.extend(res.get("corrupted_evidence_ids", []))
                 if res.get("merkle_root"):
                     merkle_roots[j.id] = res.get("merkle_root")

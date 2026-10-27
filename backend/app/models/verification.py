@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, ForeignKey, Enum as SqlEnum, Text, DateTime, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -46,7 +46,13 @@ class RemediationVerification(Base, TimestampMixin):
     verified_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
-    project = relationship("Project", backref="remediation_verifications")
-    finding = relationship("VulnerabilityFinding", backref="remediation_verifications")
+    project = relationship(
+        "Project",
+        backref=backref("remediation_verifications", cascade="all, delete-orphan", passive_deletes=True),
+    )
+    finding = relationship(
+        "VulnerabilityFinding",
+        backref=backref("remediation_verifications", cascade="all, delete-orphan", passive_deletes=True),
+    )
     recommendation = relationship("RemediationRecommendation", backref="verifications")
     verifier = relationship("User", foreign_keys=[verifier_id])
