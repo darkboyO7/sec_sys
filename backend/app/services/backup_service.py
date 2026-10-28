@@ -223,7 +223,7 @@ class BackupRecoveryService:
                 "is_valid": is_valid,
                 "integrity_result": integrity_result,
                 "table_count": table_count,
-                "tables_verified": [t for t in ["projects", "users", "assessment_jobs", "audit_events"] if t in tables],
+                "tables_verified": [t for t in ["projects", "users", "assessment_jobs", "audit_events", "autonomous_policies", "security_decision_ledger", "notification_records"] if t in tables],
                 "sha256_verified": True,
             }
         finally:

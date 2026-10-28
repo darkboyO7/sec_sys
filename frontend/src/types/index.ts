@@ -1079,3 +1079,100 @@ export interface ProjectIntelligenceSummary {
   };
   data_provenance: Record<string, any>;
 }
+
+// -----------------------------------------------------------------------------
+// Unified Autonomous Security Operations (Prompt 11)
+// -----------------------------------------------------------------------------
+export interface AutonomousPolicy {
+  id: string;
+  project_id: string;
+  policy_version: string;
+  is_active: boolean;
+  is_suspended: boolean;
+  suspension_reason?: string | null;
+  suspended_at?: string | null;
+  permitted_assessment_types: string[];
+  intensity: 'LOW' | 'NORMAL' | 'AGGRESSIVE';
+  max_concurrency: number;
+  rate_limit_rps: number;
+  permitted_time_windows: Array<{ start_hour: number; end_hour: number }>;
+  max_daily_budget: number;
+  daily_budget_spent: number;
+  permitted_remediation_actions: string[];
+  require_approval_for_disruptive: boolean;
+  require_approval_for_remediation: boolean;
+  max_retries: number;
+  failure_threshold: number;
+  consecutive_failures: number;
+}
+
+export interface DecisionLedgerEntry {
+  id: string;
+  project_id: string;
+  decision_type: string;
+  decision_outcome: string;
+  initiating_event: string;
+  target_type: string;
+  target_id?: string | null;
+  target_resource?: string | null;
+  policy_version: string;
+  reason: string;
+  evidence_references: Array<Record<string, any>>;
+  details: Record<string, any>;
+  actor_id?: string | null;
+  created_at: string;
+}
+
+export interface SecurityNotification {
+  id: string;
+  project_id: string;
+  event_type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  title: string;
+  summary: string;
+  deduplication_key: string;
+  status: 'PENDING' | 'DELIVERED' | 'FAILED' | 'SUPPRESSED_DUPLICATE' | 'UNCONFIGURED';
+  retry_count: number;
+  max_retries: number;
+  last_attempt_at?: string | null;
+  error_message?: string | null;
+  delivery_metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface OperationalSLOMetric {
+  metric_name: string;
+  observed_value: number | null;
+  target_threshold: number;
+  unit: string;
+  status: 'MET' | 'BREACHED' | 'MISSING_DATA' | 'UNCONFIGURED';
+}
+
+export interface OperationalSLOResponse {
+  project_id: string;
+  window_days: number;
+  generated_at: string;
+  overall_health_pct: number | null;
+  slos: Record<string, OperationalSLOMetric>;
+  raw_telemetry: Record<string, any>;
+}
+
+export interface OperationsDashboard {
+  project_id: string;
+  timestamp: string;
+  policy: Record<string, any>;
+  operations_summary: Record<string, any>;
+  slo_health: {
+    overall_health_pct: number | null;
+    slos: Record<string, OperationalSLOMetric>;
+  };
+  recent_decisions: DecisionLedgerEntry[];
+  recent_notifications: SecurityNotification[];
+  notification_provider: {
+    project_id: string;
+    webhook_configured: boolean;
+    provider_status: string;
+    destination_preview?: string | null;
+    counts: Record<string, number>;
+  };
+}

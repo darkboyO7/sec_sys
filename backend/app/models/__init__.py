@@ -90,6 +90,18 @@ from app.models.decision import (
     PostureChangeRecord,
     SecurityDecisionRecord,
     AdaptiveAssessmentPlanRecord,
+    AutonomyIntensity,
+    AutonomousPolicyRecord,
+    DecisionLedgerType,
+    SecurityDecisionLedgerRecord,
+    OperationalSLOConfig,
+)
+from app.models.notification import (
+    NotificationEventType,
+    NotificationSeverity,
+    NotificationStatus,
+    NotificationRecord,
+    NotificationDeliveryRecord,
 )
 
 __all__ = [
@@ -169,4 +181,14 @@ __all__ = [
     "PostureChangeRecord",
     "SecurityDecisionRecord",
     "AdaptiveAssessmentPlanRecord",
+    "AutonomyIntensity",
+    "AutonomousPolicyRecord",
+    "DecisionLedgerType",
+    "SecurityDecisionLedgerRecord",
+    "OperationalSLOConfig",
+    "NotificationEventType",
+    "NotificationSeverity",
+    "NotificationStatus",
+    "NotificationRecord",
+    "NotificationDeliveryRecord",
 ]

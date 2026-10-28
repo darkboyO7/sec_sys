@@ -966,6 +966,64 @@ async listUsers(): Promise<User[]> {
       }
     );
   }
+
+  // Unified Autonomous Security Operations (Prompt 11)
+  async getOperationsDashboard(projectId: string): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/dashboard`);
+  }
+
+  async getAutonomousPolicy(projectId: string): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/policy`);
+  }
+
+  async updateAutonomousPolicy(projectId: string, payload: any): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/policy`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async emergencySuspendAutonomy(projectId: string, reason: string): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/policy/emergency-suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async resumeAutonomy(projectId: string): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/policy/resume`, {
+      method: 'POST',
+    });
+  }
+
+  async getDecisionLedger(projectId: string, limit: number = 50, offset: number = 0): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/decision-ledger?limit=${limit}&offset=${offset}`);
+  }
+
+  async getNotifications(projectId: string, limit: number = 50, offset: number = 0): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/notifications?limit=${limit}&offset=${offset}`);
+  }
+
+  async getNotificationProviderStatus(projectId: string): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/notifications/provider-status`);
+  }
+
+  async retryFailedNotifications(projectId: string): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/notifications/retry-failed`, {
+      method: 'POST',
+    });
+  }
+
+  async getSLOMetrics(projectId: string, windowDays: number = 30): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/slo-metrics?window_days=${windowDays}`);
+  }
+
+  async executeLifecycleTransition(projectId: string, findingId: string, action: string, notes: string = ''): Promise<any> {
+    return this.request<any>(`/operations/${projectId}/lifecycle-transition/${findingId}`, {
+      method: 'POST',
+      body: JSON.stringify({ action, notes }),
+    });
+  }
 }
 
 export const api = new ApiService();
