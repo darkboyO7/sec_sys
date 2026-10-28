@@ -1,6 +1,7 @@
 import json
 import hashlib
 import math
+import random
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple, List
 from sqlalchemy.orm import Session
@@ -634,6 +635,25 @@ class AssessmentExecutionEngine:
         return recovered
 
     @classmethod
+    def calculate_backoff_delay(
+        cls,
+        attempt: int,
+        base_delay: float = 2.0,
+        max_delay: float = 60.0,
+        jitter: bool = True,
+    ) -> float:
+        """
+        Calculates bounded exponential backoff with full jitter:
+        exponential = min(max_delay, base_delay * (2 ** (attempt - 1)))
+        delay = random.uniform(0.5 * exponential, exponential) if jitter else exponential
+        """
+        clamped_attempt = max(1, attempt)
+        exponential_delay = min(max_delay, base_delay * (2.0 ** (clamped_attempt - 1)))
+        if jitter:
+            return round(random.uniform(0.5 * exponential_delay, exponential_delay), 3)
+        return round(exponential_delay, 3)
+
+    @classmethod
     def retry_job(
         cls,
         db: Session,
@@ -642,7 +662,7 @@ class AssessmentExecutionEngine:
     ) -> Tuple[bool, AssessmentJob, str]:
         """
         Re-queues a failed operational job if attempt_count < max_retries.
-        Enforces retry limits to prevent infinite recovery loops.
+        Enforces retry limits with bounded exponential backoff and jitter to prevent infinite loops.
         """
         if now is None:
             now = datetime.now(timezone.utc)
@@ -670,16 +690,26 @@ class AssessmentExecutionEngine:
 
         job.attempt_count += 1
         job.retry_count += 1
+        backoff_delay = cls.calculate_backoff_delay(job.attempt_count)
+        next_retry_at = now + timedelta(seconds=backoff_delay)
+
         job.status = AssessmentStatus.QUEUED
         job.claimed_by = None
+        job.worker_pid = None
         job.error_message = None
         job.failure_category = None
         job.started_at = None
         job.completed_at = None
         job.progress_pct = 0
+
+        current_stats = dict(job.summary_stats or {})
+        current_stats["retry_backoff_seconds"] = backoff_delay
+        current_stats["next_retry_at"] = next_retry_at.isoformat()
+        job.summary_stats = current_stats
+
         db.commit()
         db.refresh(job)
-        return True, job, "Job successfully re-queued for retry."
+        return True, job, f"Job successfully re-queued for retry (attempt {job.attempt_count}, backoff: {backoff_delay:.2f}s)."
 
     @classmethod
     def integrate_assessment_assets_and_graph(
@@ -1011,13 +1041,19 @@ class AssessmentExecutionEngine:
                     last_active = last_active.replace(tzinfo=timezone.utc)
                 if last_active < cutoff:
                     if job.attempt_count < job.max_retries:
-                        # Stale worker recovery: re-queue
+                        # Stale worker recovery: re-queue with exponential backoff & jitter
+                        backoff_delay = cls.calculate_backoff_delay(job.attempt_count + 1)
+                        next_retry_at = now + timedelta(seconds=backoff_delay)
                         job.status = AssessmentStatus.QUEUED
                         job.claimed_by = None
                         job.worker_pid = None
                         job.retry_count = (job.retry_count or 0) + 1
                         job.attempt_count = (job.attempt_count or 1) + 1
                         job.error_message = f"Stale worker recovered: heartbeat absent since {last_active.isoformat()}"
+                        current_stats = dict(job.summary_stats or {})
+                        current_stats["retry_backoff_seconds"] = backoff_delay
+                        current_stats["next_retry_at"] = next_retry_at.isoformat()
+                        job.summary_stats = current_stats
                         AuditService.record_event(
                             db=db,
                             action="ASSESSMENT_STALE_WORKER_RECOVERED",
@@ -1025,7 +1061,7 @@ class AssessmentExecutionEngine:
                             outcome="SUCCESS",
                             target_id=job.id,
                             project_id=job.project_id,
-                            details={"last_active": last_active.isoformat(), "retry_count": job.retry_count},
+                            details={"last_active": last_active.isoformat(), "retry_count": job.retry_count, "backoff_seconds": backoff_delay},
                         )
                     else:
                         # Attempts exhausted: fail closed

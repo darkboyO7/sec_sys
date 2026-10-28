@@ -9,6 +9,7 @@ from app.schemas.integrity import (
     AuditVerificationResponse,
     EvidenceVerificationResponse,
     MerkleProofResponse,
+    EntityIntegrityVerificationResponse,
 )
 from app.services.integrity_service import IntegrityService
 
@@ -99,3 +100,20 @@ def get_evidence_proof(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
+
+
+@router.get(
+    "/projects/{project_id}/integrity/verify-all",
+    response_model=EntityIntegrityVerificationResponse,
+)
+def verify_all_project_entities(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Comprehensive platform integrity verification across all assessment records,
+    findings, evidence items, assets, remediation actions, and verification results.
+    """
+    verify_project_access(project_id, current_user, db)
+    return IntegrityService.verify_platform_entity_integrity(db=db, project_id=project_id)

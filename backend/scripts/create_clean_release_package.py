@@ -12,6 +12,7 @@ documentation, and configuration while strictly excluding:
 """
 
 import os
+import re
 import zipfile
 from pathlib import Path
 
@@ -47,7 +48,68 @@ EXCLUDE_EXTENSIONS = {
     ".sqlite",
     ".sqlite3",
     ".log",
+    ".tmp",
+    ".bak",
 }
+
+PROHIBITED_ARCHIVE_PATTERNS = [
+    r"\.env$",
+    r"\.git/",
+    r"\.venv/",
+    r"node_modules/",
+    r"__pycache__/",
+    r"\.db$",
+    r"\.sqlite\d*$",
+    r"-wal$",
+    r"-shm$",
+    r"\.key$",
+    r"\.pem$",
+    r"\.pfx$",
+]
+
+SECRET_PATTERNS = [
+    (r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----", "Private Key Header"),
+    (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
+    (r"ghp_[0-9a-zA-Z]{36}", "GitHub Personal Access Token"),
+]
+
+
+def audit_release_archive(zip_path: Path) -> dict:
+    """
+    Audits an existing release archive for prohibited file paths and accidental secrets.
+    Fails closed if any violation is detected.
+    """
+    if not zip_path.exists():
+        raise FileNotFoundError(f"Archive not found: {zip_path}")
+
+    violations = []
+    secrets_found = []
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for name in zf.namelist():
+            # Check prohibited path patterns
+            for pat in PROHIBITED_ARCHIVE_PATTERNS:
+                if re.search(pat, name, re.IGNORECASE):
+                    violations.append(f"Prohibited file/path: '{name}' matches '{pat}'")
+
+            # Check contents for secrets if text file < 500KB
+            info = zf.getinfo(name)
+            if info.file_size < 500 * 1024 and not name.endswith((".png", ".jpg", ".ico", ".woff", ".woff2", ".ttf")):
+                try:
+                    content = zf.read(name).decode("utf-8", errors="ignore")
+                    for sec_pat, desc in SECRET_PATTERNS:
+                        if re.search(sec_pat, content):
+                            secrets_found.append(f"Potential secret ({desc}) in '{name}'")
+                except Exception:
+                    pass
+
+    passed = len(violations) == 0 and len(secrets_found) == 0
+    return {
+        "passed": passed,
+        "violations": violations,
+        "secrets_found": secrets_found,
+        "total_files_audited": len(zf.namelist()),
+    }
 
 
 def should_include(file_path: Path) -> bool:
@@ -87,6 +149,19 @@ def create_release():
     print(f"  Total Files Included: {count}")
     print(f"  Uncompressed Size: {mb:.2f} MB")
     print(f"  Compressed Archive Size: {zip_mb:.2f} MB")
+
+    # Post-packaging automated safety audit
+    audit = audit_release_archive(OUTPUT_ZIP)
+    if not audit["passed"]:
+        OUTPUT_ZIP.unlink(missing_ok=True)
+        print("[FAIL] Release audit failed! Prohibited items or secrets detected:")
+        for v in audit["violations"]:
+            print(f"  - {v}")
+        for s in audit["secrets_found"]:
+            print(f"  - {s}")
+        raise RuntimeError("Clean release package failed security audit and was purged.")
+
+    print(f"[PASS] Automated Security Audit Passed: {audit['total_files_audited']} files verified clean (0 secrets, 0 prohibited paths).")
 
 
 if __name__ == "__main__":

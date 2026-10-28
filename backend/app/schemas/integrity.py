@@ -43,3 +43,21 @@ class AuditVerificationResponse(BaseModel):
     merkle_root: str
     timestamp_range: Dict[str, Optional[str]]
     summary: str
+
+
+class EntityCheckSummary(BaseModel):
+    checked: int
+    valid: int
+    corrupted_ids: List[str] = []
+
+
+class EntityIntegrityVerificationResponse(BaseModel):
+    project_id: str
+    is_valid: bool
+    assessment_records: EntityCheckSummary
+    findings: EntityCheckSummary
+    evidence_items: EntityCheckSummary
+    assets: EntityCheckSummary
+    remediations: EntityCheckSummary
+    verifications: EntityCheckSummary
+    summary: str

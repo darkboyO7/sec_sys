@@ -3,6 +3,7 @@ import time
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
@@ -36,6 +37,31 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             f"req_id={req_id} method={request.method} path={request.url.path} status={response.status_code} duration_ms={duration:.2f}"
         )
         return response
+
+
+class ContentLengthLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Guards against denial-of-service via unbounded HTTP request payloads.
+    Rejects requests exceeding the maximum permitted size with HTTP 413 Payload Too Large.
+    """
+    def __init__(self, app, max_content_length: int = 10 * 1024 * 1024):  # 10MB default
+        super().__init__(app)
+        self.max_content_length = max_content_length
+
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > self.max_content_length:
+                    return JSONResponse(
+                        status_code=413,
+                        content={
+                            "detail": f"Request payload exceeds maximum permitted limit ({self.max_content_length} bytes)."
+                        },
+                    )
+            except ValueError:
+                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
+        return await call_next(request)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -100,6 +126,7 @@ app = FastAPI(
 
 # Request context and audit middleware
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(ContentLengthLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Cross-Origin Resource Sharing
@@ -121,6 +148,27 @@ def root_liveness():
 def root_readiness(db: Session = Depends(get_db)):
     from app.api.v1.endpoints.health import readiness_check
     return readiness_check(db)
+
+
+@app.exception_handler(Exception)
+async def global_unhandled_exception_handler(request: Request, exc: Exception):
+    req_id = getattr(request.state, "request_id", "unknown")
+    logger.exception(f"Unhandled system exception [req_id={req_id}]: {str(exc)}")
+    if settings.ENVIRONMENT == "production":
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "An internal error occurred. Please contact the administrator.",
+                "request_id": req_id,
+            },
+        )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Unhandled error: {str(exc)}",
+            "request_id": req_id,
+        },
+    )
 
 
 # Register API v1 routes

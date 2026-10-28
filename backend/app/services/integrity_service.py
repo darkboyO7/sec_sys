@@ -503,3 +503,132 @@ class IntegrityService:
 
         active_anchor = anchor or HMACExternalTrustAnchor(anchor_secret=settings.SECRET_KEY)
         return active_anchor.verify_anchor(root_hash, anchor_payload)
+
+    @classmethod
+    def verify_platform_entity_integrity(cls, db: Session, project_id: str) -> Dict[str, Any]:
+        """
+        Comprehensive cross-table integrity verification for assessment records,
+        vulnerability findings, evidence items, assets, remediation actions,
+        and verification results within a project boundary.
+        """
+        from app.models.finding import VulnerabilityFinding, FindingLifecycleStatus
+        from app.models.asset import Asset, AssetObservation
+        from app.models.risk import RemediationRecommendation, RecommendationStatus
+        from app.models.verification import RemediationVerification, VerificationOutcome
+        from app.services.scanner_adapters.base import PERMITTED_EVIDENCE_TYPES
+
+        # 1. Assessment Records
+        jobs = db.query(AssessmentJob).filter(AssessmentJob.project_id == project_id).all()
+        corrupted_jobs = []
+        for job in jobs:
+            if job.timeout_seconds <= 0 or job.attempt_count < 1:
+                corrupted_jobs.append(job.id)
+                continue
+            if job.scope_snapshot and job.scope_snapshot_digest:
+                canonical = json.dumps(job.scope_snapshot, sort_keys=True, separators=(",", ":"))
+                digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                if digest != job.scope_snapshot_digest:
+                    corrupted_jobs.append(job.id)
+
+        # 2. Vulnerability Findings
+        findings = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.project_id == project_id).all()
+        corrupted_findings = []
+        for f in findings:
+            if not f.fingerprint or len(f.fingerprint) != 64:
+                corrupted_findings.append(f.id)
+                continue
+            if not f.title or not f.severity:
+                corrupted_findings.append(f.id)
+
+        # 3. Evidence Items (linked to project's findings)
+        job_ids = [j.id for j in jobs]
+        corrupted_evidence = []
+        evidence_count = 0
+        if job_ids:
+            assessment_findings = db.query(AssessmentFinding).filter(AssessmentFinding.job_id.in_(job_ids)).all()
+            af_ids = [af.id for af in assessment_findings]
+            if af_ids:
+                evidence_items = db.query(FindingEvidence).filter(FindingEvidence.finding_id.in_(af_ids)).all()
+                evidence_count = len(evidence_items)
+                for ev in evidence_items:
+                    payload = ev.payload or ""
+                    expected_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+                    if expected_hash != ev.sha256_hash:
+                        corrupted_evidence.append(ev.id)
+                        continue
+                    if ev.evidence_type and ev.evidence_type.upper() not in PERMITTED_EVIDENCE_TYPES:
+                        corrupted_evidence.append(ev.id)
+
+        # 4. Assets & Observations
+        assets = db.query(Asset).filter(Asset.project_id == project_id).all()
+        corrupted_assets = []
+        for a in assets:
+            if not a.canonical_identifier:
+                corrupted_assets.append(a.id)
+                continue
+            for obs in (a.observations or []):
+                if obs.confidence < 0.0 or obs.confidence > 1.0:
+                    corrupted_assets.append(a.id)
+                    break
+
+        # 5. Remediation Recommendations
+        remeds = db.query(RemediationRecommendation).filter(RemediationRecommendation.project_id == project_id).all()
+        corrupted_remeds = []
+        for r in remeds:
+            if not r.title or not r.status:
+                corrupted_remeds.append(r.id)
+
+        # 6. Verification Records
+        verifications = db.query(RemediationVerification).filter(RemediationVerification.project_id == project_id).all()
+        corrupted_verifs = []
+        for v in verifications:
+            if not v.outcome or not v.verifier_id or not v.finding_id:
+                corrupted_verifs.append(v.id)
+
+        all_valid = (
+            len(corrupted_jobs) == 0
+            and len(corrupted_findings) == 0
+            and len(corrupted_evidence) == 0
+            and len(corrupted_assets) == 0
+            and len(corrupted_remeds) == 0
+            and len(corrupted_verifs) == 0
+        )
+
+        return {
+            "project_id": project_id,
+            "is_valid": all_valid,
+            "assessment_records": {
+                "checked": len(jobs),
+                "valid": len(jobs) - len(corrupted_jobs),
+                "corrupted_ids": corrupted_jobs,
+            },
+            "findings": {
+                "checked": len(findings),
+                "valid": len(findings) - len(corrupted_findings),
+                "corrupted_ids": corrupted_findings,
+            },
+            "evidence_items": {
+                "checked": evidence_count,
+                "valid": evidence_count - len(corrupted_evidence),
+                "corrupted_ids": corrupted_evidence,
+            },
+            "assets": {
+                "checked": len(assets),
+                "valid": len(assets) - len(corrupted_assets),
+                "corrupted_ids": corrupted_assets,
+            },
+            "remediations": {
+                "checked": len(remeds),
+                "valid": len(remeds) - len(corrupted_remeds),
+                "corrupted_ids": corrupted_remeds,
+            },
+            "verifications": {
+                "checked": len(verifications),
+                "valid": len(verifications) - len(corrupted_verifs),
+                "corrupted_ids": corrupted_verifs,
+            },
+            "summary": (
+                f"Platform entity integrity {'verified completely' if all_valid else 'detected discrepancies'}: "
+                f"{len(jobs)} jobs, {len(findings)} findings, {evidence_count} evidence items, {len(assets)} assets checked."
+            ),
+        }

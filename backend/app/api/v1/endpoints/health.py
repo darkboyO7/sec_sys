@@ -36,7 +36,7 @@ def readiness_check(db: Session = Depends(get_db)):
         db_ok = True
         details["database"] = "reachable"
     except Exception as e:
-        details["database"] = f"error: {str(e)}"
+        details["database"] = "unreachable"
 
     # Check Schema tables exist
     try:
@@ -45,7 +45,7 @@ def readiness_check(db: Session = Depends(get_db)):
         migrations_ok = True
         details["schema"] = "initialized"
     except Exception as e:
-        details["schema"] = f"tables_missing_or_unmigrated: {str(e)}"
+        details["schema"] = "unmigrated_or_tables_missing"
 
     # Check Storage writability (data directory or temp)
     try:
@@ -57,7 +57,7 @@ def readiness_check(db: Session = Depends(get_db)):
         storage_ok = True
         details["storage"] = "writable"
     except Exception as e:
-        details["storage"] = f"unwritable: {str(e)}"
+        details["storage"] = "storage_unwritable"
 
     is_ready = db_ok and migrations_ok and storage_ok
     status_code = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
