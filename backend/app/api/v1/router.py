@@ -24,6 +24,7 @@ from app.api.v1.endpoints import (
     decisions,
     intelligence,
     operations,
+    diagnostics,
 )
 
 api_router = APIRouter()
@@ -52,3 +53,4 @@ api_router.include_router(monitoring.router, tags=["Continuous Monitoring & Recu
 api_router.include_router(decisions.router, tags=["Autonomous Security Decisions & Closed Loop"])
 api_router.include_router(intelligence.router, tags=["Security Intelligence & Adaptive Planning"])
 api_router.include_router(operations.router, prefix="/operations", tags=["Unified Autonomous Security Operations"])
+api_router.include_router(diagnostics.router, prefix="/diagnostics", tags=["Self-Diagnostics & Controlled Recovery"])

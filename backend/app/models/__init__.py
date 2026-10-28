@@ -103,6 +103,19 @@ from app.models.notification import (
     NotificationRecord,
     NotificationDeliveryRecord,
 )
+from app.models.diagnostics import (
+    ComponentHealthStatus,
+    DiagnosticSeverity,
+    DiagnosticConfidence,
+    DiagnosticCategory,
+    RecoveryActionType,
+    RecoveryOutcome,
+    SystemHealthSnapshot,
+    DiagnosticRunRecord,
+    DiagnosticFindingRecord,
+    RecoveryActionRecord,
+    FailurePatternRecord,
+)
 
 __all__ = [
     "Base",
@@ -191,4 +204,15 @@ __all__ = [
     "NotificationStatus",
     "NotificationRecord",
     "NotificationDeliveryRecord",
+    "ComponentHealthStatus",
+    "DiagnosticSeverity",
+    "DiagnosticConfidence",
+    "DiagnosticCategory",
+    "RecoveryActionType",
+    "RecoveryOutcome",
+    "SystemHealthSnapshot",
+    "DiagnosticRunRecord",
+    "DiagnosticFindingRecord",
+    "RecoveryActionRecord",
+    "FailurePatternRecord",
 ]

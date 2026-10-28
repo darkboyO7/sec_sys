@@ -43,6 +43,10 @@ import type {
   ProjectIntelligenceSummary,
   CoverageAudit,
   AdaptivePlan,
+  SystemHealthData,
+  DiagnosticRun,
+  RecoveryActionHistoryRecord,
+  FailurePattern,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1023,6 +1027,53 @@ async listUsers(): Promise<User[]> {
       method: 'POST',
       body: JSON.stringify({ action, notes }),
     });
+  }
+
+  // Prompt 12: Self-Diagnostics & Controlled Recovery
+  async getSystemHealth(): Promise<SystemHealthData> {
+    return this.request<SystemHealthData>('/diagnostics/health');
+  }
+
+  async runProjectDiagnostics(projectId: string): Promise<DiagnosticRun> {
+    return this.request<DiagnosticRun>(`/diagnostics/${projectId}/run`, {
+      method: 'POST',
+    });
+  }
+
+  async getRecentDiagnostics(projectId: string, limit: number = 10): Promise<{ project_id: string; recent_runs: DiagnosticRun[] }> {
+    return this.request<{ project_id: string; recent_runs: DiagnosticRun[] }>(`/diagnostics/${projectId}/recent?limit=${limit}`);
+  }
+
+  async executeRecoveryAction(
+    projectId: string,
+    actionType: string,
+    targetEntityType: string,
+    targetEntityId?: string | null,
+    targetResource?: string | null,
+    reason: string = ''
+  ): Promise<any> {
+    return this.request<any>(`/diagnostics/${projectId}/recover`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action_type: actionType,
+        target_entity_type: targetEntityType,
+        target_entity_id: targetEntityId,
+        target_resource: targetResource,
+        reason,
+      }),
+    });
+  }
+
+  async getRecoveryHistory(projectId: string, limit: number = 20): Promise<{ project_id: string; total: number; records: RecoveryActionHistoryRecord[] }> {
+    return this.request<{ project_id: string; total: number; records: RecoveryActionHistoryRecord[] }>(`/diagnostics/${projectId}/recovery-history?limit=${limit}`);
+  }
+
+  async getFailurePatterns(projectId: string): Promise<{ project_id: string; patterns_updated: number; total_patterns: number; patterns: FailurePattern[] }> {
+    return this.request<{ project_id: string; patterns_updated: number; total_patterns: number; patterns: FailurePattern[] }>(`/diagnostics/${projectId}/patterns`);
+  }
+
+  async getFailureKnowledgeBase(): Promise<Record<string, any>> {
+    return this.request<Record<string, any>>('/diagnostics/knowledge-base');
   }
 }
 

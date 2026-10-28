@@ -13,6 +13,9 @@ import {
   Bell,
   ShieldAlert,
   Layers,
+  Wrench,
+  HeartPulse,
+  RotateCcw,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -23,6 +26,10 @@ import type {
   DecisionLedgerEntry,
   SecurityNotification,
   OperationalSLOResponse,
+  SystemHealthData,
+  DiagnosticRun,
+  RecoveryActionHistoryRecord,
+  FailurePattern,
 } from '../types';
 
 interface AutonomousOperationsConsoleProps {
@@ -40,7 +47,7 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
   onNavigateToVerification: _onNavigateToVerification,
   onNavigateToAssessments: _onNavigateToAssessments,
 }) => {
-  const [activeTab, setActiveTab] = useState<'loop' | 'policy' | 'ledger' | 'slos' | 'notifications'>('loop');
+  const [activeTab, setActiveTab] = useState<'loop' | 'policy' | 'ledger' | 'slos' | 'notifications' | 'diagnostics'>('loop');
 
   // Closed loop state
   const [overview, setOverview] = useState<ClosedLoopOverview | null>(null);
@@ -69,11 +76,22 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
   const [providerStatus, setProviderStatus] = useState<any>(null);
   const [isRetryingNotifs, setIsRetryingNotifs] = useState(false);
 
+  // Self-Diagnostics & Recovery state
+  const [systemHealth, setSystemHealth] = useState<SystemHealthData | null>(null);
+  const [diagnosticRun, setDiagnosticRun] = useState<DiagnosticRun | null>(null);
+  const [recoveryHistory, setRecoveryHistory] = useState<RecoveryActionHistoryRecord[]>([]);
+  const [failurePatterns, setFailurePatterns] = useState<FailurePattern[]>([]);
+  const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
+  const [isExecutingRecovery, setIsExecutingRecovery] = useState(false);
+  const [selectedRecoveryAction, setSelectedRecoveryAction] = useState<string>('RECOVER_STUCK_JOB');
+  const [recoveryTargetId, setRecoveryTargetId] = useState<string>('');
+  const [recoveryReason, setRecoveryReason] = useState<string>('');
+
   const loadData = useCallback(async () => {
     if (!projectId) return;
     setIsLoading(true);
     try {
-      const [ov, decList, chList, pol, ledg, slos, notifs, prov] = await Promise.all([
+      const [ov, decList, chList, pol, ledg, slos, notifs, prov, hlth, diag, recHist, pats] = await Promise.all([
         api.getClosedLoopOverview(projectId).catch(() => null),
         api.listSecurityDecisions(projectId).catch(() => []),
         api.listPostureChanges(projectId, 25).catch(() => []),
@@ -82,6 +100,10 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
         api.getSLOMetrics(projectId, 30).catch(() => null),
         api.getNotifications(projectId, 25).catch(() => ({ total: 0, records: [] })),
         api.getNotificationProviderStatus(projectId).catch(() => null),
+        api.getSystemHealth().catch(() => null),
+        api.getRecentDiagnostics(projectId, 1).catch(() => ({ recent_runs: [] })),
+        api.getRecoveryHistory(projectId, 10).catch(() => ({ records: [] })),
+        api.getFailurePatterns(projectId).catch(() => ({ patterns: [] })),
       ]);
       setOverview(ov);
       setDecisions(decList);
@@ -92,6 +114,12 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
       setSloData(slos);
       setNotifications(notifs?.records || []);
       setProviderStatus(prov);
+      setSystemHealth(hlth);
+      if (diag?.recent_runs?.length > 0) {
+        setDiagnosticRun(diag.recent_runs[0]);
+      }
+      setRecoveryHistory(recHist?.records || []);
+      setFailurePatterns(pats?.patterns || []);
     } catch (err: any) {
       console.error('Failed to load unified operations data:', err);
     } finally {
@@ -185,6 +213,58 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
       setActionMessage({ text: err?.message || 'Failed to retry notifications.', isError: true });
     } finally {
       setIsRetryingNotifs(false);
+    }
+  };
+
+  const handleRunDiagnostics = async () => {
+    setIsRunningDiagnostics(true);
+    setActionMessage(null);
+    try {
+      const res = await api.runProjectDiagnostics(projectId);
+      setDiagnosticRun(res);
+      setActionMessage({
+        text: `Diagnostics completed: ${res.passed_checks}/${res.total_checks} checks passed. ${res.failed_checks} failed, ${res.warning_checks} warnings.`,
+        isError: res.failed_checks > 0,
+      });
+      loadData();
+    } catch (err: any) {
+      setActionMessage({
+        text: err?.message || 'Failed to run diagnostics.',
+        isError: true,
+      });
+    } finally {
+      setIsRunningDiagnostics(false);
+    }
+  };
+
+  const handleExecuteRecovery = async (actionType?: string, targetId?: string) => {
+    setIsExecutingRecovery(true);
+    setActionMessage(null);
+    const act = actionType || selectedRecoveryAction;
+    const tgt = targetId || recoveryTargetId;
+    try {
+      const res = await api.executeRecoveryAction(
+        projectId,
+        act,
+        'PROJECT',
+        tgt || null,
+        null,
+        recoveryReason || 'Operator executed recovery action'
+      );
+      setActionMessage({
+        text: `Recovery action ${act} executed with outcome: ${res.outcome}. ${res.verification_notes}`,
+        isError: res.outcome === 'FAILED',
+      });
+      setRecoveryTargetId('');
+      setRecoveryReason('');
+      loadData();
+    } catch (err: any) {
+      setActionMessage({
+        text: err?.message || 'Recovery action failed.',
+        isError: true,
+      });
+    } finally {
+      setIsExecutingRecovery(false);
     }
   };
 
@@ -329,6 +409,17 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
         >
           <Bell className="w-3.5 h-3.5" />
           Notifications ({notifications.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('diagnostics')}
+          className={`px-3 py-1.5 rounded-t-lg transition-colors flex items-center gap-1.5 ${
+            activeTab === 'diagnostics'
+              ? 'bg-cyber-800 text-accent-cyan border-b-2 border-accent-cyan font-bold'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Wrench className="w-3.5 h-3.5" />
+          Diagnostics & Recovery ({diagnosticRun?.findings?.length || 0})
         </button>
       </div>
 
@@ -758,6 +849,322 @@ export const AutonomousOperationsConsole: React.FC<AutonomousOperationsConsolePr
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 6: SELF-DIAGNOSTICS & CONTROLLED RECOVERY */}
+      {activeTab === 'diagnostics' && (
+        <div className="space-y-6">
+          {/* 1. Subsystem Health Matrix */}
+          <div className="bg-cyber-900/60 border border-cyber-800 rounded-lg p-4 space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-cyber-800 pb-2">
+              <div className="flex items-center gap-2">
+                <HeartPulse className="w-4 h-4 text-accent-cyan" />
+                <h4 className="text-xs font-bold font-mono text-white tracking-wide">
+                  Central System Health Engine (12 Subsystems)
+                </h4>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                    systemHealth?.overall_status === 'HEALTHY'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : systemHealth?.overall_status === 'DEGRADED'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}
+                >
+                  SYSTEM {systemHealth?.overall_status || 'UNKNOWN'}
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  {systemHealth?.healthy_count || 0} Healthy · {systemHealth?.degraded_count || 0} Degraded · {systemHealth?.unhealthy_count || 0} Unhealthy
+                </span>
+              </div>
+            </div>
+
+            {systemHealth?.components ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {Object.entries(systemHealth.components).map(([key, comp]) => (
+                  <div
+                    key={key}
+                    className="p-2.5 bg-cyber-950/80 border border-cyber-800/80 rounded-lg space-y-1 text-xs font-mono"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-[11px] truncate" title={comp.name}>
+                        {comp.name}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                          comp.status === 'HEALTHY'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : comp.status === 'DEGRADED'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                            : comp.status === 'NOT_CONFIGURED'
+                            ? 'bg-cyber-800 text-slate-400 border border-cyber-700'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                        }`}
+                      >
+                        {comp.status}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-tight line-clamp-2" title={comp.message}>
+                      {comp.message}
+                    </p>
+                    <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-cyber-900">
+                      <span>{comp.is_live_check ? '● Live Probe' : '○ Evidence'}</span>
+                      <span>{comp.last_successful_check ? new Date(comp.last_successful_check).toLocaleTimeString() : 'N/A'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-xs text-slate-500">Loading subsystem health...</div>
+            )}
+          </div>
+
+          {/* 2. Self-Diagnostics Run & Findings */}
+          <div className="bg-cyber-900/60 border border-cyber-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-cyber-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-accent-cyan" />
+                <h4 className="text-xs font-bold font-mono text-white tracking-wide">
+                  Safe Operational Self-Diagnostics
+                </h4>
+              </div>
+              <button
+                onClick={handleRunDiagnostics}
+                disabled={isRunningDiagnostics}
+                className="px-3 py-1.5 rounded-lg bg-accent-cyan/20 hover:bg-accent-cyan/30 text-xs font-mono font-bold text-accent-cyan border border-accent-cyan/40 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRunningDiagnostics ? 'animate-spin' : ''}`} />
+                {isRunningDiagnostics ? 'Inspecting System...' : 'Run Diagnostic Sweep'}
+              </button>
+            </div>
+
+            {diagnosticRun ? (
+              <div className="space-y-3">
+                <div className="p-2.5 bg-cyber-950/80 rounded border border-cyber-800/80 text-xs font-mono flex items-center justify-between">
+                  <span className="text-slate-300">{diagnosticRun.summary}</span>
+                  <span className="text-[10px] text-slate-500">Run ID: {diagnosticRun.run_id.slice(0, 8)}...</span>
+                </div>
+
+                {diagnosticRun.findings.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-lg font-mono">
+                    ✓ All diagnostic checks passed cleanly. Zero defects or inconsistencies detected.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {diagnosticRun.findings.map((f, idx) => (
+                      <div
+                        key={f.id || idx}
+                        className="p-3 bg-cyber-950/90 border border-cyber-800 rounded-lg space-y-2 text-xs font-mono"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                                f.severity === 'CRITICAL'
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                  : f.severity === 'HIGH'
+                                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                                  : f.severity === 'MEDIUM'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                              }`}
+                            >
+                              {f.severity}
+                            </span>
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-cyber-800 text-slate-400 border border-cyber-700">
+                              {f.category}
+                            </span>
+                            <span className="font-bold text-white">{f.title}</span>
+                          </div>
+
+                          {f.recovery_action_available && (
+                            <button
+                              onClick={() => handleExecuteRecovery(f.recovery_action_available || undefined, f.affected_entities[0])}
+                              disabled={isExecutingRecovery}
+                              className="px-2 py-1 rounded bg-accent-cyan/10 hover:bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/30 text-[10px] font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              Auto-Recover
+                            </button>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-slate-300">{f.description}</p>
+                        <div className="p-2 bg-cyber-900/60 rounded text-[10px] text-rose-300/90 font-mono">
+                          <span className="text-slate-500">Observed Issue: </span>{f.observed_issue}
+                        </div>
+                        <div className="text-[10px] text-emerald-400/90 font-mono">
+                          <span className="text-slate-500">Action: </span>{f.recommended_action}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-500">
+                Click &quot;Run Diagnostic Sweep&quot; to execute self-diagnostics.
+              </div>
+            )}
+          </div>
+
+          {/* 3. Controlled Recovery Action Center */}
+          <div className="bg-cyber-900/60 border border-cyber-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2 border-b border-cyber-800 pb-2">
+              <RotateCcw className="w-4 h-4 text-accent-cyan" />
+              <h4 className="text-xs font-bold font-mono text-white tracking-wide">
+                Controlled Recovery Action Center
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs font-mono">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400">Action Type</label>
+                <select
+                  value={selectedRecoveryAction}
+                  onChange={(e) => setSelectedRecoveryAction(e.target.value)}
+                  className="w-full bg-cyber-950 border border-cyber-700 rounded px-2.5 py-1.5 text-xs text-white"
+                >
+                  <option value="RECOVER_STUCK_JOB">RECOVER_STUCK_JOB</option>
+                  <option value="RETRY_ASSESSMENT">RETRY_ASSESSMENT</option>
+                  <option value="REQUEUE_NOTIFICATION">REQUEUE_NOTIFICATION</option>
+                  <option value="RECALCULATE_RISK_SCORES">RECALCULATE_RISK_SCORES</option>
+                  <option value="REBUILD_KNOWLEDGE_GRAPH">REBUILD_KNOWLEDGE_GRAPH</option>
+                  <option value="TRIGGER_BACKUP">TRIGGER_BACKUP</option>
+                  <option value="RESUME_MONITORING">RESUME_MONITORING</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400">Target Entity ID (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. job-id or notification-id"
+                  value={recoveryTargetId}
+                  onChange={(e) => setRecoveryTargetId(e.target.value)}
+                  className="w-full bg-cyber-950 border border-cyber-700 rounded px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400">Reason / Justification</label>
+                <input
+                  type="text"
+                  placeholder="Operator justification"
+                  value={recoveryReason}
+                  onChange={(e) => setRecoveryReason(e.target.value)}
+                  className="w-full bg-cyber-950 border border-cyber-700 rounded px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={() => handleExecuteRecovery()}
+                  disabled={isExecutingRecovery}
+                  className="w-full py-2 rounded bg-accent-cyan hover:bg-accent-cyan/90 text-cyber-950 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isExecutingRecovery ? 'animate-spin' : ''}`} />
+                  Execute Recovery
+                </button>
+              </div>
+            </div>
+
+            <div className="p-2 bg-cyber-950/60 rounded text-[10px] text-slate-400 font-mono border border-cyber-800/60">
+              ℹ Two-Phase Verification: Snapshots pre-condition condition → executes bounded recovery → re-evaluates post-condition → records immutable proof in Security Decision Ledger. Zero primary evidence tampering.
+            </div>
+          </div>
+
+          {/* 4. Recovery Execution History & Independent Verification */}
+          <div className="bg-cyber-900/60 border border-cyber-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2 border-b border-cyber-800 pb-2">
+              <CheckCircle2 className="w-4 h-4 text-accent-cyan" />
+              <h4 className="text-xs font-bold font-mono text-white tracking-wide">
+                Verified Recovery History ({recoveryHistory.length})
+              </h4>
+            </div>
+
+            {recoveryHistory.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500 font-mono">
+                No recovery actions recorded for this project yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-cyber-800 text-[10px] text-slate-400">
+                      <th className="py-1.5 px-2">Time</th>
+                      <th className="py-1.5 px-2">Action</th>
+                      <th className="py-1.5 px-2">Outcome</th>
+                      <th className="py-1.5 px-2">Verification Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recoveryHistory.map((rec) => (
+                      <tr key={rec.id} className="border-b border-cyber-800/40 hover:bg-cyber-900/40">
+                        <td className="py-2 px-2 text-slate-400 text-[10px] whitespace-nowrap">
+                          {new Date(rec.execution_timestamp).toLocaleString()}
+                        </td>
+                        <td className="py-2 px-2 font-bold text-white">{rec.action_type}</td>
+                        <td className="py-2 px-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              rec.outcome === 'SUCCESS'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                : rec.outcome === 'PARTIAL_SUCCESS'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            }`}
+                          >
+                            {rec.outcome}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 text-slate-300 text-[11px]">{rec.verification_notes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Continuous Improvement Failure Patterns */}
+          <div className="bg-cyber-900/60 border border-cyber-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2 border-b border-cyber-800 pb-2">
+              <Sparkles className="w-4 h-4 text-accent-cyan" />
+              <h4 className="text-xs font-bold font-mono text-white tracking-wide">
+                Continuous Improvement: Repeated Failure Patterns ({failurePatterns.length})
+              </h4>
+            </div>
+
+            {failurePatterns.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500 font-mono">
+                No repeated failure patterns detected. Operational reliability is optimal.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {failurePatterns.map((pat) => (
+                  <div
+                    key={pat.id}
+                    className="p-3 bg-cyber-950/80 border border-cyber-800 rounded-lg space-y-1.5 text-xs font-mono"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">{pat.pattern_key}</span>
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        {pat.occurrence_count} Occurrences
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">{pat.sample_error_message}</p>
+                    <div className="p-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded text-[10px] text-accent-cyan/90">
+                      💡 {pat.advisory_recommendation}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

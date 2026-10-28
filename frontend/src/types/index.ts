@@ -1176,3 +1176,82 @@ export interface OperationsDashboard {
     counts: Record<string, number>;
   };
 }
+
+// Prompt 12: Self-Diagnostics, Recovery, and Continuous Improvement
+export interface ComponentHealth {
+  component_id: string;
+  name: string;
+  status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'UNKNOWN' | 'NOT_CONFIGURED';
+  last_successful_check?: string | null;
+  last_failure?: string | null;
+  message: string;
+  dependencies: Record<string, any>;
+  is_live_check: boolean;
+  details: Record<string, any>;
+}
+
+export interface SystemHealthData {
+  timestamp: string;
+  overall_status: string;
+  healthy_count: number;
+  degraded_count: number;
+  unhealthy_count: number;
+  components: Record<string, ComponentHealth>;
+  environment: string;
+  version: string;
+}
+
+export interface DiagnosticFinding {
+  id?: string;
+  check_id: string;
+  category: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  confidence: 'CONFIRMED' | 'SUSPECTED' | 'UNAVAILABLE';
+  title: string;
+  description: string;
+  observed_issue: string;
+  affected_entities: any[];
+  recommended_action: string;
+  recovery_action_available?: string | null;
+}
+
+export interface DiagnosticRun {
+  run_id: string;
+  project_id: string;
+  timestamp: string;
+  total_checks: number;
+  passed_checks: number;
+  warning_checks: number;
+  failed_checks: number;
+  summary: string;
+  findings: DiagnosticFinding[];
+}
+
+export interface RecoveryActionHistoryRecord {
+  id: string;
+  action_type: string;
+  target_entity_type: string;
+  target_entity_id?: string | null;
+  target_resource?: string | null;
+  executed_by_id?: string | null;
+  execution_timestamp: string;
+  reason: string;
+  outcome: 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'INCONCLUSIVE';
+  pre_condition: Record<string, any>;
+  post_condition: Record<string, any>;
+  verification_notes: string;
+  verification_timestamp: string;
+  ledger_record_id?: string | null;
+}
+
+export interface FailurePattern {
+  id: string;
+  pattern_key: string;
+  category: string;
+  occurrence_count: number;
+  first_observed_at: string;
+  last_observed_at: string;
+  affected_targets: string[];
+  sample_error_message: string;
+  advisory_recommendation: string;
+}
