@@ -191,7 +191,11 @@ class ScopeEngine:
             parsed = urlparse(clean)
             host = parsed.hostname or clean
         else:
-            host = clean.split("/")[0].split(":")[0]
+            try:
+                parsed = urlparse(f"http://{clean}")
+                host = parsed.hostname or clean.split("/")[0].split(":")[0]
+            except Exception:
+                host = clean.split("/")[0].split(":")[0]
 
         host_clean = host.strip("[]")
         is_loopback = False
@@ -200,11 +204,13 @@ class ScopeEngine:
         if host_clean.lower() in ("localhost", "127.0.0.1", "::1") or host_clean.lower().endswith(".localhost"):
             is_loopback = True
 
+        cgnat_net = ipaddress.ip_network("100.64.0.0/10")
+
         try:
             ip = ipaddress.ip_address(host_clean)
             if ip.is_loopback:
                 is_loopback = True
-            if ip.is_private:
+            if ip.is_private or (ip.version == 4 and ip in cgnat_net) or not ip.is_global:
                 is_private = True
             return {"is_loopback": is_loopback, "is_private": is_private}
         except ValueError:
@@ -224,7 +230,7 @@ class ScopeEngine:
                 entry_ip = ipaddress.ip_address(entry[4][0])
                 if entry_ip.is_loopback:
                     is_loopback = True
-                if entry_ip.is_private:
+                if entry_ip.is_private or (entry_ip.version == 4 and entry_ip in cgnat_net) or not entry_ip.is_global:
                     is_private = True
         except Exception:
             pass

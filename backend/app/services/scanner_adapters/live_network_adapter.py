@@ -22,11 +22,32 @@ from app.services.scanner_adapters.base import (
 )
 
 
+CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+CLOUD_METADATA_IPS = {
+    "169.254.169.254",   # AWS IMDS, GCP metadata, Azure IMDS, Oracle, DO, OpenStack
+    "169.254.0.2",       # Oracle Cloud IMDS link-local
+    "fd00:ec2::254",     # AWS IPv6 IMDS
+    "100.100.100.200",   # Alibaba Cloud IMDS (RFC 6598 CGNAT space)
+    "147.75.204.1",      # Equinix Metal metadata
+}
+DANGEROUS_INTERNAL_HOSTNAMES = {
+    "metadata.google.internal",
+    "api.metadata.google.internal",
+    "metadata",
+    "instance-data",
+    "metadata.internal",
+    "kubernetes.default",
+    "kubernetes.default.svc",
+    "kubernetes.default.svc.cluster.local",
+}
+
+
 def check_ip_ssrf(ip_str: str, allow_loopback: bool = False, allow_private: bool = False) -> Tuple[bool, Optional[str]]:
     """
     Validates whether an IP address is safe for outbound network observation.
-    Blocks IPv4/IPv6 cloud metadata, link-local, multicast, reserved, and private address space.
+    Blocks IPv4/IPv6 cloud metadata, link-local, multicast, reserved, CGNAT, and private address space.
     Unwraps IPv4-mapped IPv6 addresses.
+    Cloud metadata service endpoints are strictly blocked under all circumstances.
     """
     try:
         ip = ipaddress.ip_address(ip_str)
@@ -39,8 +60,8 @@ def check_ip_ssrf(ip_str: str, allow_loopback: bool = False, allow_private: bool
 
     str_ip = str(ip)
 
-    # Cloud metadata service endpoints (AWS, GCP, Azure, Oracle Cloud)
-    if str_ip in ("169.254.169.254", "fd00:ec2::254") or str_ip.startswith("fd00:ec2:"):
+    # Cloud metadata service endpoints (AWS, GCP, Azure, Oracle Cloud, Alibaba Cloud) - NEVER permitted
+    if str_ip in CLOUD_METADATA_IPS or str_ip.startswith("fd00:ec2:"):
         return False, f"Target IP {str_ip} is cloud metadata service endpoint (SSRF blocked)."
 
     # Link-local addresses (IPv4 169.254.0.0/16, IPv6 fe80::/10)
@@ -65,11 +86,23 @@ def check_ip_ssrf(ip_str: str, allow_loopback: bool = False, allow_private: bool
     if ip.is_reserved:
         return False, f"Target IP {str_ip} is in IETF reserved address space (SSRF blocked)."
 
+    # Carrier-Grade NAT (RFC 6598 100.64.0.0/10)
+    if ip.version == 4 and ip in CGNAT_NETWORK:
+        if not allow_private:
+            return False, f"Target IP {str_ip} is within Carrier-Grade NAT (RFC 6598) address space (SSRF blocked)."
+        return True, None
+
     # Private network addresses (RFC 1918 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 and IPv6 ULA fc00::/7)
     # Strictly isolated from allow_loopback: allow_loopback=True can NEVER permit private RFC1918 addresses
     if ip.is_private:
         if not allow_private:
             return False, f"Target IP {str_ip} is within private/internal address space (SSRF blocked)."
+        return True, None
+
+    # Special-purpose non-globally routable addresses (RFC 6890 / IANA)
+    if not ip.is_global:
+        if not allow_private:
+            return False, f"Target IP {str_ip} is within non-global special address space (SSRF blocked)."
         return True, None
 
     return True, None
@@ -99,8 +132,8 @@ def resolve_and_verify_ssrf(
 
     # Check for known dangerous internal hostnames
     lower_host = clean_host.lower()
-    if lower_host in ("metadata.google.internal", "metadata", "instance-data", "metadata.internal"):
-        return False, f"Hostname '{clean_host}' is a cloud metadata hostname (SSRF blocked).", []
+    if lower_host in DANGEROUS_INTERNAL_HOSTNAMES or lower_host.endswith(".metadata.google.internal") or lower_host.endswith(".internal.cloudapp.net"):
+        return False, f"Hostname '{clean_host}' is a cloud metadata or cluster internal hostname (SSRF blocked).", []
 
     if (lower_host == "localhost" or lower_host.endswith(".localhost")) and not allow_loopback:
         return False, f"Hostname '{clean_host}' resolves to loopback (SSRF blocked).", []
@@ -1089,7 +1122,9 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         timeout: float,
         cancellation_check: Optional[Callable[[], bool]],
     ) -> AdapterResult:
-        host = target.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
+        url_sample = target if "://" in target else f"https://{target}"
+        parsed_target = urllib.parse.urlparse(url_sample)
+        host = (parsed_target.hostname or target).strip("[]")
         allow_loopback = bool(config.get("allow_loopback", False))
         allow_private = bool(config.get("allow_private", False))
 
@@ -1448,7 +1483,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
             )
             with opener.open(req, timeout=min(timeout, 5.0)) as resp:
                 if resp.getcode() == 200:
-                    content = resp.read().decode("utf-8", errors="replace")
+                    content = resp.read(65536).decode("utf-8", errors="replace")
                     disallow_lines = [line.strip() for line in content.splitlines() if line.lower().startswith("disallow:")]
                     sensitive_keywords = ["admin", "login", "internal", "backup", "secret", "private", "database", "api/v1/internal", "staging"]
                     disclosed = [
@@ -1506,7 +1541,9 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         timeout: float,
         cancellation_check: Optional[Callable[[], bool]],
     ) -> AdapterResult:
-        host = target.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
+        url_sample = target if "://" in target else f"https://{target}"
+        parsed_target = urllib.parse.urlparse(url_sample)
+        host = (parsed_target.hostname or target).strip("[]")
         allow_loopback = bool(config.get("allow_loopback", False))
         allow_private = bool(config.get("allow_private", False))
 
