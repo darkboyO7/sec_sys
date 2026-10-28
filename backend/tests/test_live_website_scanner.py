@@ -368,3 +368,83 @@ def test_dns_validation_to_connection_pins_verified_ip():
     assert conn.original_host == "example.internal"
     assert conn.host == "example.internal"
 
+
+def test_allow_loopback_cannot_permit_private_ips():
+    """
+    Security Regression Test:
+    Ensures allow_loopback=True strictly isolates loopback (127.0.0.0/8, ::1)
+    and CANNOT accidentally permit other private RFC1918/ULA IP addresses.
+    """
+    # Loopback targets MUST be permitted when allow_loopback=True
+    for safe_loopback in ["127.0.0.1", "127.0.0.2", "127.1.2.3", "::1", "::ffff:127.0.0.1"]:
+        is_safe, reason = check_ip_ssrf(safe_loopback, allow_loopback=True, allow_private=False)
+        assert is_safe is True, f"Expected loopback IP {safe_loopback} to be permitted, got reason: {reason}"
+
+    # Private internal IPs MUST be blocked even if allow_loopback=True
+    for private_ip in [
+        "10.0.0.1",
+        "10.254.254.254",
+        "172.16.0.1",
+        "172.31.255.255",
+        "192.168.0.1",
+        "192.168.1.100",
+        "fc00::1",
+        "fd12:3456:789a::1",
+        "::ffff:10.0.0.1",
+        "::ffff:192.168.1.1",
+    ]:
+        is_safe, reason = check_ip_ssrf(private_ip, allow_loopback=True, allow_private=False)
+        assert is_safe is False, f"Security Failure: Private IP {private_ip} was permitted under allow_loopback=True!"
+        assert "private" in reason.lower()
+
+    # Cloud metadata and link-local must remain strictly blocked
+    for restricted_ip in ["169.254.169.254", "169.254.1.1", "fe80::1", "0.0.0.0", "::"]:
+        is_safe, reason = check_ip_ssrf(restricted_ip, allow_loopback=True, allow_private=True)
+        assert is_safe is False, f"Security Failure: Restricted IP {restricted_ip} was permitted!"
+
+
+def test_allow_private_cannot_permit_loopback_or_metadata():
+    """
+    Security Regression Test:
+    Ensures allow_private=True allows internal RFC1918 targets when authorized,
+    but does NOT permit loopback addresses or cloud metadata endpoints.
+    """
+    # RFC 1918 allowed
+    assert check_ip_ssrf("10.0.0.1", allow_loopback=False, allow_private=True)[0] is True
+    assert check_ip_ssrf("192.168.1.1", allow_loopback=False, allow_private=True)[0] is True
+
+    # Loopback blocked
+    is_safe_lb, reason_lb = check_ip_ssrf("127.0.0.1", allow_loopback=False, allow_private=True)
+    assert is_safe_lb is False
+    assert "loopback" in reason_lb.lower()
+
+    # Cloud metadata blocked
+    is_safe_meta, _ = check_ip_ssrf("169.254.169.254", allow_loopback=False, allow_private=True)
+    assert is_safe_meta is False
+
+
+def test_bounded_redirect_handler_blocks_out_of_scope_redirect():
+    """
+    Security Regression Test:
+    Ensures BoundedRedirectHandler blocks redirect chains attempting to pivot
+    from an authorized loopback target to a private internal address or external host.
+    """
+    import urllib.error
+    from app.services.scanner_adapters.live_network_adapter import BoundedRedirectHandler
+
+    handler = BoundedRedirectHandler(
+        target_host="127.0.0.1",
+        allow_loopback=True,
+        allow_private=False,
+        max_redirects=3,
+    )
+
+    # 1. Pivot to external domain blocked by scope policy
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        handler.redirect_request(
+            req=None, fp=None, code=302, msg="Found", headers={}, newurl="http://evil.internal.corp/admin"
+        )
+    assert exc_info.value.code == 403
+    assert "scope policy" in str(exc_info.value)
+
+

@@ -51,19 +51,26 @@ def check_ip_ssrf(ip_str: str, allow_loopback: bool = False, allow_private: bool
     if ip.is_multicast:
         return False, f"Target IP {str_ip} is a multicast address (SSRF blocked)."
 
-    # Reserved / unspecified addresses (0.0.0.0/8, 240.0.0.0/4, ::)
-    if ip.is_reserved:
-        return False, f"Target IP {str_ip} is in IETF reserved address space (SSRF blocked)."
+    # Unspecified addresses (0.0.0.0, ::)
     if ip.is_unspecified:
         return False, f"Target IP {str_ip} is unspecified address (SSRF blocked)."
 
     # Loopback addresses (IPv4 127.0.0.0/8, IPv6 ::1)
-    if ip.is_loopback and not allow_loopback:
-        return False, f"Target IP {str_ip} is loopback localhost (SSRF blocked for production scanning)."
+    if ip.is_loopback:
+        if not allow_loopback:
+            return False, f"Target IP {str_ip} is loopback localhost (SSRF blocked for production scanning)."
+        return True, None
+
+    # Reserved addresses (IETF reserved, excluding loopback which was handled above)
+    if ip.is_reserved:
+        return False, f"Target IP {str_ip} is in IETF reserved address space (SSRF blocked)."
 
     # Private network addresses (RFC 1918 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 and IPv6 ULA fc00::/7)
-    if ip.is_private and not allow_loopback and not allow_private:
-        return False, f"Target IP {str_ip} is within private/internal address space (SSRF blocked)."
+    # Strictly isolated from allow_loopback: allow_loopback=True can NEVER permit private RFC1918 addresses
+    if ip.is_private:
+        if not allow_private:
+            return False, f"Target IP {str_ip} is within private/internal address space (SSRF blocked)."
+        return True, None
 
     return True, None
 
