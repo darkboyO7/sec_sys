@@ -22,6 +22,7 @@ import { ModelGovernanceView } from './views/ModelGovernanceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
+import { OrchestrationView } from './views/OrchestrationView';
 import { AuthModal } from './components/AuthModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { api } from './services/api';
@@ -166,6 +167,7 @@ export const App: React.FC = () => {
 
   const requiresProjectTab = [
     'scopes',
+    'orchestration',
     'assessments',
     'findings',
     'assets',
@@ -262,6 +264,10 @@ export const App: React.FC = () => {
                   currentUser={currentUser}
                   onRefresh={loadProjectData}
                 />
+              )}
+
+              {activeTab === 'orchestration' && (
+                <OrchestrationView currentProject={activeProject} />
               )}
 
               {activeTab === 'assessments' && (

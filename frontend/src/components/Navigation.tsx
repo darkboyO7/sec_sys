@@ -23,6 +23,7 @@ import {
 export type NavigationTab =
   | 'overview'
   | 'scopes'
+  | 'orchestration'
   | 'assessments'
   | 'findings'
   | 'assets'
@@ -70,6 +71,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'Scopes & Target Authorization',
       icon: Target,
       badge: targetCount > 0 ? targetCount : undefined,
+    },
+    {
+      id: 'orchestration' as NavigationTab,
+      label: 'Autonomous Orchestrator',
+      icon: Layers,
     },
     {
       id: 'assessments' as NavigationTab,

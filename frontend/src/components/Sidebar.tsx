@@ -26,6 +26,7 @@ import {
 export type NavigationTab =
   | 'overview'
   | 'scopes'
+  | 'orchestration'
   | 'assessments'
   | 'monitoring'
   | 'findings'
@@ -99,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       category: 'OPERATIONS & EXECUTION',
       items: [
+        { id: 'orchestration', label: 'Autonomous Orchestrator', icon: Layers },
         { id: 'assessments', label: 'Assessment Jobs', icon: PlayCircle, badge: assessmentCount > 0 ? assessmentCount : undefined },
         { id: 'monitoring', label: 'Continuous Monitor', icon: Clock },
         { id: 'findings', label: 'Finding Lifecycle', icon: ShieldAlert, badge: findingCount > 0 ? findingCount : undefined },

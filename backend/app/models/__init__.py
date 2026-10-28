@@ -116,6 +116,18 @@ from app.models.diagnostics import (
     RecoveryActionRecord,
     FailurePatternRecord,
 )
+from app.models.orchestration import (
+    OrchestrationState,
+    OrchestrationEventType,
+    OrchestrationActionType,
+    OutcomeMeasurementStatus,
+    EventProcessingStatus,
+    OrchestrationEventRecord,
+    OrchestrationWorkflowRecord,
+    InvalidationStatus,
+    DependencyInvalidationRecord,
+    AdaptiveOptimizationRecord,
+)
 
 __all__ = [
     "Base",
@@ -215,4 +227,14 @@ __all__ = [
     "DiagnosticFindingRecord",
     "RecoveryActionRecord",
     "FailurePatternRecord",
+    "OrchestrationState",
+    "OrchestrationEventType",
+    "OrchestrationActionType",
+    "OutcomeMeasurementStatus",
+    "EventProcessingStatus",
+    "OrchestrationEventRecord",
+    "OrchestrationWorkflowRecord",
+    "InvalidationStatus",
+    "DependencyInvalidationRecord",
+    "AdaptiveOptimizationRecord",
 ]

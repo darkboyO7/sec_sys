@@ -1075,6 +1075,79 @@ async listUsers(): Promise<User[]> {
   async getFailureKnowledgeBase(): Promise<Record<string, any>> {
     return this.request<Record<string, any>>('/diagnostics/knowledge-base');
   }
+
+  // Autonomous Security Orchestration (Prompt 15)
+  async getOrchestrationDashboard(projectId: string): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/dashboard`);
+  }
+
+  async listOrchestrationWorkflows(projectId: string, state?: string, limit: number = 20): Promise<any> {
+    const query = state ? `?state=${state}&limit=${limit}` : `?limit=${limit}`;
+    return this.request<any>(`/orchestration/${projectId}/workflows${query}`);
+  }
+
+  async getOrchestrationWorkflow(projectId: string, workflowId: string): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/workflows/${workflowId}`);
+  }
+
+  async ingestOrchestrationEvent(
+    projectId: string,
+    eventType: string,
+    targetResource: string,
+    payload: Record<string, any> = {},
+    eventSource: string = 'OPERATOR'
+  ): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/events`, {
+      method: 'POST',
+      body: JSON.stringify({
+        event_type: eventType,
+        target_resource: targetResource,
+        payload,
+        event_source: eventSource,
+      }),
+    });
+  }
+
+  async approveOrchestrationWorkflow(projectId: string, workflowId: string, notes: string = ''): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/workflows/${workflowId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async rejectOrchestrationWorkflow(projectId: string, workflowId: string, notes: string = ''): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/workflows/${workflowId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async suspendOrchestrationWorkflow(projectId: string, workflowId: string, notes: string = ''): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/workflows/${workflowId}/suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async resumeOrchestrationWorkflow(projectId: string, workflowId: string): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/workflows/${workflowId}/resume`, {
+      method: 'POST',
+    });
+  }
+
+  async retryOrchestrationWorkflow(projectId: string, workflowId: string): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/workflows/${workflowId}/retry`, {
+      method: 'POST',
+    });
+  }
+
+  async getAdaptiveOptimizations(projectId: string, limit: number = 10): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/optimizations?limit=${limit}`);
+  }
+
+  async getDependencyInvalidations(projectId: string, limit: number = 20): Promise<any> {
+    return this.request<any>(`/orchestration/${projectId}/invalidations?limit=${limit}`);
+  }
 }
 
 export const api = new ApiService();

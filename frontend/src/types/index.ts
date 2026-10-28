@@ -1255,3 +1255,131 @@ export interface FailurePattern {
   sample_error_message: string;
   advisory_recommendation: string;
 }
+
+// Autonomous Security Orchestration (Prompt 15)
+export type OrchestrationState =
+  | 'IDLE'
+  | 'EVENT_RECEIVED'
+  | 'CONTEXT_GATHERED'
+  | 'DECISION_PENDING'
+  | 'AWAITING_APPROVAL'
+  | 'ACTION_QUEUED'
+  | 'ACTION_RUNNING'
+  | 'VERIFYING_OUTCOME'
+  | 'COMPLETED'
+  | 'PARTIALLY_COMPLETED'
+  | 'FAILED'
+  | 'SUSPENDED';
+
+export type OrchestrationEventType =
+  | 'ASSET_DISCOVERED'
+  | 'CONFIG_CHANGED'
+  | 'SCAN_COMPLETED'
+  | 'FINDING_DETECTED'
+  | 'REMEDIATION_APPLIED'
+  | 'INTEGRITY_ALERT'
+  | 'DIAGNOSTIC_FAILURE'
+  | 'SCHEDULED_POLL'
+  | 'MANUAL_TRIGGER';
+
+export type OrchestrationActionType =
+  | 'REASSESS_CHANGED_ASSET'
+  | 'REFRESH_STALE_EVIDENCE'
+  | 'RETRY_FAILED_ASSESSMENT'
+  | 'RECALCULATE_RISK_AND_PATHS'
+  | 'RECOMMEND_REMEDIATION'
+  | 'REQUEST_HUMAN_APPROVAL'
+  | 'SCHEDULE_INDEPENDENT_RETEST'
+  | 'RUN_DIAGNOSTICS'
+  | 'SUSPEND_ACTIVITY'
+  | 'NO_ACTION_REQUIRED';
+
+export interface OrchestrationEvent {
+  id: string;
+  project_id: string;
+  event_type: OrchestrationEventType;
+  event_source: string;
+  dedup_key: string;
+  target_resource: string;
+  payload: Record<string, any>;
+  status: 'RECEIVED' | 'PROCESSED' | 'DEDUPLICATED' | 'DEFERRED' | 'REJECTED' | 'FAILED';
+  coalesced_count: number;
+  received_at: string;
+  processed_at?: string | null;
+  rejection_reason?: string | null;
+}
+
+export interface OrchestrationWorkflow {
+  id: string;
+  project_id: string;
+  state: OrchestrationState;
+  trigger_event_id?: string | null;
+  workflow_type: string;
+  target_resource: string;
+  context_data: Record<string, any>;
+  recommended_action?: OrchestrationActionType | null;
+  action_rationale?: string | null;
+  confidence: number;
+  uncertainty: number;
+  required_approval_role?: string | null;
+  approved_by_id?: string | null;
+  approved_at?: string | null;
+  locked_by?: string | null;
+  attempt_count: number;
+  max_retries: number;
+  suspension_reason?: string | null;
+  failure_reason?: string | null;
+  partial_results: Record<string, any>;
+  outcome_status?: string | null;
+  outcome_measurement: Record<string, any>;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrchestrationDashboard {
+  project_id: string;
+  timestamp: string;
+  summary: {
+    total_workflows: number;
+    active_workflows: number;
+    pending_approvals: number;
+    suspended_workflows: number;
+    failed_workflows: number;
+    completed_workflows: number;
+  };
+  active_workflows: OrchestrationWorkflow[];
+  recent_events: OrchestrationEvent[];
+  pending_approvals: OrchestrationWorkflow[];
+}
+
+export interface AdaptiveOptimization {
+  id: string;
+  project_id: string;
+  optimization_name: string;
+  objective: string;
+  evaluation_metric: string;
+  baseline_value: number;
+  evaluated_value: number;
+  threshold_value: number;
+  dataset_summary: Record<string, any>;
+  is_accepted: boolean;
+  rejection_reason?: string | null;
+  evaluated_by_model: string;
+  evaluated_at: string;
+}
+
+export interface DependencyInvalidation {
+  id: string;
+  project_id: string;
+  source_entity_type: string;
+  source_entity_id: string;
+  invalidation_type: string;
+  invalidated_targets: Array<Record<string, any>>;
+  recalculation_status: 'PENDING' | 'RECALCULATED' | 'SUPERSEDED' | 'FAILED';
+  provenance: Record<string, any>;
+  recalculated_at?: string | null;
+  created_at: string;
+}
+
