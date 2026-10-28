@@ -36,6 +36,10 @@ import type {
   AttackPathAnalysisResponse,
   RemediationRecommendation,
   RecommendationStatus,
+  ClosedLoopOverview,
+  SecurityDecision,
+  PostureChange,
+  DecisionStatus,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -875,7 +879,56 @@ async listUsers(): Promise<User[]> {
   async listMonitoringRuns(projectId: string): Promise<any[]> {
     return this.request(`/projects/${projectId}/monitoring/runs`);
   }
-}
+  // Autonomous Security Intelligence & Closed-Loop Decisions (Prompt 6)
+  async getClosedLoopOverview(projectId: string): Promise<ClosedLoopOverview> {
+    return this.request<ClosedLoopOverview>(`/projects/${projectId}/closed-loop/overview`);
+  }
 
+  async listSecurityDecisions(
+    projectId: string,
+    statusFilter?: DecisionStatus
+  ): Promise<SecurityDecision[]> {
+    const query = statusFilter ? `?status_filter=${statusFilter}` : '';
+    return this.request<SecurityDecision[]>(`/projects/${projectId}/decisions${query}`);
+  }
+
+  async evaluateDecisions(
+    projectId: string,
+    options?: { include_reassessment?: boolean; include_validation?: boolean; include_verification?: boolean }
+  ): Promise<SecurityDecision[]> {
+    return this.request<SecurityDecision[]>(`/projects/${projectId}/decisions/evaluate`, {
+      method: 'POST',
+      body: JSON.stringify(options || {
+        include_reassessment: true,
+        include_validation: true,
+        include_verification: true,
+      }),
+    });
+  }
+
+  async approveDecision(projectId: string, decisionId: string): Promise<SecurityDecision> {
+    return this.request<SecurityDecision>(`/projects/${projectId}/decisions/${decisionId}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  async executeDecision(
+    projectId: string,
+    decisionId: string,
+    payload?: { notes?: string; force?: boolean }
+  ): Promise<SecurityDecision> {
+    return this.request<SecurityDecision>(`/projects/${projectId}/decisions/${decisionId}/execute`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {
+        notes: 'Executed via unified security operations dashboard',
+        force: false,
+      }),
+    });
+  }
+
+  async listPostureChanges(projectId: string, limit: number = 50): Promise<PostureChange[]> {
+    return this.request<PostureChange[]>(`/projects/${projectId}/changes?limit=${limit}`);
+  }
+}
 
 export const api = new ApiService();

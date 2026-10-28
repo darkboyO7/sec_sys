@@ -15,6 +15,7 @@ import {
 import type { Project, ScopeTarget, ScopeExclusion, AuditEvent, AssessmentJob } from '../types';
 import { ScopeValidationConsole } from '../components/ScopeValidationConsole';
 import { EmptyState } from '../components/EmptyState';
+import { AutonomousOperationsConsole } from '../components/AutonomousOperationsConsole';
 
 interface OverviewViewProps {
   activeProject: Project | null;
@@ -32,6 +33,7 @@ interface OverviewViewProps {
   onNavigateToAssessments?: () => void;
   onNavigateToAudit: () => void;
   onNavigateToRisk?: () => void;
+  onNavigateToVerification?: () => void;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
@@ -50,6 +52,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onNavigateToAssessments,
   onNavigateToAudit,
   onNavigateToRisk,
+  onNavigateToVerification,
 }) => {
   if (!activeProject) {
     return (
@@ -203,6 +206,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </p>
         </div>
       </div>
+
+            {/* 2.5 Autonomous Security Intelligence & Closed-Loop Operations */}
+      <AutonomousOperationsConsole
+        projectId={activeProject.id}
+        onNavigateToFindings={onNavigateToFindings}
+        onNavigateToAssets={onNavigateToAssets}
+        onNavigateToVerification={onNavigateToVerification}
+        onNavigateToAssessments={onNavigateToAssessments}
+      />
 
       {/* 3. Main Operational Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

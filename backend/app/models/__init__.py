@@ -76,12 +76,18 @@ from app.models.adaptive_defense import (
     MorphStatePosture,
     MorphStateHistory,
 )
-
 from app.models.monitoring import (
     ScheduleFrequency,
     ScheduleStatus,
     MonitoringSchedule,
     MonitoringRun,
+)
+from app.models.decision import (
+    ChangeType,
+    DecisionActionType,
+    DecisionStatus,
+    PostureChangeRecord,
+    SecurityDecisionRecord,
 )
 
 __all__ = [
@@ -154,4 +160,9 @@ __all__ = [
     "ScheduleStatus",
     "MonitoringSchedule",
     "MonitoringRun",
+    "ChangeType",
+    "DecisionActionType",
+    "DecisionStatus",
+    "PostureChangeRecord",
+    "SecurityDecisionRecord",
 ]

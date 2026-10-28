@@ -228,6 +228,7 @@ export const App: React.FC = () => {
               onNavigateToAssessments={() => setActiveTab('assessments')}
               onNavigateToAudit={() => setActiveTab('audit')}
               onNavigateToRisk={() => setActiveTab('risk')}
+              onNavigateToVerification={() => setActiveTab('verification')}
             />
           )}
 

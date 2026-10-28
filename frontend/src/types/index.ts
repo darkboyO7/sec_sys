@@ -875,3 +875,90 @@ export interface SiemExportResponse {
   stream: string[];
   exported_at: string;
 }
+
+
+// Prompt 6: Autonomous Security Intelligence & Closed-Loop Operations
+export type ChangeType =
+  | 'NEW_ASSET'
+  | 'REMOVED_ASSET'
+  | 'MODIFIED_ENDPOINT'
+  | 'NEW_SERVICE'
+  | 'CHANGED_HTTP_STATUS'
+  | 'CHANGED_TLS_CONFIG'
+  | 'NEW_VULNERABILITY'
+  | 'RECURRING_VULNERABILITY'
+  | 'RESOLVED_VULNERABILITY'
+  | 'SEVERITY_CHANGED'
+  | 'RISK_SCORE_CHANGED'
+  | 'ATTACK_PATH_CHANGED'
+  | 'REMEDIATION_OUTCOME'
+  | 'INCONCLUSIVE_PROBE';
+
+export type DecisionActionType =
+  | 'REASSESS_CHANGED_ASSET'
+  | 'VALIDATE_UNCERTAIN_FINDING'
+  | 'INVESTIGATE_HIGH_IMPACT_EXPOSURE'
+  | 'REFRESH_STALE_EVIDENCE'
+  | 'PRIORITIZE_REMEDIATION'
+  | 'VERIFY_APPLIED_FIX'
+  | 'RECALCULATE_RISK_AND_PATHS'
+  | 'REQUEST_HUMAN_REVIEW';
+
+export type DecisionStatus =
+  | 'PROPOSED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXECUTING'
+  | 'EXECUTED'
+  | 'SUPERSEDED'
+  | 'FAILED';
+
+export interface PostureChange {
+  id: string;
+  project_id: string;
+  change_type: ChangeType;
+  target_resource: string;
+  title: string;
+  previous_state: Record<string, any>;
+  new_state: Record<string, any>;
+  evidence_summary: string;
+  confidence: number;
+  is_confirmed: boolean;
+  created_at: string;
+}
+
+export interface SecurityDecision {
+  id: string;
+  project_id: string;
+  action_type: DecisionActionType;
+  status: DecisionStatus;
+  title: string;
+  triggering_observation: string;
+  evidence_considered: Record<string, any>;
+  selected_action: string;
+  rationale: string;
+  confidence: number;
+  uncertainty: number;
+  target_id?: string | null;
+  target_resource?: string | null;
+  job_id?: string | null;
+  required_approval_role?: string | null;
+  approved_by_id?: string | null;
+  approved_at?: string | null;
+  executed_at?: string | null;
+  execution_outcome?: Record<string, any> | null;
+  posture_improvement_measured?: Record<string, any> | null;
+  created_at: string;
+}
+
+export interface ClosedLoopOverview {
+  project_id: string;
+  active_posture: string;
+  total_posture_changes: number;
+  unresolved_changes: number;
+  proposed_decisions_count: number;
+  executed_decisions_count: number;
+  recent_changes: PostureChange[];
+  pending_decisions: SecurityDecision[];
+  verified_improvements_count: number;
+}

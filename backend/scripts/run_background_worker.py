@@ -101,6 +101,26 @@ def run_worker_loop(
                     len(executed_job.findings),
                     duration_s,
                 )
+
+                # Trigger Prompt 6 Autonomous Closed-Loop Intelligence: change detection & decision proposals
+                try:
+                    from app.services.change_detection_service import ChangeDetectionService
+                    from app.services.security_decision_service import SecurityDecisionService
+
+                    deltas = ChangeDetectionService.analyze_assessment_deltas(db=db, job=executed_job)
+                    if deltas:
+                        logger.info("Recorded %d posture change delta(s) for job %s.", len(deltas), executed_job.id)
+                    proposals = SecurityDecisionService.evaluate_and_propose_decisions(
+                        db=db, project_id=executed_job.project_id
+                    )
+                    if proposals:
+                        logger.info(
+                            "Generated/refreshed %d autonomous security decision proposal(s) for project %s.",
+                            len(proposals),
+                            executed_job.project_id,
+                        )
+                except Exception as eval_err:
+                    logger.warning("Error running autonomous change analysis for job %s: %s", executed_job.id, eval_err)
                 if once:
                     break
                 continue  # Immediately check for another queued job
