@@ -85,6 +85,7 @@ class VulnerabilityFindingDetail(VulnerabilityFindingRead):
 class FindingTransitionRequest(BaseModel):
     to_status: FindingLifecycleStatus
     reason: str = Field(..., min_length=5, max_length=2000)
+    expected_status: Optional[FindingLifecycleStatus] = None
     expires_at: Optional[datetime] = None
     compensating_controls: Optional[str] = Field(None, max_length=2000)
     verification_job_id: Optional[str] = None

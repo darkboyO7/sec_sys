@@ -294,6 +294,16 @@ def transition_finding(
             detail="Finding not found in specified project",
         )
 
+    # Optimistic concurrency check: if caller provided an expected current status, verify it
+    if transition_in.expected_status and finding.status != transition_in.expected_status:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Concurrent transition conflict: Expected finding status '{transition_in.expected_status.value}' "
+                f"but current status is '{finding.status.value}'."
+            ),
+        )
+
     actor_role = _get_user_project_role(project_id, current_user, db)
     client_ip = get_client_ip(request)
 

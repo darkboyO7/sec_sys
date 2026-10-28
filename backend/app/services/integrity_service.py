@@ -443,10 +443,20 @@ class IntegrityService:
 
         merkle_tree = MerkleTree(event_hashes)
 
+        if not events:
+            chain_status = "EMPTY"
+        elif len(tampered_ids) > 0:
+            chain_status = "TAMPERED"
+        elif any(ev.event_hash is None for ev in events):
+            chain_status = "LEGACY_UNVERIFIED"
+        else:
+            chain_status = "VALID"
+
         return {
             "project_id": project_id,
             "total_events_checked": len(events),
             "is_valid": len(tampered_ids) == 0,
+            "chain_status": chain_status,
             "tampered_event_ids": tampered_ids,
             "merkle_root": merkle_tree.root_hash,
             "timestamp_range": {
@@ -454,7 +464,7 @@ class IntegrityService:
                 "latest": events[-1].timestamp.isoformat() if events else None,
             },
             "summary": (
-                f"Audit ledger integrity verified: {len(events)} events checked, "
+                f"Audit ledger integrity verified ({chain_status}): {len(events)} events checked, "
                 f"{len(tampered_ids)} tampered records detected."
             ),
         }

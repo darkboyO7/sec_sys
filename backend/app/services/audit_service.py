@@ -1,7 +1,8 @@
 import json
 import hashlib
+import threading
 from typing import Any, Dict, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 from sqlalchemy.orm import Session
 from app.models.audit import AuditEvent
@@ -65,8 +66,11 @@ def compute_audit_event_hash(
 
 
 class AuditService:
-    @staticmethod
+    _chain_lock = threading.Lock()
+
+    @classmethod
     def record_event(
+        cls,
         db: Session,
         action: str,
         target_type: str,
@@ -81,35 +85,43 @@ class AuditService:
         """
         Record an immutable audit log entry.
         Fails closed or logs fatal error if audit persistence fails.
+        Enforces monotonic timestamps and serialized hash-chain calculation.
         """
         clean_details = sanitize_audit_details(details or {})
         now = datetime.now(timezone.utc)
         proj_str = str(project_id) if project_id is not None else None
         target_id_str = str(target_id) if target_id is not None else None
 
-        # Fetch previous audit event in chain for this project (or globally)
-        try:
-            query = db.query(AuditEvent)
-            if proj_str:
-                query = query.filter(AuditEvent.project_id == proj_str)
-            else:
-                query = query.filter(AuditEvent.project_id.is_(None))
-            last_event = query.order_by(AuditEvent.timestamp.desc(), AuditEvent.id.desc()).first()
-            prev_hash = last_event.event_hash if last_event else None
-        except Exception:
-            prev_hash = None
+        with cls._chain_lock:
+            # Fetch previous audit event in chain for this project (or globally)
+            try:
+                query = db.query(AuditEvent)
+                if proj_str:
+                    query = query.filter(AuditEvent.project_id == proj_str)
+                else:
+                    query = query.filter(AuditEvent.project_id.is_(None))
+                last_event = query.order_by(AuditEvent.timestamp.desc(), AuditEvent.id.desc()).first()
+                prev_hash = last_event.event_hash if last_event else None
+                if last_event and last_event.timestamp:
+                    last_ts = last_event.timestamp
+                    if last_ts.tzinfo is None:
+                        last_ts = last_ts.replace(tzinfo=timezone.utc)
+                    if last_ts >= now:
+                        now = last_ts + timedelta(microseconds=1)
+            except Exception:
+                prev_hash = None
 
-        event_hash = compute_audit_event_hash(
-            prev_hash=prev_hash,
-            timestamp=now,
-            actor_id=actor_id,
-            action=action,
-            target_type=target_type,
-            target_id=target_id_str,
-            project_id=proj_str,
-            outcome=outcome,
-            details=clean_details,
-        )
+            event_hash = compute_audit_event_hash(
+                prev_hash=prev_hash,
+                timestamp=now,
+                actor_id=actor_id,
+                action=action,
+                target_type=target_type,
+                target_id=target_id_str,
+                project_id=proj_str,
+                outcome=outcome,
+                details=clean_details,
+            )
 
         try:
             event = AuditEvent(
