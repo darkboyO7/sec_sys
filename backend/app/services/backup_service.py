@@ -1,3 +1,4 @@
+from urllib.parse import unquote
 import os
 import shutil
 import hashlib
@@ -92,12 +93,12 @@ class BackupRecoveryService:
                 or (getattr(db.bind, "engine", None).url if getattr(db.bind, "engine", None) else None)
                 or settings.DATABASE_URL
             )
-            raw_path = db_url.replace("sqlite:///", "").replace("sqlite://", "")
+            raw_path = unquote(db_url.replace("sqlite:///", "").replace("sqlite://", ""))
             source_file = Path(raw_path).resolve()
 
             dst_conn = sqlite3.connect(str(backup_path))
             try:
-                src_conn = sqlite3.connect(f"file:{source_file.as_posix()}?mode=ro", uri=True)
+                src_conn = sqlite3.connect(f"file:///{source_file.as_posix().lstrip('/')}?mode=ro", uri=True)
                 try:
                     src_conn.backup(dst_conn)
                 finally:
@@ -232,6 +233,70 @@ class BackupRecoveryService:
                     test_restore_file.unlink()
                 except Exception:
                     pass
+
+    @classmethod
+    def restore_database_from_backup(
+        cls,
+        db: Session,
+        backup_file_path: str,
+        expected_sha256: str,
+        target_db_path: Optional[str] = None,
+        actor_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        sandbox_res = cls.verify_and_test_restore(
+            backup_file_path=backup_file_path,
+            expected_sha256=expected_sha256,
+        )
+        if not sandbox_res.get("is_valid"):
+            raise ValueError(f"Pre-restore sandbox verification failed: {sandbox_res.get('integrity_result')}")
+
+        backup_conn = sqlite3.connect(backup_file_path)
+        b_cur = backup_conn.cursor()
+        b_cur.execute("SELECT id, prev_event_hash, event_hash FROM audit_events ORDER BY timestamp ASC")
+        audit_rows = b_cur.fetchall()
+        backup_conn.close()
+
+        if target_db_path:
+            target_path = Path(target_db_path).resolve()
+        else:
+            db_url = str(
+                getattr(db.bind, "url", None)
+                or (getattr(db.bind, "engine", None).url if getattr(db.bind, "engine", None) else None)
+                or settings.DATABASE_URL
+            )
+            raw_path = unquote(db_url.replace("sqlite:///", "").replace("sqlite://", ""))
+            target_path = Path(raw_path).resolve()
+
+        now_ts = int(time.time())
+        rollback_path = target_path.parent / f"vapt_pre_restore_rollback_{now_ts}.db"
+        if target_path.exists():
+            shutil.copyfile(target_path, rollback_path)
+
+        shutil.copyfile(backup_file_path, target_path)
+
+        post_conn = sqlite3.connect(str(target_path))
+        p_cur = post_conn.cursor()
+        p_cur.execute("PRAGMA integrity_check")
+        post_integrity = p_cur.fetchone()[0]
+        p_cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table'")
+        post_table_count = p_cur.fetchone()[0]
+        post_conn.close()
+
+        if post_integrity != "ok":
+            if rollback_path.exists():
+                shutil.copyfile(rollback_path, target_path)
+            raise RuntimeError(f"Post-restore live integrity check failed ({post_integrity}). Reverted to pre-restore rollback.")
+
+        return {
+            "status": "RESTORED",
+            "backup_file_path": str(backup_file_path),
+            "target_path": str(target_path),
+            "rollback_path": str(rollback_path),
+            "tables_restored": post_table_count,
+            "audit_events_count": len(audit_rows),
+            "integrity_check": post_integrity,
+            "sandbox_verification": sandbox_res,
+        }
 
     @classmethod
     def export_project_manifest(

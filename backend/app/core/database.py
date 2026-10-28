@@ -23,7 +23,7 @@ def get_engine_kwargs(db_url: str = settings.DATABASE_URL) -> dict:
         "echo": settings.DEBUG,
     }
     if db_url.startswith("sqlite"):
-        kwargs["connect_args"] = {"check_same_thread": False}
+        kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30.0}
     elif db_url.startswith("postgresql"):
         kwargs["pool_size"] = getattr(settings, "POSTGRES_POOL_SIZE", 20)
         kwargs["max_overflow"] = getattr(settings, "POSTGRES_MAX_OVERFLOW", 10)
@@ -55,6 +55,8 @@ if settings.DATABASE_URL.startswith("sqlite"):
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA wal_autocheckpoint=1000")
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

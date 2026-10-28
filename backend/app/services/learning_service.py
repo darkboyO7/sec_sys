@@ -491,14 +491,22 @@ class ModelGovernanceService:
             .first()
         )
 
-        if current_active:
-            current_active.is_active = False
-            current_active.status = ModelStatus.DEPRECATED
-            model.rollback_target_id = current_active.id
+        now = utc_now()
+        # Atomic switch: deactivate any currently active models for this project & model_name
+        db.query(GovernedModel).filter(
+            GovernedModel.project_id == project_id,
+            GovernedModel.model_name == model.model_name,
+            GovernedModel.is_active.is_(True),
+        ).update(
+            {"is_active": False, "status": ModelStatus.DEPRECATED},
+            synchronize_session="fetch",
+        )
 
         model.is_active = True
         model.status = ModelStatus.ACTIVE
-        model.activated_at = utc_now()
+        model.activated_at = now
+        if current_active:
+            model.rollback_target_id = current_active.id
 
         AuditService.log(
             db=db,
@@ -548,7 +556,32 @@ class ModelGovernanceService:
         if not target_model:
             raise ValueError(f"Rollback target model '{target_id}' not found.")
 
-        # Demote current model
+        # Atomic optimistic concurrency check: demote current active model
+        rows = (
+            db.query(GovernedModel)
+            .filter(
+                GovernedModel.id == model.id,
+                GovernedModel.is_active.is_(True),
+            )
+            .update(
+                {"is_active": False, "status": ModelStatus.ROLLED_BACK},
+                synchronize_session="fetch",
+            )
+        )
+        if rows == 0:
+            fresh = db.query(GovernedModel).filter(GovernedModel.id == model.id).first()
+            raise ValueError(f"Concurrency conflict: Model '{model.id}' is no longer active (status: {fresh.status.value if fresh else 'DELETED'}).")
+
+        # Deactivate any other active model with same model_name to guarantee single active
+        db.query(GovernedModel).filter(
+            GovernedModel.project_id == project_id,
+            GovernedModel.model_name == target_model.model_name,
+            GovernedModel.is_active.is_(True),
+        ).update(
+            {"is_active": False, "status": ModelStatus.DEPRECATED},
+            synchronize_session="fetch",
+        )
+
         model.is_active = False
         model.status = ModelStatus.ROLLED_BACK
 

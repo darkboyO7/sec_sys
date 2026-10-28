@@ -270,7 +270,26 @@ class FindingLifecycleService:
             if assigned_to_id:
                 finding.assigned_to_id = assigned_to_id
 
-        # Update finding status
+        # Atomic predecessor state enforcement and optimistic concurrency control
+        rows = (
+            db.query(VulnerabilityFinding)
+            .filter(
+                VulnerabilityFinding.id == finding.id,
+                VulnerabilityFinding.status == from_status,
+            )
+            .update(
+                {"status": to_status, "updated_at": now},
+                synchronize_session="fetch",
+            )
+        )
+        if rows == 0:
+            fresh = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.id == finding.id).first()
+            current_st = fresh.status.value if fresh else "DELETED"
+            raise InvalidFindingTransitionError(
+                f"Concurrent state conflict: Finding '{finding.id}' status changed from '{from_status.value}' to '{current_st}'."
+            )
+
+        # Update finding status in-memory
         finding.status = to_status
         finding.updated_at = now
 

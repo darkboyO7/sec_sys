@@ -187,3 +187,71 @@ class EventProcessingService:
         db.commit()
         db.refresh(event)
         return event
+
+    @classmethod
+    def quarantine_event(
+        cls,
+        db: Session,
+        event: OrchestrationEventRecord,
+        reason: str,
+        now: Optional[datetime] = None,
+    ) -> OrchestrationEventRecord:
+        """Permanently quarantines an unprocessable or poison event to prevent crash loops."""
+        if now is None:
+            now = utc_now()
+        event.status = EventProcessingStatus.QUARANTINED
+        event.processed_at = now
+        event.rejection_reason = f"QUARANTINED: {reason}"
+        event.updated_at = now
+        db.commit()
+        db.refresh(event)
+        return event
+
+    @classmethod
+    def recover_pending_events(
+        cls,
+        db: Session,
+        project_id: Optional[str] = None,
+        max_retries: int = 3,
+        now: Optional[datetime] = None,
+    ) -> List[OrchestrationEventRecord]:
+        """
+        Durable Event Outbox Recovery.
+        Scans for events stranded in RECEIVED state (e.g. crash between event persistence and job dispatch).
+        For events exceeding max_retries, moves them to QUARANTINED (dead-letter).
+        Returns list of recoverable events ready for dispatch.
+        """
+        if now is None:
+            now = utc_now()
+
+        query = db.query(OrchestrationEventRecord).filter(
+            OrchestrationEventRecord.status == EventProcessingStatus.RECEIVED,
+        )
+        if project_id:
+            query = query.filter(OrchestrationEventRecord.project_id == project_id)
+
+        pending = query.order_by(OrchestrationEventRecord.received_at.asc()).all()
+        recovered: List[OrchestrationEventRecord] = []
+
+        for evt in pending:
+            payload = dict(evt.payload or {})
+            retries = payload.get("_retry_count", 0)
+
+            if retries >= max_retries:
+                # Exceeded retry bounds - quarantine (dead-letter)
+                evt.status = EventProcessingStatus.QUARANTINED
+                evt.rejection_reason = f"Quarantined after {retries} failed processing attempts."
+                evt.processed_at = now
+                evt.updated_at = now
+            else:
+                # Increment retry counter
+                payload["_retry_count"] = retries + 1
+                payload["_last_recovery_at"] = now.isoformat()
+                evt.payload = payload
+                evt.updated_at = now
+                recovered.append(evt)
+
+        db.commit()
+        for evt in recovered:
+            db.refresh(evt)
+        return recovered

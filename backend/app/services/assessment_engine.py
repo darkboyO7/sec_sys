@@ -1,3 +1,4 @@
+import logging
 import json
 import hashlib
 import math
@@ -5,6 +6,8 @@ import random
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, Tuple, List
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("vapt.assessment")
 from app.models.assessment import (
     AssessmentJob,
     AssessmentStatus,
@@ -270,6 +273,33 @@ class AssessmentExecutionEngine:
         return job
 
     @classmethod
+    def cancel_job(
+        cls,
+        db: Session,
+        job_id: str,
+        operator_id: Optional[str] = None,
+        reason: str = "Assessment cancelled by operator request.",
+        now: Optional[datetime] = None,
+    ) -> AssessmentJob:
+        """Atomically transitions an assessment job to CANCELLED state and records timestamp."""
+        if now is None:
+            now = datetime.now(timezone.utc)
+        job = db.query(AssessmentJob).filter(AssessmentJob.id == job_id).first()
+        if not job:
+            raise ValueError(f"Assessment job '{job_id}' not found.")
+        AssessmentStateMachine.transition(
+            job=job,
+            new_status=AssessmentStatus.CANCELLED,
+            error_message=reason,
+            failure_category="CANCELLED_BY_OPERATOR",
+            now=now,
+        )
+        job.cancellation_requested_at = now
+        db.commit()
+        db.refresh(job)
+        return job
+
+    @classmethod
     def execute_job(
         cls,
         db: Session,
@@ -277,6 +307,7 @@ class AssessmentExecutionEngine:
         worker_id: str = "worker-01",
         now: Optional[datetime] = None,
         client_ip: Optional[str] = None,
+        execution_attempt: Optional[int] = None,
     ) -> AssessmentJob:
         if now is None:
             now = datetime.now(timezone.utc)
@@ -294,6 +325,18 @@ class AssessmentExecutionEngine:
             AssessmentStatus.TIMED_OUT,
             AssessmentStatus.PARTIAL,
         ):
+            return job
+
+        # Fencing token check: Stale worker attempting to execute an obsolete attempt
+        if execution_attempt is not None and (
+            job.attempt_count != execution_attempt
+            or job.status != AssessmentStatus.RUNNING
+            or (job.claimed_by and job.claimed_by != worker_id)
+        ):
+            logger.warning(
+                f"Fencing token check rejected worker '{worker_id}' attempt {execution_attempt}: "
+                f"Job '{job.id}' status is '{job.status.value}', current attempt is {job.attempt_count}, claimed_by '{job.claimed_by}'."
+            )
             return job
 
         # Step 1: Preflight re-validation and atomic claim
@@ -503,6 +546,17 @@ class AssessmentExecutionEngine:
             return target_job
 
         # Step 7: Finalize State Machine based on execution outcome
+        # Fencing Token & Concurrency Invariant:
+        # Verify worker still owns this execution attempt and that the job was not cancelled or reclaimed
+        fresh_job = db.query(AssessmentJob).filter(AssessmentJob.id == job.id).first()
+        if not fresh_job or fresh_job.status != AssessmentStatus.RUNNING or fresh_job.attempt_count != execution_attempt or (fresh_job.claimed_by and fresh_job.claimed_by != worker_id):
+            logger.warning(
+                f"Fencing token check failed for worker '{worker_id}' attempt {execution_attempt}: "
+                f"Job '{job.id}' status is '{fresh_job.status if fresh_job else 'DELETED'}' "
+                f"claimed by '{fresh_job.claimed_by if fresh_job else None}'. Obsolete worker result discarded."
+            )
+            return fresh_job or job
+
         job.is_simulated = result.is_simulated
         job.summary_stats = {
             "status_summary": result.status_summary,

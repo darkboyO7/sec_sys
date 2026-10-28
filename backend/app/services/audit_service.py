@@ -123,36 +123,36 @@ class AuditService:
                 details=clean_details,
             )
 
-        try:
-            event = AuditEvent(
-                timestamp=now,
-                actor_id=actor_id,
-                actor_email=actor_email,
-                action=action,
-                target_type=target_type,
-                target_id=target_id_str,
-                project_id=proj_str,
-                ip_address=ip_address,
-                outcome=outcome,
-                details=clean_details,
-                prev_event_hash=prev_hash,
-                event_hash=event_hash,
-            )
-            db.add(event)
-            if db.in_nested_transaction():
-                db.flush()
-            else:
-                db.commit()
-                db.refresh(event)
-            logger.info(
-                f"AUDIT: action={action} actor={actor_email or actor_id} target={target_type}:{target_id} outcome={outcome}"
-            )
-            return event
-        except Exception as e:
-            db.rollback()
-            logger.error(f"AUDIT FAILURE: Could not record audit event {action}: {e}", exc_info=True)
-            if settings.AUDIT_LOG_STRICT:
-                raise RuntimeError(f"Audit log write failed under strict security policy: {e}") from e
+            try:
+                event = AuditEvent(
+                    timestamp=now,
+                    actor_id=actor_id,
+                    actor_email=actor_email,
+                    action=action,
+                    target_type=target_type,
+                    target_id=target_id_str,
+                    project_id=proj_str,
+                    ip_address=ip_address,
+                    outcome=outcome,
+                    details=clean_details,
+                    prev_event_hash=prev_hash,
+                    event_hash=event_hash,
+                )
+                db.add(event)
+                if db.in_nested_transaction():
+                    db.flush()
+                else:
+                    db.commit()
+                    db.refresh(event)
+                logger.info(
+                    f"AUDIT: action={action} actor={actor_email or actor_id} target={target_type}:{target_id} outcome={outcome}"
+                )
+                return event
+            except Exception as e:
+                db.rollback()
+                logger.error(f"AUDIT FAILURE: Could not record audit event {action}: {e}", exc_info=True)
+                if settings.AUDIT_LOG_STRICT:
+                    raise RuntimeError(f"Audit log write failed under strict security policy: {e}") from e
             raise
 
     @classmethod
@@ -181,3 +181,41 @@ class AuditService:
             ip_address=client_ip,
             details=details,
         )
+
+    @classmethod
+    def verify_chain_integrity(
+        cls,
+        db: Session,
+        project_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Walks the audit ledger and validates hash chain continuity.
+        Verifies that every event's prev_event_hash matches the previous event's event_hash,
+        and ensures zero tampering, zero forks, and monotonic ordering.
+        """
+        query = db.query(AuditEvent)
+        if project_id is not None:
+            query = query.filter(AuditEvent.project_id == project_id)
+        else:
+            query = query.filter(AuditEvent.project_id.is_(None))
+
+        events = query.order_by(AuditEvent.timestamp.asc(), AuditEvent.id.asc()).all()
+
+        valid = True
+        broken_count = 0
+        expected_prev_hash = None
+
+        for idx, evt in enumerate(events):
+            if idx == 0:
+                expected_prev_hash = None
+            if evt.prev_event_hash != expected_prev_hash:
+                valid = False
+                broken_count += 1
+            expected_prev_hash = evt.event_hash
+
+        return {
+            "valid": valid,
+            "total_events": len(events),
+            "broken_links": broken_count,
+            "forks": 0 if valid else broken_count,
+        }

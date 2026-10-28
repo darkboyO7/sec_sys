@@ -77,6 +77,7 @@ class EventProcessingStatus(str, enum.Enum):
     DEFERRED = "DEFERRED"
     REJECTED = "REJECTED"
     FAILED = "FAILED"
+    QUARANTINED = "QUARANTINED"
 
 
 class OrchestrationEventRecord(Base, TimestampMixin):

@@ -374,10 +374,12 @@ class RemediationPrioritizationService:
         review_notes: str,
         db: Session,
         client_ip: Optional[str] = None,
+        expected_status: Optional[RecommendationStatus] = None,
     ) -> RemediationRecommendation:
         """
         Reviews a remediation recommendation (APPROVE, DEFER, REJECT).
         Enforces that approval requires Project LEAD or System ADMIN role.
+        Optimistic concurrency control: if expected_status is supplied, checks that rec.status matches.
         Does NOT execute any code or commands.
         """
         rec = (
@@ -395,6 +397,12 @@ class RemediationPrioritizationService:
         if len(clean_notes) < 3:
             raise ValueError("Review justification is mandatory (minimum 3 characters required).")
 
+        # Concurrency check if an expected predecessor status was supplied
+        if expected_status is not None and rec.status != expected_status:
+            raise ValueError(
+                f"Concurrency conflict: recommendation '{recommendation_id}' status changed from '{expected_status.value}' to '{rec.status.value}'."
+            )
+
         # Check role permission if approval is required
         if new_status == RecommendationStatus.APPROVED and rec.requires_approval:
             is_lead = (reviewer_role == ProjectRole.LEAD)
@@ -402,19 +410,49 @@ class RemediationPrioritizationService:
             if not (is_lead or is_admin):
                 raise PermissionError("Only Project LEAD or System ADMIN can approve remediation recommendations.")
 
-        rec.status = new_status
-        rec.reviewed_by_id = reviewer.id
-        rec.reviewed_at = utc_now()
-        rec.review_notes = clean_notes
+        target_expected_status = expected_status or rec.status
+        now = utc_now()
 
         if new_status == RecommendationStatus.APPROVED:
-            rec.execution_governance_stage = "APPROVED"
+            gov_stage = "APPROVED"
         elif new_status == RecommendationStatus.REJECTED:
-            rec.execution_governance_stage = "REJECTED"
+            gov_stage = "REJECTED"
         elif new_status == RecommendationStatus.DEFERRED:
-            rec.execution_governance_stage = "DEFERRED"
+            gov_stage = "DEFERRED"
         else:
-            rec.execution_governance_stage = "UNDER_REVIEW"
+            gov_stage = "UNDER_REVIEW"
+
+        # Atomic optimistic concurrency check: verify recommendation has not transitioned concurrently
+        rows = (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.id == recommendation_id,
+                RemediationRecommendation.project_id == project_id,
+                RemediationRecommendation.status == target_expected_status,
+            )
+            .update(
+                {
+                    "status": new_status,
+                    "reviewed_by_id": reviewer.id,
+                    "reviewed_at": now,
+                    "review_notes": clean_notes,
+                    "execution_governance_stage": gov_stage,
+                },
+                synchronize_session="fetch",
+            )
+        )
+        if rows == 0:
+            fresh = db.query(RemediationRecommendation).filter(RemediationRecommendation.id == recommendation_id).first()
+            current_st = fresh.status.value if fresh else "DELETED"
+            raise ValueError(
+                f"Concurrency conflict: Remediation recommendation '{recommendation_id}' status changed from '{expected_status.value}' to '{current_st}'."
+            )
+
+        rec.status = new_status
+        rec.reviewed_by_id = reviewer.id
+        rec.reviewed_at = now
+        rec.review_notes = clean_notes
+        rec.execution_governance_stage = gov_stage
 
         AuditService.log(
             db=db,
@@ -481,11 +519,37 @@ class RemediationPrioritizationService:
         if len(ticket) < 3:
             raise ValueError("Valid change ticket reference is mandatory (minimum 3 characters).")
 
+        # Double-authorization prevention & atomic stage transition check
+        if rec.execution_governance_stage == "CHANGE_AUTHORIZED":
+            raise ValueError(f"Change implementation has already been authorized for recommendation '{recommendation_id}'.")
+
+        updated_notes = f"{rec.review_notes}\n[Change Authorized: {ticket}]" if rec.review_notes else f"[Change Authorized: {ticket}]"
+
+        rows = (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.id == recommendation_id,
+                RemediationRecommendation.project_id == project_id,
+                RemediationRecommendation.status == RecommendationStatus.APPROVED,
+                RemediationRecommendation.execution_governance_stage == "APPROVED",
+            )
+            .update(
+                {
+                    "execution_governance_stage": "CHANGE_AUTHORIZED",
+                    "review_notes": updated_notes,
+                },
+                synchronize_session="fetch",
+            )
+        )
+        if rows == 0:
+            fresh = db.query(RemediationRecommendation).filter(RemediationRecommendation.id == recommendation_id).first()
+            curr_stage = fresh.execution_governance_stage if fresh else "DELETED"
+            raise ValueError(
+                f"Concurrency conflict: Change authorization failed because recommendation '{recommendation_id}' is in stage '{curr_stage}', expected 'APPROVED'."
+            )
+
         rec.execution_governance_stage = "CHANGE_AUTHORIZED"
-        if rec.review_notes:
-            rec.review_notes = f"{rec.review_notes}\n[Change Authorized: {ticket}]"
-        else:
-            rec.review_notes = f"[Change Authorized: {ticket}]"
+        rec.review_notes = updated_notes
 
         AuditService.log(
             db=db,
