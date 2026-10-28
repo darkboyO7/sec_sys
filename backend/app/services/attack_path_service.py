@@ -413,3 +413,7 @@ class AttackPathAnalysisService:
             "missing_evidence": missing_evidence,
             "ranking_rationale": ranking_rationale,
         }
+
+
+# Backwards compatibility alias
+AttackPathService = AttackPathAnalysisService

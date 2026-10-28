@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, Integer, ForeignKey, Enum as SqlEnum, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -37,5 +37,5 @@ class ReportRecord(Base, TimestampMixin):
     generated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
-    project = relationship("Project", backref="report_records")
+    project = relationship("Project", backref=backref("report_records", cascade="all, delete-orphan"))
     generated_by = relationship("User", foreign_keys=[generated_by_id])

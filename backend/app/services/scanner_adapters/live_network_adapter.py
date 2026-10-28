@@ -117,6 +117,75 @@ def resolve_and_verify_ssrf(
         return False, f"Error resolving target host '{clean_host}': {str(e)}", []
 
 
+class SafeHTTPConnection(http.client.HTTPConnection):
+    """
+    HTTPConnection that pins the socket connection directly to a pre-verified destination IP,
+    completely eliminating the Time-of-Check to Time-of-Use (TOCTOU) DNS validation-to-connection gap
+    while preserving the original 'Host' header.
+    """
+    def __init__(self, host, port=None, verified_ip: Optional[str] = None, **kwargs):
+        self.verified_ip = verified_ip
+        self.original_host = host
+        super().__init__(host, port, **kwargs)
+
+    def connect(self):
+        connect_host = self.verified_ip if self.verified_ip else self.host
+        self.sock = socket.create_connection(
+            (connect_host, self.port),
+            self.timeout,
+            self.source_address,
+        )
+
+
+class SafeHTTPSConnection(http.client.HTTPSConnection):
+    """
+    HTTPSConnection that pins the socket connection directly to a pre-verified destination IP,
+    completely eliminating DNS rebinding while preserving TLS Server Name Indication (SNI)
+    and strict hostname certificate verification against the original target hostname.
+    """
+    def __init__(self, host, port=None, verified_ip: Optional[str] = None, **kwargs):
+        self.verified_ip = verified_ip
+        self.original_host = host
+        super().__init__(host, port, **kwargs)
+
+    def connect(self):
+        connect_host = self.verified_ip if self.verified_ip else self.host
+        sock = socket.create_connection(
+            (connect_host, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        server_hostname = self.original_host or self.host
+        if ":" in server_hostname:
+            server_hostname = server_hostname.split(":")[0]
+        server_hostname = server_hostname.strip("[]")
+        self.sock = self._context.wrap_socket(sock, server_hostname=server_hostname)
+
+
+class SafeHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, verified_ip: Optional[str] = None):
+        super().__init__()
+        self.verified_ip = verified_ip
+
+    def http_open(self, req):
+        return self.do_open(
+            lambda host, **kw: SafeHTTPConnection(host, verified_ip=self.verified_ip, **kw),
+            req,
+        )
+
+
+class SafeHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, context=None, verified_ip: Optional[str] = None):
+        super().__init__(context=context)
+        self.verified_ip = verified_ip
+
+    def https_open(self, req):
+        return self.do_open(
+            lambda host, **kw: SafeHTTPSConnection(host, verified_ip=self.verified_ip, context=self._context, **kw),
+            req,
+        )
+
+
 class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
     """
     Safe HTTP Redirect Handler that tracks hops, enforces maximum redirect limits,
@@ -130,6 +199,7 @@ class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
         self.allow_private = allow_private
         self.max_redirects = max_redirects
         self.redirect_chain: List[Tuple[int, str]] = []
+        self.last_verified_ip: Optional[str] = None
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if len(self.redirect_chain) >= self.max_redirects:
@@ -147,9 +217,15 @@ class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
             )
 
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        is_safe, reason, _ = resolve_and_verify_ssrf(dest_host, port, self.allow_loopback, self.allow_private)
+        is_safe, reason, redirect_resolved_ips = resolve_and_verify_ssrf(
+            dest_host, port, self.allow_loopback, self.allow_private
+        )
         if not is_safe:
             raise urllib.error.HTTPError(newurl, 403, f"SSRF boundary enforcement blocked redirect: {reason}", headers, fp)
+
+        if redirect_resolved_ips:
+            self.last_verified_ip = redirect_resolved_ips[0]
+
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -510,7 +586,11 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
             follow_redirects = config.get("follow_redirects", True)
             max_redirects = int(config.get("max_redirects", 5))
 
-            handlers: List[Any] = [urllib.request.HTTPSHandler(context=ctx)]
+            primary_verified_ip = resolved_ips[0] if resolved_ips else None
+            handlers: List[Any] = [
+                SafeHTTPHandler(verified_ip=primary_verified_ip),
+                SafeHTTPSHandler(context=ctx, verified_ip=primary_verified_ip),
+            ]
             if follow_redirects:
                 handlers.append(BoundedRedirectHandler(
                     target_host=host,
@@ -953,6 +1033,8 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         cipher_name = "UNKNOWN"
         parsed_cert: Dict[str, Any] = {}
 
+        target_ip = resolved_ips[0] if resolved_ips else host
+
         # Step 1: Real TLS Handshake WITH Certificate & Hostname Validation
         try:
             import certifi
@@ -960,7 +1042,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         except Exception:
             verify_ctx = ssl.create_default_context()
         try:
-            with socket.create_connection((host, port), timeout=timeout) as sock:
+            with socket.create_connection((target_ip, port), timeout=timeout) as sock:
                 with verify_ctx.wrap_socket(sock, server_hostname=host) as ssock:
                     cert_der = ssock.getpeercert(binary_form=True)
                     parsed_cert = ssock.getpeercert() or {}
@@ -975,7 +1057,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 unverified_ctx = ssl.create_default_context()
                 unverified_ctx.check_hostname = False
                 unverified_ctx.verify_mode = ssl.CERT_NONE
-                with socket.create_connection((host, port), timeout=timeout) as sock2:
+                with socket.create_connection((target_ip, port), timeout=timeout) as sock2:
                     with unverified_ctx.wrap_socket(sock2, server_hostname=host) as ssock2:
                         cert_der = ssock2.getpeercert(binary_form=True)
                         parsed_cert = ssock2.getpeercert() or {}
@@ -990,7 +1072,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 unverified_ctx = ssl.create_default_context()
                 unverified_ctx.check_hostname = False
                 unverified_ctx.verify_mode = ssl.CERT_NONE
-                with socket.create_connection((host, port), timeout=timeout) as sock2:
+                with socket.create_connection((target_ip, port), timeout=timeout) as sock2:
                     with unverified_ctx.wrap_socket(sock2, server_hostname=host) as ssock2:
                         cert_der = ssock2.getpeercert(binary_form=True)
                         parsed_cert = ssock2.getpeercert() or {}
@@ -1193,13 +1275,40 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         base_url = target if "://" in target else f"http://{target}"
         parsed = urllib.parse.urlparse(base_url)
         origin = f"{parsed.scheme}://{parsed.netloc}"
+        host = parsed.hostname or ""
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        allow_loopback = bool(config.get("allow_loopback", False))
+        allow_private = bool(config.get("allow_private", False))
+
+        is_safe, ssrf_err, resolved_ips = resolve_and_verify_ssrf(
+            host, port, allow_loopback=allow_loopback, allow_private=allow_private
+        )
+        if not is_safe:
+            duration = (time.perf_counter() - start_time) * 1000
+            return AdapterResult(
+                adapter_name=self.name,
+                adapter_version=self.version,
+                target=target,
+                is_simulated=False,
+                success=False,
+                status_summary=f"SSRF guardrail blocked security resources audit: {ssrf_err}",
+                failure_category="SSRF_ATTEMPT_BLOCKED",
+                errors=[ssrf_err or "Restricted destination IP address."],
+                findings=[],
+                execution_duration_ms=duration,
+            )
+
         findings: List[RawAdapterFinding] = []
         errors: List[str] = []
 
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+        verified_ip = resolved_ips[0] if resolved_ips else None
+        opener = urllib.request.build_opener(
+            SafeHTTPHandler(verified_ip=verified_ip),
+            SafeHTTPSHandler(context=ctx, verified_ip=verified_ip),
+        )
 
         # Check A: security.txt (RFC 9116) - Informational hardening observation, NOT an exploitable flaw
         security_txt_found = False
@@ -1313,7 +1422,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         allow_loopback = bool(config.get("allow_loopback", False))
         allow_private = bool(config.get("allow_private", False))
 
-        is_safe, ssrf_err, _ = resolve_and_verify_ssrf(
+        is_safe, ssrf_err, resolved_ips = resolve_and_verify_ssrf(
             host, port, allow_loopback=allow_loopback, allow_private=allow_private
         )
         if not is_safe:
@@ -1331,11 +1440,12 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 execution_duration_ms=duration,
             )
 
+        target_ip = resolved_ips[0] if resolved_ips else host
         findings: List[RawAdapterFinding] = []
         errors: List[str] = []
 
         try:
-            with socket.create_connection((host, port), timeout=timeout) as s:
+            with socket.create_connection((target_ip, port), timeout=timeout) as s:
                 s.settimeout(min(timeout, 3.0))
                 try:
                     banner_bytes = s.recv(1024)

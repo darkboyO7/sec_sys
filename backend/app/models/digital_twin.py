@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, JSON, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -28,5 +28,5 @@ class SecuritySnapshot(Base, TimestampMixin):
     manifest_sha256 = Column(String(64), nullable=False, index=True)
 
     # Relationships
-    project = relationship("Project", backref="security_snapshots")
+    project = relationship("Project", backref=backref("security_snapshots", cascade="all, delete-orphan"))
     captured_by = relationship("User", foreign_keys=[captured_by_id])

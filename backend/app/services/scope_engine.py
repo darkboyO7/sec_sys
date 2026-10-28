@@ -1,5 +1,6 @@
 import ipaddress
 import re
+import socket
 from datetime import datetime, timezone
 from typing import Optional, Tuple, Dict, Any, List
 from urllib.parse import urlparse
@@ -135,6 +136,15 @@ class ScopeEngine:
         elif cand_type == TargetType.DOMAIN:
             if rule_type == TargetType.DOMAIN:
                 return cls.matches_domain_rule(cand_val, rule_val)
+            elif rule_type in (TargetType.IP_ADDRESS, TargetType.CIDR):
+                try:
+                    addr_info = socket.getaddrinfo(cand_val, None, proto=socket.IPPROTO_TCP)
+                    for entry in addr_info:
+                        entry_ip = ipaddress.ip_address(entry[4][0])
+                        if cls.matches_ip_rule(entry_ip, rule_type, rule_val):
+                            return True
+                except Exception:
+                    pass
             return False
 
         elif cand_type == TargetType.URL:
@@ -158,9 +168,68 @@ class ScopeEngine:
                     host_ip = ipaddress.ip_address(cand_host)
                     return cls.matches_ip_rule(host_ip, rule_type, rule_val)
                 except ValueError:
+                    try:
+                        addr_info = socket.getaddrinfo(cand_host, None, proto=socket.IPPROTO_TCP)
+                        for entry in addr_info:
+                            entry_ip = ipaddress.ip_address(entry[4][0])
+                            if cls.matches_ip_rule(entry_ip, rule_type, rule_val):
+                                return True
+                    except Exception:
+                        pass
                     return False
 
         return False
+
+    @classmethod
+    def evaluate_target_ip_characteristics(cls, target_str: str) -> Dict[str, bool]:
+        """
+        Determines if a target (URL, IP, CIDR, or Hostname) points to loopback or private IP ranges.
+        Enables authorized internal network and staging environment assessments.
+        """
+        clean = target_str.strip()
+        if "://" in clean:
+            parsed = urlparse(clean)
+            host = parsed.hostname or clean
+        else:
+            host = clean.split("/")[0].split(":")[0]
+
+        host_clean = host.strip("[]")
+        is_loopback = False
+        is_private = False
+
+        if host_clean.lower() in ("localhost", "127.0.0.1", "::1") or host_clean.lower().endswith(".localhost"):
+            is_loopback = True
+
+        try:
+            ip = ipaddress.ip_address(host_clean)
+            if ip.is_loopback:
+                is_loopback = True
+            if ip.is_private:
+                is_private = True
+            return {"is_loopback": is_loopback, "is_private": is_private}
+        except ValueError:
+            try:
+                net = ipaddress.ip_network(target_str.strip(), strict=False)
+                if net.is_loopback:
+                    is_loopback = True
+                if net.is_private:
+                    is_private = True
+                return {"is_loopback": is_loopback, "is_private": is_private}
+            except ValueError:
+                pass
+
+        try:
+            addr_info = socket.getaddrinfo(host_clean, None, proto=socket.IPPROTO_TCP)
+            for entry in addr_info:
+                entry_ip = ipaddress.ip_address(entry[4][0])
+                if entry_ip.is_loopback:
+                    is_loopback = True
+                if entry_ip.is_private:
+                    is_private = True
+        except Exception:
+            pass
+
+        return {"is_loopback": is_loopback, "is_private": is_private}
 
     @classmethod
     def validate_target_in_scope(
@@ -247,12 +316,19 @@ class ScopeEngine:
 
         # Step 4: Evaluate match hierarchy (Fail Closed)
         if matched_authorized_rule:
+            cand_chars = cls.evaluate_target_ip_characteristics(cand_val)
+            rule_chars = cls.evaluate_target_ip_characteristics(matched_authorized_rule.target_value)
+            is_priv_auth = bool(cand_chars["is_private"] or rule_chars["is_private"])
+            is_loop_auth = bool(cand_chars["is_loopback"] or rule_chars["is_loopback"])
+
             return {
                 "is_authorized": True,
                 "status": "AUTHORIZED",
                 "reason": f"Target is authorized under scope rule: {matched_authorized_rule.target_value}",
                 "normalized_target": cand_val,
                 "target_type": cand_type.value,
+                "is_private_authorized": is_priv_auth,
+                "is_loopback_authorized": is_loop_auth,
                 "matched_rule": {
                     "id": matched_authorized_rule.id,
                     "target_type": matched_authorized_rule.target_type.value,

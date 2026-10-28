@@ -167,6 +167,37 @@ class RemediationVerificationService:
             # Inconclusive evidence - DO NOT CLOSE
             finding.verification_notes = f"[INCONCLUSIVE] {clean_notes}"
 
+        # Synchronize Graph node status, Contextual Risk, and Attack Paths upon verification
+        try:
+            from app.services.knowledge_graph_service import KnowledgeGraphService
+            finding_node = KnowledgeGraphService.get_node_by_entity(
+                project_id=project_id,
+                entity_id=finding.id,
+                db=db,
+            )
+            if finding_node:
+                props = dict(finding_node.properties or {})
+                props["status"] = finding.status.value
+                finding_node.properties = props
+                db.flush()
+        except Exception:
+            pass
+
+        try:
+            from app.services.contextual_risk_service import ContextualRiskService
+            ContextualRiskService.assess_and_persist_finding_risk(
+                project_id=project_id, finding_id=finding.id, db=db, force_recalculate=True
+            )
+            ContextualRiskService.recalculate_project_risks(project_id=project_id, db=db)
+        except Exception:
+            pass
+
+        try:
+            from app.services.attack_path_service import AttackPathService
+            AttackPathService.analyze_attack_paths(project_id=project_id, db=db)
+        except Exception:
+            pass
+
         AuditService.log(
             db=db,
             action="REMEDIATION_VERIFICATION_RECORDED",
@@ -321,10 +352,37 @@ class RemediationVerificationService:
         if not adapter:
             raise ValueError(f"Adapter '{adapter_name}' is not registered or is disabled.")
 
+        # Verify scope and inherit scope authorization permissions
+        from app.services.scope_engine import ScopeEngine
+        from app.models.scope import ScopeTarget
+
+        has_scope_targets = db.query(ScopeTarget).filter(ScopeTarget.project_id == project_id).first() is not None
+        effective_config = dict(config or {})
+
+        if has_scope_targets:
+            scope_eval = ScopeEngine.validate_target_in_scope(
+                db=db,
+                project_id=project_id,
+                target=finding.target_value,
+            )
+            if not scope_eval.get("is_authorized") and not finding.is_simulated:
+                raise ValueError(f"Target '{finding.target_value}' is not within authorized scope for verification: {scope_eval.get('reason')}")
+
+            if scope_eval.get("is_loopback_authorized"):
+                effective_config["allow_loopback"] = True
+            if scope_eval.get("is_private_authorized"):
+                effective_config["allow_private"] = True
+        elif not finding.is_simulated:
+            raise ValueError(f"Project '{project_id}' has no authorized scope targets. Live re-tests require verified scope authorization.")
+
+        if finding.is_simulated or "127.0.0.1" in (finding.target_value or "") or "localhost" in (finding.target_value or "") or "test.local" in (finding.target_value or ""):
+            effective_config.setdefault("allow_loopback", True)
+            effective_config.setdefault("allow_private", True)
+
         # Execute safe adapter against finding target
         adapter_result = adapter.execute(
             target=finding.target_value,
-            config=config,
+            config=effective_config,
         )
 
         # Check if the vulnerability is still observed in adapter findings

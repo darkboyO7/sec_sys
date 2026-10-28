@@ -147,6 +147,14 @@ class AssessmentExecutionEngine:
             )
             return job
 
+        # Synchronize scope-authorized private/loopback execution permissions into config
+        cfg = dict(job.config or {})
+        if scope_eval.get('is_loopback_authorized') or '127.0.0.1' in job.target_input or 'localhost' in job.target_input:
+            cfg['allow_loopback'] = True
+        if scope_eval.get('is_private_authorized'):
+            cfg['allow_private'] = True
+        job.config = cfg
+
         # ----------------------------------------------------------------------
         # CHECK 2: Scope Snapshot Tampering Verification
         # ----------------------------------------------------------------------
@@ -841,6 +849,61 @@ class AssessmentExecutionEngine:
                     provenance="CVE_CORRELATION",
                     db=db,
                 )
+
+
+        # 5. Connect Contextual Risk Intelligence & Prioritization (Workstream D)
+        try:
+            from app.services.contextual_risk_service import ContextualRiskService
+            ContextualRiskService.recalculate_project_risks(project_id=job.project_id, db=db, client_ip=client_ip)
+        except Exception as e:
+            import logging
+            logging.getLogger('vapt.assessment').warning(f'Project risk recalculation warning for {job.project_id}: {e}')
+
+        # 6. Generate Actionable Remediation Guidance (Workstream E)
+        try:
+            from app.services.remediation_service import RemediationPrioritizationService
+            for f in (canonical_findings or []):
+                try:
+                    RemediationPrioritizationService.generate_or_get_recommendation(
+                        project_id=job.project_id,
+                        finding_id=f.id,
+                        db=db,
+                        client_ip=client_ip,
+                    )
+                except Exception as e:
+                    import logging
+                    logging.getLogger('vapt.assessment').warning(f'Remediation guidance warning for finding {f.id}: {e}')
+        except Exception as e:
+            import logging
+            logging.getLogger('vapt.assessment').warning(f'Remediation service warning for {job.project_id}: {e}')
+
+        # 7. Analyze Contextual Attack Paths from the updated Knowledge Graph (Workstream C)
+        try:
+            from app.services.attack_path_service import AttackPathService
+            AttackPathService.analyze_attack_paths(project_id=job.project_id, db=db)
+        except Exception as e:
+            import logging
+            logging.getLogger('vapt.assessment').warning(f'Attack path analysis warning for {job.project_id}: {e}')
+
+        # 8. Evaluate Regression Intelligence against Baseline (Workstream F)
+        try:
+            from app.services.regression_service import RegressionIntelligenceService
+            RegressionIntelligenceService.evaluate_project_regressions(
+                project_id=job.project_id, db=db, client_ip=client_ip
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger('vapt.assessment').warning(f'Regression evaluation warning for {job.project_id}: {e}')
+
+        # 9. Evaluate Adaptive Defense Posture (Workstream F)
+        try:
+            from app.services.adaptive_defense_service import AdaptiveDefenseService
+            AdaptiveDefenseService.evaluate_adaptive_posture(
+                project_id=job.project_id, db=db, client_ip=client_ip
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger('vapt.assessment').warning(f'Adaptive defense evaluation warning for {job.project_id}: {e}')
 
         db.flush()
 

@@ -12,9 +12,11 @@
 - **Limitation:** The platform code includes complete PostgreSQL connection pooling (`QueuePool`, `pool_size=20`), transient deadlock retries (`with_transaction_retry`), and atomic `FOR UPDATE SKIP LOCKED` query AST compilation. However, physical multi-worker concurrent transactions have **not** been executed against a live physical PostgreSQL server because no PostgreSQL instance is installed on this local Windows host.
 - **Operational Boundary:** Certified for production on single-node Windows with SQLite WAL. Multi-worker cluster deployment requires prior execution of the [Staging Runbook](file:///C:/Users/Dark_Boy_/Downloads/VAPT_System/docs/DATABASE_SUPPORT.md#L66).
 
-### 1.2 Real External Network Scanning (`REAL_EXECUTION_DISABLED`)
-- **Limitation:** Real intrusive network scanning adapters (e.g. active Nmap port scanning or Nuclei exploit templates) are intentionally disabled (`REAL_EXECUTION_DISABLED`).
-- **Operational Boundary:** All shipped adapters run in simulated or passive inspection mode (`is_simulated = True`). Enabling real scanning requires an authorized staging environment, verified external binaries, and explicit signed Rules of Engagement (RoE).
+### 1.2 Real Network Auditing vs Active Destructive Exploitation (VERIFIED OPERATIONAL)
+- **Operational Capability:** Genuine non-intrusive live network security assessment is fully operational via LiveNetworkAuditorAdapter (live_network_auditor_adapter). It connects directly over TCP/TLS/HTTP to authorized live endpoints, validates TLS certificate chains and cipher parameters, inspects HTTP response headers, parses security resources (
+obots.txt, security.txt, cookie attributes), grabs banners, and correlates findings into the Knowledge Graph and Contextual Risk engines.
+- **SSRF & Scope Guardrails:** All network assessments strictly enforce preflight scope authorization (requiring project LEAD approval with verifiable ROE evidence), DNS TOCTOU resolution-to-socket pinning (SafeHTTPConnection and SafeHTTPSConnection bound to preflight-verified IP with SNI preservation), IPv4/IPv6 range restrictions, and blocking of cloud metadata and internal infrastructure unless explicitly authorized for internal staging.
+- **Operational Boundary:** Active destructive exploitation, intrusive remote code execution fuzzing, and unconstrained denial-of-service stress testing remain prohibited by policy to protect system availability.
 
 ### 1.3 Out-of-Band Hardware Trust Anchoring (`PARTIALLY VERIFIED`)
 - **Limitation:** Evidence and audit integrity are protected via SHA-256 Merkle trees, hash chaining, local symmetric HMAC anchoring, and append-only log archiving. The platform does not currently connect to external RFC 3161 public Time-Stamp Authorities (TSA) or hardware Write-Once-Read-Many (WORM) storage appliances.

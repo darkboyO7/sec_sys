@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, Text, Boolean, DateTime, Enum, ForeignKey, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import generate_uuid, utc_now
@@ -53,5 +53,5 @@ class AIAnalystDraft(Base):
     
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
-    project = relationship("Project", backref="ai_drafts")
+    project = relationship("Project", backref=backref("ai_drafts", cascade="all, delete-orphan"))
     reviewer = relationship("User", foreign_keys=[reviewed_by_id])

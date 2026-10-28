@@ -11,7 +11,7 @@ from sqlalchemy import (
     JSON,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -64,9 +64,9 @@ class RiskAssessment(Base, TimestampMixin):
     superseded_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    project = relationship("Project", backref="risk_assessments")
-    finding = relationship("VulnerabilityFinding", backref="risk_assessments")
-    asset = relationship("Asset", backref="risk_assessments")
+    project = relationship("Project", backref=backref("risk_assessments", cascade="all, delete-orphan"))
+    finding = relationship("VulnerabilityFinding", backref=backref("risk_assessments", cascade="all, delete-orphan"))
+    asset = relationship("Asset", backref=backref("risk_assessments", cascade="all, delete-orphan"))
 
 
 class RemediationRecommendation(Base, TimestampMixin):
@@ -111,7 +111,7 @@ class RemediationRecommendation(Base, TimestampMixin):
     review_notes = Column(Text, nullable=True)
 
     # Relationships
-    project = relationship("Project", backref="remediation_recommendations")
-    finding = relationship("VulnerabilityFinding", backref="remediation_recommendations")
-    asset = relationship("Asset", backref="remediation_recommendations")
+    project = relationship("Project", backref=backref("remediation_recommendations", cascade="all, delete-orphan"))
+    finding = relationship("VulnerabilityFinding", backref=backref("remediation_recommendations", cascade="all, delete-orphan"))
+    asset = relationship("Asset", backref=backref("remediation_recommendations", cascade="all, delete-orphan"))
     reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])

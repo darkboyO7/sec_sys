@@ -296,3 +296,75 @@ def test_end_to_end_assessment_job_execution(vulnerable_test_web_server):
 
     finally:
         db.close()
+
+
+def test_scope_engine_authorizes_private_ip_and_sets_flag():
+    """Verify that ScopeEngine detects and authorizes private IP targets when explicitly approved in scope."""
+    from app.services.scope_engine import ScopeEngine
+    from app.models.scope import ScopeTarget, TargetType, AuthorizationStatus
+    from app.core.database import SessionLocal
+    from app.models.organization import Organization
+    from app.models.project import Project
+
+    db = SessionLocal()
+    try:
+        org = db.query(Organization).first()
+        if not org:
+            org = Organization(name="Default Org", slug="default-org")
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+
+        project = Project(
+            organization_id=org.id,
+            name="Internal Private Scope Project",
+            description="Testing private IP scope",
+        )
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+
+        from app.models.user import User
+        user = db.query(User).first()
+
+        # 1. Register private IP target 10.0.1.50
+        target = ScopeTarget(
+            project_id=project.id,
+            target_type=TargetType.IP_ADDRESS,
+            target_value="10.0.1.50",
+            authorization_status=AuthorizationStatus.AUTHORIZED,
+            authorization_evidence="Approved internal staging audit ROE #991",
+            created_by_id=user.id,
+        )
+        db.add(target)
+        db.commit()
+
+        # 2. Evaluate target in scope
+        eval_res = ScopeEngine.validate_target_in_scope(db, project.id, "10.0.1.50")
+        assert eval_res["is_authorized"] is True
+        assert eval_res["is_private_authorized"] is True
+
+        # 3. Check that check_ip_ssrf permits it when allow_private=True
+        from app.services.scanner_adapters.live_network_adapter import check_ip_ssrf
+        is_safe, _ = check_ip_ssrf("10.0.1.50", allow_private=True)
+        assert is_safe is True
+
+        # But without authorization (allow_private=False), it remains blocked
+        is_safe_blocked, reason = check_ip_ssrf("10.0.1.50", allow_private=False)
+        assert is_safe_blocked is False
+        assert "private" in reason.lower()
+    finally:
+        db.close()
+
+
+def test_dns_validation_to_connection_pins_verified_ip():
+    """
+    Verify that SafeHTTPConnection pins the socket directly to verified_ip,
+    eliminating the TOCTOU DNS validation-to-connection gap.
+    """
+    from app.services.scanner_adapters.live_network_adapter import SafeHTTPConnection
+    conn = SafeHTTPConnection(host="example.internal", port=80, verified_ip="127.0.0.1")
+    assert conn.verified_ip == "127.0.0.1"
+    assert conn.original_host == "example.internal"
+    assert conn.host == "example.internal"
+

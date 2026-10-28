@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, JSON, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import generate_uuid, utc_now
@@ -60,7 +60,7 @@ class LearningDataset(Base):
     created_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
-    project = relationship("Project", backref="learning_datasets")
+    project = relationship("Project", backref=backref("learning_datasets", cascade="all, delete-orphan"))
     creator = relationship("User")
     records = relationship("DatasetRecord", back_populates="dataset", cascade="all, delete-orphan")
 
@@ -113,7 +113,7 @@ class GovernedModel(Base):
     rollback_target_id = Column(String(36), ForeignKey("governed_models.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
-    project = relationship("Project", backref="governed_models")
+    project = relationship("Project", backref=backref("governed_models", cascade="all, delete-orphan"))
     dataset = relationship("LearningDataset")
     approver = relationship("User", foreign_keys=[approved_by_id])
     rollback_target = relationship("GovernedModel", remote_side=[id])
@@ -158,6 +158,6 @@ class PredictionLedger(Base):
     evaluated_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
-    project = relationship("Project", backref="prediction_ledger_entries")
+    project = relationship("Project", backref=backref("prediction_ledger_entries", cascade="all, delete-orphan"))
     model = relationship("GovernedModel", backref="predictions")
     evaluator = relationship("User", foreign_keys=[evaluated_by_id])

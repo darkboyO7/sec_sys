@@ -318,3 +318,7 @@ class RegressionDetectionService:
         db.commit()
         db.refresh(alert)
         return alert
+
+
+# Backwards compatibility alias
+RegressionIntelligenceService = RegressionDetectionService

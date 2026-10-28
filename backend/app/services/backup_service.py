@@ -351,6 +351,17 @@ class BackupRecoveryService:
         project_name = project.name
         org_id = project.organization_id
 
+        # Cleanly remove adaptive defense posture and history prior to project deletion
+        try:
+            from app.models.adaptive_defense import MorphStatePosture, MorphStateHistory
+            postures = db.query(MorphStatePosture).filter(MorphStatePosture.project_id == project_id).all()
+            for p in postures:
+                db.query(MorphStateHistory).filter(MorphStateHistory.posture_id == p.id).delete(synchronize_session=False)
+                db.delete(p)
+            db.flush()
+        except Exception:
+            pass
+
         # Delete project (database CASCADE constraints delete dependent records)
         db.delete(project)
         db.commit()

@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, JSON, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import generate_uuid, utc_now
@@ -58,7 +58,7 @@ class MorphStatePosture(Base):
     last_transition_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     last_evaluated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
-    project = relationship("Project", backref="morph_posture")
+    project = relationship("Project", backref=backref("morph_posture", cascade="all, delete-orphan", uselist=False))
     kill_switch_operator = relationship("User", foreign_keys=[kill_switch_engaged_by_id])
     history = relationship("MorphStateHistory", back_populates="posture", cascade="all, delete-orphan", order_by="desc(MorphStateHistory.created_at)")
 

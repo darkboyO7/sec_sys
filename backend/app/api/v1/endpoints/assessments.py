@@ -147,8 +147,10 @@ def create_assessment_job(
     config["fixture_profile"] = effective_profile
     config["profile"] = effective_profile
     norm_target = scope_eval.get("normalized_target") or clean_target
-    if "127.0.0.1" in norm_target or "localhost" in norm_target:
+    if "127.0.0.1" in norm_target or "localhost" in norm_target or scope_eval.get("is_loopback_authorized"):
         config["allow_loopback"] = True
+    if scope_eval.get("is_private_authorized"):
+        config["allow_private"] = True
 
     valid_cfg, cfg_err = adapter.validate_config(config)
     if not valid_cfg:

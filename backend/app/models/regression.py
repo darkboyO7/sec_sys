@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import Column, String, Float, Integer, Boolean, ForeignKey, Enum as SqlEnum, DateTime, Text, JSON, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -47,7 +47,7 @@ class RegressionBaseline(Base, TimestampMixin):
     evidence_stale_days = Column(Integer, default=30, nullable=False)
 
     # Relationships
-    project = relationship("Project", backref="regression_baselines")
+    project = relationship("Project", backref=backref("regression_baselines", cascade="all, delete-orphan"))
     snapshot = relationship("SecuritySnapshot")
 
 
@@ -81,7 +81,7 @@ class RegressionAlert(Base, TimestampMixin):
     resolution_notes = Column(Text, nullable=True)
 
     # Relationships
-    project = relationship("Project", backref="regression_alerts")
+    project = relationship("Project", backref=backref("regression_alerts", cascade="all, delete-orphan"))
     acknowledged_by = relationship("User", foreign_keys=[acknowledged_by_id])
 
     __table_args__ = (
