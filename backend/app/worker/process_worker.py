@@ -16,6 +16,7 @@ from app.services.scanner_adapters import (
     LocalFixtureAdapter,
     PassiveHeaderAuditAdapter,
     SslTlsCipherAuditAdapter,
+    LiveNetworkAuditorAdapter,
 )
 from app.worker.ipc_schemas import WorkerIPCRequest, WorkerIPCResponse, SUPPORTED_PROTOCOL_VERSION
 

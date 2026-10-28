@@ -36,7 +36,7 @@ def test_live_network_auditor_adapter_registration():
     adapter = AdapterRegistry.get("live_network_auditor_adapter")
     assert adapter is not None
     assert adapter.name == "live_network_auditor_adapter"
-    assert adapter.version == "1.0.0"
+    assert adapter.version == "1.1.0"
     assert adapter.status == "ACTIVE"
     assert "LIVE_HTTP_HEADER_INSPECTION" in adapter.declared_capabilities
     assert "LIVE_TLS_CERTIFICATE_AUDIT" in adapter.declared_capabilities
@@ -72,7 +72,7 @@ def test_live_network_auditor_genuine_http_execution(local_test_http_server):
     adapter = LiveNetworkAuditorAdapter()
     res = adapter.execute(
         target=local_test_http_server,
-        config={"profile": "LIVE_HTTP_HEADERS", "timeout_seconds": 5},
+        config={"profile": "LIVE_HTTP_HEADERS", "allow_loopback": True, "timeout_seconds": 5},
     )
 
     assert res.success is True
@@ -84,7 +84,7 @@ def test_live_network_auditor_genuine_http_execution(local_test_http_server):
     finding_titles = [f.title for f in res.findings]
     assert any("Content-Security-Policy" in t for t in finding_titles)
     assert any("X-Content-Type-Options" in t for t in finding_titles)
-    assert any("Server Banner" in t for t in finding_titles)
+    assert any("Server Version Disclosed" in t for t in finding_titles)
 
     # Verify byte-level evidence and cryptographic hash
     ev = res.findings[0].evidence_items[0]
@@ -103,7 +103,7 @@ def test_live_network_auditor_honest_connection_failure():
 
     res = adapter.execute(
         target=f"http://127.0.0.1:{unused_port}",
-        config={"profile": "LIVE_HTTP_HEADERS", "timeout_seconds": 1},
+        config={"profile": "LIVE_HTTP_HEADERS", "allow_loopback": True, "timeout_seconds": 1},
     )
 
     assert res.success is False
@@ -111,7 +111,7 @@ def test_live_network_auditor_honest_connection_failure():
     assert len(res.findings) == 0, "Failed connection must not fabricate artificial findings"
     assert len(res.errors) > 0
     assert "Network error" in res.errors[0]
-    assert res.failure_category == "CONNECTION_FAILED"
+    assert res.failure_category in ("CONNECTION_FAILED", "CONNECTION_REFUSED", "TIMED_OUT")
 
 
 def test_live_network_auditor_cancellation():

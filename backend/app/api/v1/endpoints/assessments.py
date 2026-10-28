@@ -103,7 +103,10 @@ def create_assessment_job(
         )
 
     # 2. Scanner Adapter Governance & Validation (Phase 7B)
-    adapter_name = (job_in.adapter_name or "local_fixture_adapter").strip()
+    clean_target = job_in.target_input.strip()
+    is_url_target = clean_target.startswith("http://") or clean_target.startswith("https://")
+    default_adapter = "live_network_auditor_adapter" if is_url_target else "local_fixture_adapter"
+    adapter_name = (job_in.adapter_name or default_adapter).strip()
     adapter = AdapterRegistry.get(adapter_name)
     if not adapter:
         raise HTTPException(
@@ -120,7 +123,7 @@ def create_assessment_job(
     scope_eval = ScopeEngine.validate_target_in_scope(
         db=db,
         project_id=project_id,
-        target=job_in.target_input.strip(),
+        target=clean_target,
     )
     if not scope_eval["is_authorized"]:
         raise HTTPException(
@@ -140,8 +143,13 @@ def create_assessment_job(
 
     # 4. Resolve effective profile and validate configuration
     config = dict(job_in.config or {})
-    effective_profile = job_in.fixture_profile or config.get("fixture_profile") or adapter.supported_profiles[0]
+    effective_profile = job_in.fixture_profile or config.get("profile") or config.get("fixture_profile") or adapter.supported_profiles[0]
     config["fixture_profile"] = effective_profile
+    config["profile"] = effective_profile
+    norm_target = scope_eval.get("normalized_target") or clean_target
+    if "127.0.0.1" in norm_target or "localhost" in norm_target:
+        config["allow_loopback"] = True
+
     valid_cfg, cfg_err = adapter.validate_config(config)
     if not valid_cfg:
         raise HTTPException(
@@ -213,7 +221,7 @@ def create_assessment_job(
         scope_snapshot_digest=scope_snapshot_digest,
         attempt_count=1,
         timeout_seconds=job_in.timeout_seconds,
-        is_simulated=True,  # Strict simulated fixture execution
+        is_simulated=(adapter.name == "local_fixture_adapter"),
         created_by_id=current_user.id,
         config=config,
         summary_stats={"status": "QUEUED"},

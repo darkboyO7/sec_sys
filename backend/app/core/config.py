@@ -1,6 +1,11 @@
+import os
+from pathlib import Path
 from typing import List, Union
 from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+_DEFAULT_DB_FILE = (_BACKEND_DIR / "data" / "vapt.db").resolve().as_posix()
 
 
 class Settings(BaseSettings):
@@ -16,8 +21,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "VAPT Security Platform"
     API_V1_STR: str = "/api/v1"
 
-    # Database
-    DATABASE_URL: str = "sqlite:///./data/vapt.db"
+    # Database: Absolute path anchored to backend/data/vapt.db
+    DATABASE_URL: str = f"sqlite:///{_DEFAULT_DB_FILE}"
     POSTGRES_POOL_SIZE: int = 20
     POSTGRES_MAX_OVERFLOW: int = 10
     POSTGRES_POOL_TIMEOUT: int = 30

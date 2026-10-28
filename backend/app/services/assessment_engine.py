@@ -489,6 +489,7 @@ class AssessmentExecutionEngine:
             return target_job
 
         # Step 7: Finalize State Machine based on execution outcome
+        job.is_simulated = result.is_simulated
         job.summary_stats = {
             "status_summary": result.status_summary,
             "findings_count": persisted_findings_count,
@@ -496,7 +497,7 @@ class AssessmentExecutionEngine:
             "errors_count": len(result.errors),
             "errors": result.errors,
             "duration_ms": result.execution_duration_ms,
-            "is_simulated": job.is_simulated,
+            "is_simulated": result.is_simulated,
             "policy_version": job.policy_version,
             "adapter_name": job.adapter_name,
             "adapter_version": job.adapter_version,

@@ -55,17 +55,31 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
 
   // Launch Form state
   const [targetInput, setTargetInput] = useState('');
-  const [adapterName, setAdapterName] = useState('local_fixture_adapter');
-  const [fixtureProfile, setFixtureProfile] = useState('WEB_APPLICATION_BASELINE');
-  const [timeoutSeconds, setTimeoutSeconds] = useState(300);
+  const [adapterName, setAdapterName] = useState('live_network_auditor_adapter');
+  const [fixtureProfile, setFixtureProfile] = useState('LIVE_WEB_SECURITY_AUDIT');
+  const [timeoutSeconds, setTimeoutSeconds] = useState(30);
   const [idempotencyKey, setIdempotencyKey] = useState('');
   const [launching, setLaunching] = useState(false);
+  const [authorizingTarget, setAuthorizingTarget] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const adapterOptions = [
     {
+      id: 'live_network_auditor_adapter',
+      name: 'Live Network & Web Security Auditor',
+      mode: 'GENUINE_LIVE',
+      description: 'Genuine non-intrusive live web security probe. Performs real HTTP/HTTPS inspection, security headers, cookie flags, security resources (security.txt/robots.txt), or TLS certificates.',
+      profiles: [
+        { id: 'LIVE_WEB_SECURITY_AUDIT', label: 'LIVE_WEB_SECURITY_AUDIT — Comprehensive Web Audit (Headers, Cookies, Resources & TLS)' },
+        { id: 'LIVE_HTTP_HEADERS', label: 'LIVE_HTTP_HEADERS — Live Real HTTP Response Headers & Cookie Flags' },
+        { id: 'LIVE_TLS_HANDSHAKE', label: 'LIVE_TLS_HANDSHAKE — Live Real TLS Handshake & Certificate Audit' },
+        { id: 'LIVE_SECURITY_RESOURCES', label: 'LIVE_SECURITY_RESOURCES — Safe security.txt (RFC 9116) & robots.txt Audit' },
+        { id: 'LIVE_TCP_BANNER', label: 'LIVE_TCP_BANNER — Live Real Service Banner Grab' },
+      ],
+    },
+    {
       id: 'local_fixture_adapter',
-      name: 'Local Fixture Simulator',
+      name: 'Local Fixture Simulator (Offline)',
       mode: 'SIMULATED',
       description: 'Deterministic offline fixture engine. Generates reproducible test findings without network traffic.',
       profiles: [
@@ -73,17 +87,6 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
         { id: 'TLS_CONFIGURATION_CHECK', label: 'TLS_CONFIGURATION_CHECK — Legacy Protocol & Cipher Weakness' },
         { id: 'HARDENED_HOST_BASELINE', label: 'HARDENED_HOST_BASELINE — Clean Host Benchmark (0 Findings)' },
         { id: 'SIMULATED_CRITICAL_EXPOSURE', label: 'SIMULATED_CRITICAL_EXPOSURE — Unauthenticated SQLi Demo' },
-      ],
-    },
-    {
-      id: 'live_network_auditor_adapter',
-      name: 'Live Network Auditor',
-      mode: 'GENUINE_LIVE',
-      description: 'Genuine non-intrusive live probe. Performs real HTTP GET/HEAD inspection, TLS handshake, or TCP banner grab.',
-      profiles: [
-        { id: 'LIVE_HTTP_HEADERS', label: 'LIVE_HTTP_HEADERS — Live Real HTTP Response Headers & Cookies' },
-        { id: 'LIVE_TLS_HANDSHAKE', label: 'LIVE_TLS_HANDSHAKE — Live Real TLS Handshake & Certificate Audit' },
-        { id: 'LIVE_TCP_BANNER', label: 'LIVE_TCP_BANNER — Live Real Service Banner Grab' },
       ],
     },
     {
@@ -113,10 +116,24 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const currentAdapter = adapterOptions.find((a) => a.id === adapterName) || adapterOptions[0];
   const currentProfiles = currentAdapter.profiles;
 
-  // Selected target authorization check
+  // Selected target authorization check (matches exact or URL domain)
   const isSelectedTargetAuthorized = useMemo(() => {
-    if (!targetInput) return false;
-    return authorizedTargets.some((t) => t.target_value === targetInput);
+    if (!targetInput.trim()) return false;
+    const clean = targetInput.trim().toLowerCase();
+    return authorizedTargets.some((t) => {
+      const val = t.target_value.toLowerCase();
+      if (clean === val) return true;
+      try {
+        const u = new URL(clean.startsWith('http') ? clean : `http://${clean}`);
+        const host = u.hostname.toLowerCase();
+        if (host === val || val === host) return true;
+        if (val.startsWith('*.') && (host === val.slice(2) || host.endsWith('.' + val.slice(2)))) return true;
+        if (val.startsWith('http') && clean.startsWith(val)) return true;
+      } catch {
+        // Fallback
+      }
+      return false;
+    });
   }, [targetInput, authorizedTargets]);
 
   // Filtered jobs
@@ -144,6 +161,29 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const activeJobsCount = jobs.filter((j) => ['QUEUED', 'PREFLIGHT', 'READY', 'RUNNING'].includes(j.status)).length;
   const simulatedJobsCount = jobs.filter((j) => j.is_simulated).length;
   const liveJobsCount = jobs.filter((j) => !j.is_simulated).length;
+
+  const handleAuthorizeAndEnroll = async () => {
+    if (!targetInput.trim()) return;
+    setAuthorizingTarget(true);
+    setError(null);
+    try {
+      // 1. Register candidate target in project scope
+      const registered = await api.registerScopeTarget(project.id, {
+        target_value: targetInput.trim(),
+        description: 'Enrolled via Assessment Launcher for immediate authorized testing',
+      });
+      // 2. Grant explicit ROE authorization
+      await api.authorizeScopeTarget(project.id, registered.id, {
+        evidence: 'Operator ROE authorization granted via dashboard launcher',
+      });
+      // 3. Refresh parent project targets
+      onRefresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to authorize target in project scope');
+    } finally {
+      setAuthorizingTarget(false);
+    }
+  };
 
   const handleLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -702,30 +742,68 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
             <form onSubmit={handleLaunch} className="p-5 space-y-4">
               {/* Target Scope Selection */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Target Assessment Scope *</label>
-                {authorizedTargets.length > 0 ? (
-                  <select
-                    value={targetInput}
-                    onChange={(e) => setTargetInput(e.target.value)}
-                    required
-                    className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
-                  >
-                    <option value="">Select from authorized project targets...</option>
-                    {authorizedTargets.map((t) => (
-                      <option key={t.id} value={t.target_value}>
-                        {t.target_value} ({t.target_type}) — AUTHORIZED
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300">
-                    No targets are currently AUTHORIZED for this project. Navigate to Scopes & Targets to register and authorize assessment scopes before executing.
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-slate-300">Target Assessment Scope *</label>
+                  {onNavigateToScopes && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLaunchModalOpen(false);
+                        onNavigateToScopes();
+                      }}
+                      className="text-[10px] text-accent-cyan hover:underline flex items-center gap-0.5 font-mono"
+                    >
+                      Manage Scope Rules <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+
+                {authorizedTargets.length > 0 && (
+                  <div className="mb-2">
+                    <select
+                      value={targetInput}
+                      onChange={(e) => setTargetInput(e.target.value)}
+                      className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-accent-cyan"
+                    >
+                      <option value="">-- Choose from authorized targets or enter below --</option>
+                      {authorizedTargets.map((t) => (
+                        <option key={t.id} value={t.target_value}>
+                          {t.target_value} ({t.target_type}) — AUTHORIZED
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
+
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter URL or host: https://example.com, https://target.internal, http://127.0.0.1:8000"
+                  value={targetInput}
+                  onChange={(e) => setTargetInput(e.target.value)}
+                  className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-accent-cyan"
+                />
+
                 {targetInput && isSelectedTargetAuthorized && (
-                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-mono">
-                    <CheckCircle2 className="w-3 h-3" /> Target scope verified and authorized.
+                  <p className="text-[11px] text-emerald-400 mt-1.5 flex items-center gap-1.5 font-mono">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Target scope verified and authorized for genuine live assessment.
                   </p>
+                )}
+
+                {targetInput.trim() && !isSelectedTargetAuthorized && (
+                  <div className="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-3">
+                    <div className="text-[11px] text-amber-300 font-mono">
+                      Target '{targetInput.trim()}' is not in this project's authorized scope yet.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAuthorizeAndEnroll}
+                      disabled={authorizingTarget}
+                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded transition-colors shrink-0 shadow-sm"
+                    >
+                      {authorizingTarget ? 'Authorizing...' : 'Authorize Target'}
+                    </button>
+                  </div>
                 )}
               </div>
 
