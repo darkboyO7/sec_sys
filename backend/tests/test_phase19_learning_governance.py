@@ -16,6 +16,7 @@ from app.models.learning import (
     PredictionType,
     PredictionEvaluationStatus,
     LearningDataset,
+    DatasetRecord,
     GovernedModel,
     PredictionLedger,
 )
@@ -550,3 +551,112 @@ def test_phase19_1_prediction_ledger_api_endpoints(
     assert "accuracy_rate" in drift_data
     assert "brier_score" in drift_data
     assert "status" in drift_data
+
+
+def test_phase19_inferior_candidate_rejected_and_baseline_preserved(
+    db,
+    test_project: Project,
+    lead_user: User,
+):
+    # 1. Curate dataset
+    dataset = LearningDataset(
+        project_id=test_project.id,
+        name="Baseline Test Dataset",
+        version="1.0.0",
+        dataset_hash="hash123",
+        total_records=10,
+        train_count=6,
+        val_count=2,
+        test_count=2,
+    )
+    db.add(dataset)
+    db.commit()
+
+    # Add test records
+    r1 = DatasetRecord(
+        dataset_id=dataset.id,
+        split=DatasetSplit.TEST,
+        source_entity_type="finding",
+        source_entity_id="f-1",
+        features={"severity": "HIGH"},
+        label="TRUE_POSITIVE",
+        provenance_digest="dig1",
+    )
+    r2 = DatasetRecord(
+        dataset_id=dataset.id,
+        split=DatasetSplit.TEST,
+        source_entity_type="finding",
+        source_entity_id="f-2",
+        features={"severity": "LOW"},
+        label="FALSE_POSITIVE",
+        provenance_digest="dig2",
+    )
+    db.add_all([r1, r2])
+    db.commit()
+
+    # 2. Register, evaluate, approve, and activate Baseline Model A
+    model_a = ModelGovernanceService.register_model(
+        project_id=test_project.id,
+        model_name="vuln_classifier",
+        version="1.0.0",
+        model_type="heuristic_classifier",
+        dataset_id=dataset.id,
+        hyperparameters={},
+        actor=lead_user,
+        db=db,
+    )
+    ModelGovernanceService.evaluate_model(project_id=test_project.id, model_id=model_a.id, db=db)
+    ModelGovernanceService.approve_model(
+        project_id=test_project.id,
+        model_id=model_a.id,
+        approved=True,
+        approval_notes="Approved baseline",
+        reviewer=lead_user,
+        db=db,
+    )
+    ModelGovernanceService.activate_model(project_id=test_project.id, model_id=model_a.id, actor=lead_user, db=db)
+    db.refresh(model_a)
+    assert model_a.is_active is True
+    base_f1 = model_a.metrics["f1_score"]
+
+    # 3. Register Candidate Model B
+    model_b = ModelGovernanceService.register_model(
+        project_id=test_project.id,
+        model_name="vuln_classifier",
+        version="1.1.0-cand",
+        model_type="heuristic_classifier",
+        dataset_id=dataset.id,
+        hyperparameters={},
+        actor=lead_user,
+        db=db,
+    )
+    ModelGovernanceService.evaluate_model(project_id=test_project.id, model_id=model_b.id, db=db)
+    db.refresh(model_b)
+
+    # Artificially set candidate metrics lower than baseline to test rejection gate
+    m = dict(model_b.metrics)
+    m["f1_score"] = round(base_f1 - 0.20, 4)
+    m["baseline_comparison"]["candidate_f1"] = m["f1_score"]
+    m["baseline_comparison"]["candidate_meets_acceptance"] = False
+    model_b.metrics = m
+    db.commit()
+
+    # 4. Attempting to approve inferior candidate raises ValueError and rejects model
+    with pytest.raises(ValueError, match="Candidate model fails acceptance criteria"):
+        ModelGovernanceService.approve_model(
+            project_id=test_project.id,
+            model_id=model_b.id,
+            approved=True,
+            approval_notes="Should fail acceptance",
+            reviewer=lead_user,
+            db=db,
+        )
+
+    # 5. Baseline Model A remains active and untouched!
+    db.refresh(model_a)
+    assert model_a.is_active is True
+    assert model_a.status == ModelStatus.ACTIVE
+
+    db.refresh(model_b)
+    assert model_b.is_active is False
+    assert model_b.status == ModelStatus.EVALUATED

@@ -13,6 +13,7 @@ import { ContextualRiskView } from './views/ContextualRiskView';
 import { AuditLedgerView } from './views/AuditLedgerView';
 import { SystemHealthView } from './views/SystemHealthView';
 import { RemediationVerificationView } from './views/RemediationVerificationView';
+import { ContinuousMonitoringView } from './views/ContinuousMonitoringView';
 import { ReportingView } from './views/ReportingView';
 import { DigitalTwinView } from './views/DigitalTwinView';
 import { RegressionAlertsView } from './views/RegressionAlertsView';
@@ -271,6 +272,13 @@ export const App: React.FC = () => {
                   loading={loading}
                   onNavigateToScopes={() => setActiveTab('scopes')}
                   onNavigateToFindings={() => setActiveTab('findings')}
+                />
+              )}
+
+              {activeTab === 'monitoring' && (
+                <ContinuousMonitoringView
+                  currentProject={activeProject}
+                  authorizedTargets={authorizedTargets}
                 />
               )}
 

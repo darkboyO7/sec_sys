@@ -398,7 +398,20 @@ class RemediationVerificationService:
                 matching_finding = raw_f
                 break
 
-        if still_present:
+        baseline_hash = cls.get_baseline_evidence_hash(finding)
+        evidence_payloads = []
+        for raw_f in adapter_result.findings:
+            for ev in raw_f.evidence_items:
+                evidence_payloads.append({"type": ev.evidence_type, "sha256": ev.sha256_hash})
+
+        if not adapter_result.success:
+            outcome = VerificationOutcome.INCONCLUSIVE
+            summary = (
+                f"Automated re-test via '{adapter_name}' could not verify condition: "
+                f"execution failed or target unreachable ({adapter_result.failure_category or 'EXECUTION_FAILED'}: "
+                f"{adapter_result.status_summary}). Finding remains unverified."
+            )
+        elif still_present:
             outcome = VerificationOutcome.STILL_VULNERABLE
             summary = (
                 f"Automated re-test via '{adapter_name}' confirmed vulnerability is still present on '{finding.target_value}'. "
@@ -411,14 +424,22 @@ class RemediationVerificationService:
                 f"No matching vulnerability signature detected in {len(adapter_result.findings)} observations."
             )
 
-        evidence_payloads = []
-        for raw_f in adapter_result.findings:
-            for ev in raw_f.evidence_items:
-                evidence_payloads.append({"type": ev.evidence_type, "sha256": ev.sha256_hash})
+        # Retrieve linked recommendation if one exists
+        from app.models.risk import RemediationRecommendation
+        rec = (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.finding_id == finding.id,
+                RemediationRecommendation.project_id == project_id,
+            )
+            .first()
+        )
+        rec_id = rec.id if rec else None
 
         return cls.record_verification(
             project_id=project_id,
             finding_id=finding.id,
+            recommendation_id=rec_id,
             outcome=outcome,
             verification_criteria=f"Automated check via adapter '{adapter_name}' against target '{finding.target_value}'.",
             verification_evidence_summary=summary,
@@ -427,14 +448,23 @@ class RemediationVerificationService:
             verifier_role=verifier_role,
             db=db,
             verification_method=VerificationMethod.PASSIVE_SCAN,
+            baseline_evidence_hash=baseline_hash,
             verification_evidence_data={
                 "adapter": adapter_name,
                 "evidence_count": len(evidence_payloads),
                 "evidence_items": evidence_payloads,
+                "before_evidence_hash": baseline_hash,
+                "after_evidence_hashes": [e["sha256"] for e in evidence_payloads],
+                "before_after_comparison": {
+                    "before_hash": baseline_hash,
+                    "after_findings_count": len(adapter_result.findings),
+                    "outcome": outcome.value,
+                },
                 "execution_metadata": {
                     "success": adapter_result.success,
                     "duration_ms": adapter_result.execution_duration_ms,
                     "status_summary": adapter_result.status_summary,
+                    "failure_category": adapter_result.failure_category,
                 },
             },
             client_ip=client_ip,

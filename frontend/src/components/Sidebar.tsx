@@ -18,6 +18,7 @@ import {
   Shield,
   Layers,
   Settings,
+  Clock,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ export type NavigationTab =
   | 'overview'
   | 'scopes'
   | 'assessments'
+  | 'monitoring'
   | 'findings'
   | 'assets'
   | 'graph'
@@ -98,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       category: 'OPERATIONS & EXECUTION',
       items: [
         { id: 'assessments', label: 'Assessment Jobs', icon: PlayCircle, badge: assessmentCount > 0 ? assessmentCount : undefined },
+        { id: 'monitoring', label: 'Continuous Monitor', icon: Clock },
         { id: 'findings', label: 'Finding Lifecycle', icon: ShieldAlert, badge: findingCount > 0 ? findingCount : undefined },
         { id: 'verification', label: 'Remediation & Verify', icon: CheckCircle },
       ],

@@ -843,6 +843,39 @@ async listUsers(): Promise<User[]> {
   async exportSiemAudit(projectId: string, formatType: string = 'CEF'): Promise<any> {
     return this.request(`/projects/${projectId}/integrations/siem/export?format_type=${encodeURIComponent(formatType)}`);
   }
+
+  // Continuous Monitoring & Recurring Assessments
+  async listMonitoringSchedules(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/monitoring/schedules`);
+  }
+
+  async createMonitoringSchedule(projectId: string, data: any): Promise<any> {
+    return this.request(`/projects/${projectId}/monitoring/schedules`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async pauseMonitoringSchedule(projectId: string, scheduleId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/monitoring/schedules/${scheduleId}/pause`, { method: 'POST' });
+  }
+
+  async resumeMonitoringSchedule(projectId: string, scheduleId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/monitoring/schedules/${scheduleId}/resume`, { method: 'POST' });
+  }
+
+  async triggerMonitoringScheduleRun(projectId: string, scheduleId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/monitoring/schedules/${scheduleId}/run-now`, { method: 'POST' });
+  }
+
+  async getMonitoringOverview(projectId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/monitoring/overview`);
+  }
+
+  async listMonitoringRuns(projectId: string): Promise<any[]> {
+    return this.request(`/projects/${projectId}/monitoring/runs`);
+  }
 }
+
 
 export const api = new ApiService();

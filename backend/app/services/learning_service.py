@@ -301,6 +301,35 @@ class ModelGovernanceService:
         fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
         brier_score = brier_sum / n_test if n_test > 0 else 0.0
 
+        # Compare against active baseline model if present
+        current_active = (
+            db.query(GovernedModel)
+            .filter(
+                GovernedModel.project_id == project_id,
+                GovernedModel.model_name == model.model_name,
+                GovernedModel.is_active.is_(True),
+            )
+            .first()
+        )
+        baseline_comparison = None
+        if current_active and current_active.metrics:
+            base_f1 = current_active.metrics.get("f1_score", 0.0)
+            base_brier = current_active.metrics.get("brier_score", 1.0)
+            cand_f1 = round(f1, 4)
+            cand_brier = round(brier_score, 4)
+            meets_acceptance = (cand_f1 >= base_f1) and (cand_brier <= base_brier)
+            baseline_comparison = {
+                "active_model_id": current_active.id,
+                "active_model_version": current_active.version,
+                "baseline_f1": base_f1,
+                "candidate_f1": cand_f1,
+                "f1_delta": round(cand_f1 - base_f1, 4),
+                "baseline_brier": base_brier,
+                "candidate_brier": cand_brier,
+                "brier_delta": round(cand_brier - base_brier, 4),
+                "candidate_meets_acceptance": meets_acceptance,
+            }
+
         model.metrics = {
             "test_sample_size": n_test,
             "true_positives": tp,
@@ -313,6 +342,7 @@ class ModelGovernanceService:
             "false_positive_rate": round(fpr, 4),
             "brier_score": round(brier_score, 4),
             "calibration_error": round(math.sqrt(brier_score), 4),
+            "baseline_comparison": baseline_comparison,
             "evaluation_timestamp": utc_now().isoformat(),
         }
         model.status = ModelStatus.EVALUATED
@@ -340,6 +370,7 @@ class ModelGovernanceService:
         approval_notes: str,
         reviewer: User,
         db: Session,
+        force: bool = False,
         client_ip: Optional[str] = None,
     ) -> GovernedModel:
         """Enforces Lead/Admin human governance approval gate."""
@@ -361,6 +392,16 @@ class ModelGovernanceService:
             rec = m.get("recall", 0.0)
             if prec < 0.60 or rec < 0.60:
                 raise ValueError(f"Model fails minimum quality thresholds (precision={prec:.2f}, recall={rec:.2f}).")
+
+            # Quality comparison: reject inferior candidate if it fails acceptance against active baseline
+            base_comp = m.get("baseline_comparison")
+            if base_comp and not base_comp.get("candidate_meets_acceptance", True):
+                if not force:
+                    raise ValueError(
+                        f"Candidate model fails acceptance criteria against active baseline "
+                        f"{base_comp.get('active_model_version')} (F1: {base_comp.get('candidate_f1')} vs "
+                        f"baseline {base_comp.get('baseline_f1')}). Candidate rejected; baseline preserved."
+                    )
 
             model.status = ModelStatus.APPROVED
             model.approved_by_id = reviewer.id

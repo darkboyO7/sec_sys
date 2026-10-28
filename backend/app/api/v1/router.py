@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     adaptive_defense,
     lifecycle,
     integrations,
+    monitoring,
 )
 
 api_router = APIRouter()
@@ -44,3 +45,4 @@ api_router.include_router(learning.router, tags=["Controlled Learning & Model Go
 api_router.include_router(adaptive_defense.router, tags=["Morph-State Adaptive Defense & Recovery"])
 api_router.include_router(lifecycle.router, tags=["Backup, Recovery & Data Lifecycle"])
 api_router.include_router(integrations.router, tags=["Enterprise Integrations"])
+api_router.include_router(monitoring.router, tags=["Continuous Monitoring & Recurring Assessments"])

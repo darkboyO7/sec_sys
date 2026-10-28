@@ -77,6 +77,13 @@ from app.models.adaptive_defense import (
     MorphStateHistory,
 )
 
+from app.models.monitoring import (
+    ScheduleFrequency,
+    ScheduleStatus,
+    MonitoringSchedule,
+    MonitoringRun,
+)
+
 __all__ = [
     "Base",
     "TimestampMixin",
@@ -143,4 +150,8 @@ __all__ = [
     "AdaptiveTransitionTrigger",
     "MorphStatePosture",
     "MorphStateHistory",
+    "ScheduleFrequency",
+    "ScheduleStatus",
+    "MonitoringSchedule",
+    "MonitoringRun",
 ]

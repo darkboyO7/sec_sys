@@ -62,6 +62,12 @@ def run_worker_loop(
                     logger.warning("Recovered %d stale/abandoned assessment job(s).", len(recovered))
                 last_stale_recovery = time.time()
 
+            # Process due continuous monitoring recurring schedules
+            from app.services.continuous_monitoring_service import ContinuousMonitoringService
+            due_runs = ContinuousMonitoringService.process_due_schedules(db=db)
+            if due_runs:
+                logger.info("Executed %d continuous monitoring recurring run(s).", len(due_runs))
+
             # Claim next available QUEUED job
             job = AssessmentExecutionEngine.claim_next_available_job(db=db, worker_id=worker_id)
             if job:
