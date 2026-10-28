@@ -82,8 +82,12 @@ class AssessmentExecutionEngine:
         if not job:
             raise ValueError(f"Assessment job '{job_id}' not found.")
 
-        # Concurrency safety: Only QUEUED or READY jobs can be preflighted and claimed
-        if job.status not in (AssessmentStatus.QUEUED, AssessmentStatus.READY):
+        # Concurrency safety: Only QUEUED, READY, or PREFLIGHT (if claimed by this worker) can proceed
+        if job.status not in (AssessmentStatus.QUEUED, AssessmentStatus.READY, AssessmentStatus.PREFLIGHT):
+            return job
+
+        if job.status == AssessmentStatus.PREFLIGHT and job.claimed_by != worker_id:
+            # Claimed by a different worker
             return job
 
         # 1. State transition to PREFLIGHT using atomic conditional update

@@ -161,6 +161,29 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const simulatedJobsCount = jobs.filter((j) => j.is_simulated).length;
   const liveJobsCount = jobs.filter((j) => !j.is_simulated).length;
 
+  // Real-time polling when jobs are in active states (QUEUED, PREFLIGHT, READY, RUNNING)
+  React.useEffect(() => {
+    if (activeJobsCount === 0) return;
+    const interval = setInterval(() => {
+      onRefresh();
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [activeJobsCount, onRefresh]);
+
+  // Synchronize selected job details when status transitions
+  React.useEffect(() => {
+    if (!selectedJob) return;
+    const updated = jobs.find((j) => j.id === selectedJob.id);
+    if (updated && updated.status !== selectedJob.status) {
+      setSelectedJob(updated);
+      if (updated.status === 'COMPLETED') {
+        api.listAssessmentFindings(project.id, updated.id)
+          .then((findings) => setJobFindings(findings))
+          .catch(() => {});
+      }
+    }
+  }, [jobs, selectedJob, project.id]);
+
   const handleLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetInput.trim()) return;
