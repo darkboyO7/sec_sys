@@ -183,12 +183,33 @@ export interface AuditEvent {
 export interface ReadinessResponse {
   status: 'ready' | 'not_ready';
   timestamp: string;
+  degraded?: boolean;
+  message?: string;
   checks: {
     database: boolean;
     migrations: boolean;
     storage_writable: boolean;
     details: Record<string, any>;
   };
+}
+
+export type OperationalHealthState = 'HEALTHY' | 'DEGRADED' | 'UNAVAILABLE' | 'UNKNOWN';
+
+export interface DependencyItemCheck {
+  name: string;
+  critical: boolean;
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+  latency_ms: number;
+  message?: string;
+  details?: Record<string, any>;
+}
+
+export interface DependencyHealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  critical_healthy: boolean;
+  timestamp: string;
+  dependencies: Record<string, DependencyItemCheck>;
+  summary: string;
 }
 
 export type FindingLifecycleStatus =

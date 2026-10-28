@@ -26,11 +26,13 @@ from app.api.v1.endpoints import (
     operations,
     diagnostics,
     orchestration,
+    metrics,
 )
 
 api_router = APIRouter()
 
 api_router.include_router(health.router, tags=["Health & Readiness"])
+api_router.include_router(metrics.router, tags=["Operational Metrics & Observability"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Identity & Authentication"])
 api_router.include_router(projects.router, prefix="/projects", tags=["Organizations & Projects"])
 api_router.include_router(scopes.router, tags=["Scopes & Authorization"])

@@ -1,40 +1,62 @@
 import uuid
 import time
 import logging
+from typing import Optional
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, Header
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.api.v1.router import api_router
-
-# Configure root logging
-logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+from app.core.logging import (
+    setup_structured_logging,
+    sanitize_correlation_id,
+    set_correlation_id,
+    get_correlation_id,
 )
-logger = logging.getLogger("vapt.platform")
+from app.services.metrics_service import metrics_service
+
+# Configure root structured logging with correlation context and redaction
+logger = setup_structured_logging(level=logging.INFO if not settings.DEBUG else logging.DEBUG)
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        # Extract and sanitize correlation/request ID to defend against log injection
+        raw_header = request.headers.get("X-Correlation-ID") or request.headers.get("X-Request-ID")
+        corr_id = sanitize_correlation_id(raw_header)
+        set_correlation_id(corr_id)
+
+        # Attach to request state
+        request.state.correlation_id = corr_id
+        request.state.request_id = corr_id
+
         start_time = time.perf_counter()
-
-        # Attach request id to state
-        request.state.request_id = req_id
-
         response = await call_next(request)
-
         duration = (time.perf_counter() - start_time) * 1000
-        response.headers["X-Request-ID"] = req_id
+
+        # Attach telemetry headers
+        response.headers["X-Correlation-ID"] = corr_id
+        response.headers["X-Request-ID"] = corr_id
         response.headers["X-Response-Time-MS"] = f"{duration:.2f}"
 
+        # Record operational metrics
+        try:
+            metrics_service.record_api_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration_ms=duration,
+            )
+        except Exception:
+            pass
+
         logger.info(
-            f"req_id={req_id} method={request.method} path={request.url.path} status={response.status_code} duration_ms={duration:.2f}"
+            f"corr_id={corr_id} method={request.method} path={request.url.path} status={response.status_code} duration_ms={duration:.2f}"
         )
         return response
 
@@ -140,34 +162,63 @@ app.add_middleware(
 
 # Root-level liveness and readiness probes for orchestrators (Kubernetes, AWS ALB, ECS)
 @app.get("/health", include_in_schema=False)
+@app.get("/health/live", include_in_schema=False)
 def root_liveness():
-    return {"status": "ok", "environment": settings.ENVIRONMENT, "app": settings.APP_NAME}
+    from app.api.v1.endpoints.health import liveness_check
+    return liveness_check()
 
 
 @app.get("/ready", include_in_schema=False)
+@app.get("/health/ready", include_in_schema=False)
 def root_readiness(db: Session = Depends(get_db)):
     from app.api.v1.endpoints.health import readiness_check
     return readiness_check(db)
 
 
+@app.get("/metrics", include_in_schema=False)
+def root_metrics(
+    request: Request,
+    x_operator_token: Optional[str] = Header(None, alias="X-Operator-Token"),
+    authorization: Optional[str] = Header(None),
+):
+    from app.api.v1.endpoints.metrics import get_metrics_prometheus
+    return get_metrics_prometheus(request, x_operator_token=x_operator_token, authorization=authorization)
+
+
 @app.exception_handler(Exception)
 async def global_unhandled_exception_handler(request: Request, exc: Exception):
-    req_id = getattr(request.state, "request_id", "unknown")
-    logger.exception(f"Unhandled system exception [req_id={req_id}]: {str(exc)}")
+    corr_id = getattr(request.state, "correlation_id", getattr(request.state, "request_id", "unknown"))
+    logger.exception(f"Unhandled system exception [corr_id={corr_id}]: {str(exc)}")
+
+    # Handle transient database contention / outage gracefully with HTTP 503
+    if isinstance(exc, (SQLAlchemyOperationalError,)) or "database is locked" in str(exc).lower() or "operationalerror" in type(exc).__name__.lower():
+        metrics_service.record_db_contention("unhandled_db_interruption")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "Database engine temporarily unavailable or busy. Request can be safely retried.",
+                "correlation_id": corr_id,
+                "retryable": True,
+            },
+            headers={"X-Correlation-ID": corr_id, "Retry-After": "1"},
+        )
+
     if settings.ENVIRONMENT == "production":
         return JSONResponse(
             status_code=500,
             content={
                 "detail": "An internal error occurred. Please contact the administrator.",
-                "request_id": req_id,
+                "correlation_id": corr_id,
             },
+            headers={"X-Correlation-ID": corr_id},
         )
     return JSONResponse(
         status_code=500,
         content={
             "detail": f"Unhandled error: {str(exc)}",
-            "request_id": req_id,
+            "correlation_id": corr_id,
         },
+        headers={"X-Correlation-ID": corr_id},
     )
 
 

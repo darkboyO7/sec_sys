@@ -257,3 +257,20 @@ def get_failure_patterns(
 ):
     verify_project_access(project_id, current_user, db)
     return ContinuousImprovementService.analyze_and_update_patterns(db=db, project_id=project_id)
+
+
+# ------------------------------------------------------------------------------
+# 6. Low-Level Database, Storage, and Operational Diagnostics
+# ------------------------------------------------------------------------------
+@router.get(
+    "/operational-status",
+    status_code=status.HTTP_200_OK,
+    summary="Get low-level database, storage, WAL, and backup diagnostics",
+)
+def get_operational_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.services.database_diagnostics_service import DatabaseDiagnosticsService
+    return DatabaseDiagnosticsService.run_diagnostics(db=db)
+

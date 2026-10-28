@@ -169,11 +169,19 @@ class OrchestrationStateMachine:
             now = utc_now()
 
         if workflow.locked_by and workflow.locked_by != worker_id:
-            if workflow.lock_expires_at and workflow.lock_expires_at > now:
-                raise ConcurrencyLockError(
-                    f"Workflow '{workflow.id}' is actively locked by worker '{workflow.locked_by}' "
-                    f"until {workflow.lock_expires_at.isoformat()}."
-                )
+            if workflow.lock_expires_at:
+                lock_exp = workflow.lock_expires_at
+                cmp_now = now
+                if lock_exp.tzinfo is not None and cmp_now.tzinfo is None:
+                    cmp_now = cmp_now.replace(tzinfo=timezone.utc)
+                elif lock_exp.tzinfo is None and cmp_now.tzinfo is not None:
+                    lock_exp = lock_exp.replace(tzinfo=timezone.utc)
+
+                if lock_exp > cmp_now:
+                    raise ConcurrencyLockError(
+                        f"Workflow '{workflow.id}' is actively locked by worker '{workflow.locked_by}' "
+                        f"until {workflow.lock_expires_at.isoformat()}."
+                    )
 
         workflow.locked_by = worker_id
         workflow.locked_at = now
