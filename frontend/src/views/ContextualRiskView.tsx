@@ -78,7 +78,7 @@ export const ContextualRiskView: React.FC<ContextualRiskViewProps> = ({
   const [reviewSubmitting, setReviewSubmitting] = useState<boolean>(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
-  const isLead = currentUserRole === 'LEAD' || currentUserRole === 'ADMIN';
+  const isLead = currentUserRole === 'LEAD' || currentUserRole === 'SECURITY_LEAD' || currentUserRole === 'ADMIN';
 
   // Load summary and initial tab data
   const loadInitialData = async () => {
