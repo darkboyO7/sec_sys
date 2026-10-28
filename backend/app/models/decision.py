@@ -113,3 +113,45 @@ class SecurityDecisionRecord(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_security_decisions_project_status", "project_id", "status"),
     )
+
+
+class PlanStatus(str, enum.Enum):
+    GENERATED = "GENERATED"
+    PARTIALLY_EXECUTED = "PARTIALLY_EXECUTED"
+    COMPLETED = "COMPLETED"
+    SUPERSEDED = "SUPERSEDED"
+    CANCELLED = "CANCELLED"
+
+
+class AdaptiveAssessmentPlanRecord(Base, TimestampMixin):
+    """
+    Evidence-Driven Adaptive Assessment Plan (Prompt 10 / Section 3).
+    Captures recommended and skipped assessment checks:
+    - Balances freshness, configuration changes, failing probes, and high-risk finding verification.
+    - Strictly enforces scope validation and scan budget boundaries.
+    - Stores complete decision provenance for historical audit.
+    """
+    __tablename__ = "adaptive_assessment_plans"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    plan_name = Column(String(255), nullable=False)
+    status = Column(SqlEnum(PlanStatus), default=PlanStatus.GENERATED, nullable=False, index=True)
+
+    scan_budget = Column(Integer, default=10, nullable=False)
+    total_recommended = Column(Integer, default=0, nullable=False)
+    total_skipped = Column(Integer, default=0, nullable=False)
+
+    recommended_checks = Column(JSON, nullable=False, default=list)
+    skipped_checks = Column(JSON, nullable=False, default=list)
+    execution_summary = Column(JSON, nullable=False, default=dict)
+
+    created_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    project = relationship("Project", backref=backref("adaptive_plans", cascade="all, delete-orphan"))
+    creator = relationship("User", foreign_keys=[created_by_id])
+
+    __table_args__ = (
+        Index("ix_adaptive_plans_project_status", "project_id", "status"),
+    )

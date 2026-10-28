@@ -86,8 +86,10 @@ from app.models.decision import (
     ChangeType,
     DecisionActionType,
     DecisionStatus,
+    PlanStatus,
     PostureChangeRecord,
     SecurityDecisionRecord,
+    AdaptiveAssessmentPlanRecord,
 )
 
 __all__ = [
@@ -163,6 +165,8 @@ __all__ = [
     "ChangeType",
     "DecisionActionType",
     "DecisionStatus",
+    "PlanStatus",
     "PostureChangeRecord",
     "SecurityDecisionRecord",
+    "AdaptiveAssessmentPlanRecord",
 ]

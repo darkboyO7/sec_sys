@@ -44,6 +44,7 @@ def test_risk_scoring_determinism_and_factors(db: Session, test_project: Project
         name="Customer Portal",
         canonical_identifier="https://portal.corp",
         criticality=AssetCriticality.HIGH,
+        attributes={"business_impact": "HIGH", "has_known_exploit": True},
     )
     db.add(asset)
     db.flush()

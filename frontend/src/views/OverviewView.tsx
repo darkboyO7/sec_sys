@@ -16,6 +16,7 @@ import type { Project, ScopeTarget, ScopeExclusion, AuditEvent, AssessmentJob } 
 import { ScopeValidationConsole } from '../components/ScopeValidationConsole';
 import { EmptyState } from '../components/EmptyState';
 import { AutonomousOperationsConsole } from '../components/AutonomousOperationsConsole';
+import { AdaptiveIntelligenceConsole } from '../components/AdaptiveIntelligenceConsole';
 
 interface OverviewViewProps {
   activeProject: Project | null;
@@ -207,7 +208,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </div>
 
-            {/* 2.5 Autonomous Security Intelligence & Closed-Loop Operations */}
+      {/* 2.5 Evidence-Driven Adaptive Security Intelligence Console (Prompt 10) */}
+      <AdaptiveIntelligenceConsole
+        projectId={activeProject.id}
+        onNavigateToFindings={onNavigateToFindings}
+        onNavigateToAssessments={onNavigateToAssessments}
+        onNavigateToAssets={onNavigateToAssets}
+        onNavigateToVerification={onNavigateToVerification}
+      />
+
+      {/* 2.6 Autonomous Security Intelligence & Closed-Loop Operations */}
       <AutonomousOperationsConsole
         projectId={activeProject.id}
         onNavigateToFindings={onNavigateToFindings}

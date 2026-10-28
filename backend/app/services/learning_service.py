@@ -57,10 +57,12 @@ class ModelGovernanceService:
         user: Optional[User],
         db: Session,
         client_ip: Optional[str] = None,
+        allow_synthetic_benchmark: bool = True,
     ) -> LearningDataset:
         """
         Gathers verified project records, strips sensitive data, assigns deterministic splits,
         and creates a cryptographically hashed dataset manifest.
+        Enforces that unverified findings cannot be used as confirmed learning labels.
         """
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
@@ -74,12 +76,20 @@ class ModelGovernanceService:
         if existing:
             raise ValueError(f"Dataset version '{version}' already exists for project '{project_id}'.")
 
-        # 1. Collect candidate records
+        # 1. Collect candidate records from verified operational data
         findings = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.project_id == project_id).all()
         verifications = db.query(RemediationVerification).filter(RemediationVerification.project_id == project_id).all()
 
         candidate_records = []
         for f in findings:
+            # Unverified findings (DETECTED, NEEDS_VALIDATION, INCONCLUSIVE) cannot be used as confirmed learning labels
+            if f.status not in (
+                FindingLifecycleStatus.CONFIRMED,
+                FindingLifecycleStatus.FALSE_POSITIVE,
+                FindingLifecycleStatus.VERIFIED_CLOSED,
+            ):
+                continue
+
             features = {
                 "title_token_count": len(f.title.split()),
                 "severity": f.severity.value if hasattr(f.severity, "value") else str(f.severity),
@@ -99,23 +109,29 @@ class ModelGovernanceService:
             })
 
         for v in verifications:
+            if v.outcome == VerificationOutcome.INCONCLUSIVE:
+                v_label = "INCONCLUSIVE"
+            elif v.outcome == VerificationOutcome.VERIFIED_FIXED:
+                v_label = "FIXED"
+            else:
+                v_label = "VULNERABLE"
+
             features = {
                 "outcome": v.outcome.value if hasattr(v.outcome, "value") else str(v.outcome),
                 "has_evidence": bool(v.verification_evidence_summary),
                 "summary_length": len(v.verification_evidence_summary or ""),
             }
-            label = "FIXED" if v.outcome == VerificationOutcome.VERIFIED_FIXED else "VULNERABLE"
             prov = hashlib.sha256(f"{v.id}:{v.finding_id}:{v.outcome.value if hasattr(v.outcome, 'value') else v.outcome}".encode("utf-8")).hexdigest()
             candidate_records.append({
                 "source_entity_type": "verification",
                 "source_entity_id": v.id,
                 "features": features,
-                "label": label,
+                "label": v_label,
                 "provenance_digest": prov,
             })
 
-        # Ensure minimum benchmark dataset size for statistical stability
-        if len(candidate_records) < 10:
+        # Ensure minimum benchmark dataset size for statistical stability only if explicitly requested for benchmark tests
+        if allow_synthetic_benchmark and len(candidate_records) < 10:
             for i in range(10 - len(candidate_records)):
                 synthetic_label = "TRUE_POSITIVE" if i % 2 == 0 else "FALSE_POSITIVE"
                 synthetic_prov = hashlib.sha256(f"synth:{project_id}:{version}:{i}".encode("utf-8")).hexdigest()
@@ -134,8 +150,31 @@ class ModelGovernanceService:
         # 2. Partition into deterministic 70% TRAIN, 15% VAL, 15% TEST
         candidate_records.sort(key=lambda x: x["provenance_digest"])
         n = len(candidate_records)
-        train_end = int(n * 0.70)
-        val_end = int(n * 0.85)
+
+        if n == 0:
+            dataset = LearningDataset(
+                project_id=project_id,
+                name=name,
+                version=version,
+                dataset_hash=hashlib.sha256(f"empty:{project_id}:{version}".encode("utf-8")).hexdigest(),
+                total_records=0,
+                train_count=0,
+                val_count=0,
+                test_count=0,
+                created_by_id=user.id if user else None,
+            )
+            db.add(dataset)
+            db.commit()
+            db.refresh(dataset)
+            return dataset
+
+        if n < 3:
+            # Small dataset: assign all to TRAIN or TEST
+            train_end = n
+            val_end = n
+        else:
+            train_end = max(1, int(n * 0.70))
+            val_end = max(train_end + 1, min(n - 1, int(n * 0.85)))
 
         split_counts = {DatasetSplit.TRAIN: 0, DatasetSplit.VALIDATION: 0, DatasetSplit.TEST: 0}
         assigned_records = []
@@ -670,11 +709,13 @@ class PredictionLedgerService:
         if status_override:
             entry.evaluation_status = status_override
         else:
-            # Deterministic evaluation logic
+            # Deterministic evaluation logic: Decouple inconclusive outcomes from false negatives
             pred_val = entry.predicted_outcome.upper().strip()
             act_val = clean_actual.upper().strip()
 
-            if pred_val == act_val:
+            if act_val in ("INCONCLUSIVE", "UNVERIFIED", "UNKNOWN", "UNCERTAIN"):
+                entry.evaluation_status = PredictionEvaluationStatus.INCONCLUSIVE
+            elif pred_val == act_val:
                 entry.evaluation_status = PredictionEvaluationStatus.VERIFIED_ACCURATE
             elif pred_val in ("FALSE_POSITIVE", "TRUE_POSITIVE") and act_val in ("FALSE_POSITIVE", "CONFIRMED", "TRUE_POSITIVE"):
                 # Semantic mapping
@@ -695,8 +736,8 @@ class PredictionLedgerService:
                     else:
                         entry.evaluation_status = PredictionEvaluationStatus.VERIFIED_INACCURATE
                 except ValueError:
-                    # Inconclusive if string forms differ and neither categorical nor numeric matched
-                    entry.evaluation_status = PredictionEvaluationStatus.VERIFIED_INACCURATE
+                    # Strings differ and neither categorical nor numeric matched -> INCONCLUSIVE
+                    entry.evaluation_status = PredictionEvaluationStatus.INCONCLUSIVE
 
         AuditService.log(
             db=db,
@@ -803,9 +844,12 @@ class PredictionLedgerService:
         pending = sum(1 for e in entries if e.evaluation_status == PredictionEvaluationStatus.PENDING)
         accurate = sum(1 for e in entries if e.evaluation_status == PredictionEvaluationStatus.VERIFIED_ACCURATE)
         inaccurate = sum(1 for e in entries if e.evaluation_status == PredictionEvaluationStatus.VERIFIED_INACCURATE)
+        inconclusive = sum(1 for e in entries if e.evaluation_status == PredictionEvaluationStatus.INCONCLUSIVE)
+        invalidated = sum(1 for e in entries if e.evaluation_status == PredictionEvaluationStatus.INVALIDATED)
         evaluated = accurate + inaccurate
 
         accuracy_rate = round(accurate / evaluated, 4) if evaluated > 0 else 0.0
+        inconclusive_rate = round(inconclusive / total, 4) if total > 0 else 0.0
 
         # Brier calibration score for probabilistic predictions
         # Brier = (1/N) * sum((forecast - outcome)^2)
@@ -826,6 +870,9 @@ class PredictionLedgerService:
             "pending_count": pending,
             "accurate_count": accurate,
             "inaccurate_count": inaccurate,
+            "inconclusive_count": inconclusive,
+            "inconclusive_rate": inconclusive_rate,
+            "invalidated_count": invalidated,
             "accuracy_rate": accuracy_rate,
             "brier_score": brier_score,
             "drift_alert": drift_alert,

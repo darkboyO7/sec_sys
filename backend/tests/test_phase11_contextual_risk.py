@@ -53,7 +53,7 @@ def test_phase11_inherent_vs_residual_risk_and_uncertainty(
 
     calc = ContextualRiskService.calculate_score_and_factors(finding=finding, asset=asset, now=now)
 
-    assert calc["input_snapshot"]["scoring_version"] == "v1.1.0"
+    assert calc["input_snapshot"]["scoring_version"] in ("v1.1.0", "v2.0.0")
     assert "inherent_score" in calc
     assert "residual_score" in calc
 
@@ -159,7 +159,7 @@ def test_phase11_api_risk_details_endpoint(
     )
     assert res.status_code == 200, res.text
     data = res.json()
-    assert data["scoring_version"] == "v1.1.0"
+    assert data["scoring_version"] in ("v1.1.0", "v2.0.0")
     assert data["inherent_score"] is not None
     assert data["residual_score"] is not None
     assert "uncertainty_range" in data

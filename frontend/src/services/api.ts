@@ -40,6 +40,9 @@ import type {
   SecurityDecision,
   PostureChange,
   DecisionStatus,
+  ProjectIntelligenceSummary,
+  CoverageAudit,
+  AdaptivePlan,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -928,6 +931,40 @@ async listUsers(): Promise<User[]> {
 
   async listPostureChanges(projectId: string, limit: number = 50): Promise<PostureChange[]> {
     return this.request<PostureChange[]>(`/projects/${projectId}/changes?limit=${limit}`);
+  }
+
+  // Security Intelligence & Adaptive Assessment Planning (Prompt 10)
+  async getIntelligenceSummary(projectId: string): Promise<ProjectIntelligenceSummary> {
+    return this.request<ProjectIntelligenceSummary>(`/projects/${projectId}/intelligence/overview`);
+  }
+
+  async getCoverageAudit(projectId: string, staleDays: number = 14): Promise<CoverageAudit> {
+    return this.request<CoverageAudit>(`/projects/${projectId}/intelligence/coverage?stale_days=${staleDays}`);
+  }
+
+  async getLatestAdaptivePlan(projectId: string): Promise<AdaptivePlan | null> {
+    return this.request<AdaptivePlan | null>(`/projects/${projectId}/intelligence/plans/latest`);
+  }
+
+  async generateAdaptivePlan(projectId: string, scanBudget: number = 10): Promise<AdaptivePlan> {
+    return this.request<AdaptivePlan>(`/projects/${projectId}/intelligence/plans/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ scan_budget: scanBudget }),
+    });
+  }
+
+  async executePlannedCheck(
+    projectId: string,
+    planId: string,
+    checkId: string
+  ): Promise<{ status: string; job_id: string; target: string }> {
+    return this.request<{ status: string; job_id: string; target: string }>(
+      `/projects/${projectId}/intelligence/plans/${planId}/execute`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ check_id: checkId }),
+      }
+    );
   }
 }
 

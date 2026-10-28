@@ -22,7 +22,14 @@ class ContextualRiskService:
     with explicit factor decomposition, contributing rationale, and missing factor tracking.
     """
 
-    SCORING_VERSION = "v1.1.0"
+    SCORING_VERSION = "v2.0.0"
+
+    BUSINESS_IMPACT_MULTIPLIERS: Dict[str, float] = {
+        "CRITICAL": 1.25,
+        "HIGH": 1.15,
+        "MEDIUM": 1.00,
+        "LOW": 0.85,
+    }
 
     # Base severity score bounds and defaults
     SEVERITY_BASE_SCORES: Dict[FindingSeverity, float] = {
@@ -69,11 +76,17 @@ class ContextualRiskService:
         finding: VulnerabilityFinding,
         asset: Optional[Asset] = None,
         exposing_relationships: Optional[List[GraphRelationship]] = None,
+        verified_attack_paths: Optional[List[Dict[str, Any]]] = None,
+        prior_verification_failed: bool = False,
         now: Optional[datetime] = None,
+        scoring_version: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Pure deterministic risk scoring function.
-        Given a finding, optional asset, and optional relationships, returns:
+        Pure deterministic risk scoring function (Prompt 10 / v2.0.0).
+        Evaluates severity, confidence, exposure, business impact, exploitability,
+        validated attack paths, and remediation history.
+        Never infers unconfigured business impact or exploitability.
+        Returns:
         (score, priority, factor_breakdown, contributing_factors, missing_factors, input_snapshot)
         """
         current_time = now or utc_now()
@@ -133,8 +146,15 @@ class ContextualRiskService:
             if raw_cvss is None:
                 missing_factors.append("CVSS score not provided by scanner; using categorical severity default.")
 
-        # 2. Finding Confidence Weight
-        conf_weight = cls.CONFIDENCE_WEIGHTS.get(finding.confidence, 0.85)
+        # 2. Finding Confidence Weight & Contradiction Discount
+        raw_conf_weight = cls.CONFIDENCE_WEIGHTS.get(finding.confidence, 0.85)
+        contradiction_discount = 1.0
+        if getattr(finding, "has_contradictions", False):
+            contradiction_discount = 0.80
+            contributing_factors.append(
+                f"Contradictory scanner observations detected (has_contradictions=True): confidence discounted by 20% (multiplier {contradiction_discount:.2f})."
+            )
+        conf_weight = raw_conf_weight * contradiction_discount
         contributing_factors.append(
             f"Finding confidence '{finding.confidence.value}' scales base score by {conf_weight:.2f}."
         )
@@ -271,26 +291,109 @@ class ContextualRiskService:
                 f"Evidence quality adjustment ({ev_quality:.2f}): multiplier {quality_mult:.2f}."
             )
 
-        # 9. Inherent vs Residual Composite Calculation
+        # 9. Potential Business Impact Multiplier (Operator Configured Only)
+        biz_impact = None
+        if asset is not None and getattr(asset, "attributes", None) and isinstance(asset.attributes, dict):
+            biz_impact = asset.attributes.get("business_impact") or asset.attributes.get("business_criticality")
+        if not biz_impact and getattr(finding, "attributes", None) and isinstance(finding.attributes, dict):
+            biz_impact = finding.attributes.get("business_impact")
+
+        business_impact_mult = 1.0
+        if biz_impact and str(biz_impact).upper() in cls.BUSINESS_IMPACT_MULTIPLIERS:
+            biz_clean = str(biz_impact).upper()
+            business_impact_mult = cls.BUSINESS_IMPACT_MULTIPLIERS[biz_clean]
+            contributing_factors.append(
+                f"Authorized operator business impact configured as '{biz_clean}': multiplier {business_impact_mult:.2f}."
+            )
+        else:
+            missing_factors.append("Potential business impact: UNKNOWN / NOT CONFIGURED (multiplier 1.00; not inferred).")
+
+        # 10. Exploitability Evidence Multiplier (Evidence-Backed Only)
+        has_exploit_evidence = False
+        exploit_rationale = ""
+        finding_meta = getattr(finding, "attributes", None) or {}
+        if not isinstance(finding_meta, dict):
+            finding_meta = {}
+        if finding_meta.get("cisa_kev") or finding_meta.get("has_known_exploit") or finding_meta.get("in_wild_exploit"):
+            has_exploit_evidence = True
+            exploit_rationale = "Cataloged in CISA KEV or verified in-the-wild exploitation activity"
+        elif asset is not None and getattr(asset, "attributes", None) and isinstance(asset.attributes, dict) and (asset.attributes.get("cisa_kev") or asset.attributes.get("has_known_exploit")):
+            has_exploit_evidence = True
+            exploit_rationale = "Cataloged in CISA KEV or verified in-the-wild exploitation activity"
+        elif getattr(finding, "reproduction_steps", None) and "EXPLOIT_VERIFIED" in str(finding.reproduction_steps):
+            has_exploit_evidence = True
+            exploit_rationale = "Deterministic exploit payload execution confirmed during assessment"
+
+        exploit_mult = 1.0
+        if has_exploit_evidence:
+            exploit_mult = 1.20
+            contributing_factors.append(
+                f"Reliable exploitability evidence confirmed ({exploit_rationale}): multiplier {exploit_mult:.2f}."
+            )
+        else:
+            missing_factors.append("Exploitability evidence: NONE VERIFIED (multiplier 1.00; not inferred).")
+
+        # 11. Validated Attack Paths Multiplier (Never infer merely because connected)
+        path_mult = 1.0
+        has_verified_path = False
+        if verified_attack_paths:
+            for p in verified_attack_paths:
+                v_status = p.get("verification_status") if isinstance(p, dict) else getattr(p, "verification_status", None)
+                if str(v_status) == "VERIFIED":
+                    has_verified_path = True
+                    break
+
+        if has_verified_path:
+            path_mult = 1.20
+            contributing_factors.append(
+                f"Finding is part of a verified, evidence-backed attack path: multiplier {path_mult:.2f}."
+            )
+        elif verified_attack_paths:
+            contributing_factors.append(
+                "Attack path graph connection exists topologically but path evidence is HYPOTHETICAL or unverified: multiplier 1.00 (no exploitability inferred from bare connectivity)."
+            )
+
+        # 12. Prior Remediation Failure Penalty
+        remediation_failure_mult = 1.0
+        if prior_verification_failed or finding.status == FindingLifecycleStatus.REOPENED:
+            remediation_failure_mult = 1.20
+            contributing_factors.append(
+                f"Prior remediation attempt failed verification or finding recurred on target: failure penalty multiplier {remediation_failure_mult:.2f}."
+            )
+
+        # 13. Inherent vs Residual Composite Calculation
         effective_base = base_score * conf_weight
-        inherent_composite = effective_base * crit_mult * exposure_mult
+        inherent_composite = (
+            effective_base
+            * crit_mult
+            * exposure_mult
+            * business_impact_mult
+            * exploit_mult
+            * path_mult
+        )
         inherent_score = round(max(0.0, min(100.0, inherent_composite)), 1)
 
-        raw_composite = inherent_composite * fresh_mult * lifecycle_mult * recurrence_mult * quality_mult
+        raw_composite = (
+            inherent_composite
+            * fresh_mult
+            * lifecycle_mult
+            * recurrence_mult
+            * quality_mult
+            * remediation_failure_mult
+        )
         final_score = round(max(0.0, min(100.0, raw_composite)), 1)
         residual_score = final_score
 
-        # 10. Contextual Heuristic Uncertainty Range (Score Margin)
-        # Note: This is an explainable heuristic uncertainty margin derived from epistemic data completeness,
-        # tentative finding confidence, and multi-scanner contradictory observations.
-        # It is explicitly NOT a parametric statistical confidence interval or calibrated probability distribution.
+        # 14. Contextual Heuristic Uncertainty Range (Score Margin)
         uncertainty_margin = 3.0
         if finding.confidence == FindingConfidence.TENTATIVE:
             uncertainty_margin += 7.0
         if missing_factors:
-            uncertainty_margin += min(8.0, 2.5 * len(missing_factors))
+            uncertainty_margin += min(8.0, 2.0 * len(missing_factors))
         if getattr(finding, "has_contradictions", False):
-            uncertainty_margin += 5.0
+            uncertainty_margin += 8.0
+        if fresh_mult < 0.90:  # Stale evidence
+            uncertainty_margin += 4.0
 
         uncertainty_range = {
             "min_score": round(max(0.0, final_score - uncertainty_margin), 1),
@@ -299,7 +402,7 @@ class ContextualRiskService:
             "confidence_band": "HIGH" if uncertainty_margin <= 4.0 else ("MODERATE" if uncertainty_margin <= 10.0 else "LOW"),
         }
 
-        # 11. Priority Determination
+        # 15. Priority Determination
         if final_score >= 80.0:
             priority = RiskPriority.CRITICAL
         elif final_score >= 60.0:
@@ -311,13 +414,19 @@ class ContextualRiskService:
         else:
             priority = RiskPriority.INFORMATIONAL
 
+        active_version = scoring_version or cls.SCORING_VERSION
+
         factor_breakdown = {
             "base_score": round(base_score, 1),
-            "confidence_weight": conf_weight,
+            "confidence_weight": round(conf_weight, 2),
             "effective_base": round(effective_base, 1),
             "criticality_multiplier": crit_mult,
             "exposure_multiplier": exposure_mult,
             "exposure_label": exposure_label,
+            "business_impact_multiplier": business_impact_mult,
+            "exploit_multiplier": exploit_mult,
+            "attack_path_multiplier": path_mult,
+            "remediation_failure_multiplier": remediation_failure_mult,
             "freshness_multiplier": fresh_mult,
             "lifecycle_multiplier": lifecycle_mult,
             "recurrence_multiplier": recurrence_mult,
@@ -326,10 +435,11 @@ class ContextualRiskService:
             "residual_score": residual_score,
             "final_score": final_score,
             "raw_composite": round(raw_composite, 2),
+            "scoring_version": active_version,
         }
 
         input_snapshot = {
-            "scoring_version": cls.SCORING_VERSION,
+            "scoring_version": active_version,
             "finding_id": finding.id,
             "finding_severity": finding.severity.value,
             "finding_confidence": finding.confidence.value,
@@ -339,6 +449,11 @@ class ContextualRiskService:
             "asset_id": asset.id if asset else None,
             "asset_criticality": asset.criticality.value if asset else None,
             "asset_type": asset.asset_type.value if asset else None,
+            "business_impact": biz_impact,
+            "has_exploit_evidence": has_exploit_evidence,
+            "has_verified_attack_path": has_verified_path,
+            "prior_verification_failed": prior_verification_failed,
+            "has_contradictions": getattr(finding, "has_contradictions", False),
             "has_exposure_edge": has_exposure_edge,
             "calculation_time": current_time.isoformat(),
             "risk_accepted_expires_at": exp_iso,
@@ -411,6 +526,41 @@ class ContextualRiskService:
                 .all()
             )
 
+        # Check for prior verification failure on this finding
+        prior_verif_failed = False
+        try:
+            from app.models.verification import RemediationVerification, VerificationOutcome
+            latest_v = (
+                db.query(RemediationVerification)
+                .filter(
+                    RemediationVerification.project_id == project_id,
+                    RemediationVerification.finding_id == finding_id,
+                )
+                .order_by(RemediationVerification.created_at.desc())
+                .first()
+            )
+            if latest_v and latest_v.outcome in (VerificationOutcome.FAILED, VerificationOutcome.INCONCLUSIVE):
+                prior_verif_failed = True
+        except Exception:
+            pass
+
+        # Check for validated attack paths connected to this finding
+        verified_paths = []
+        try:
+            from app.services.attack_path_service import AttackPathAnalysisService, PathVerificationStatus
+            ap_res = AttackPathAnalysisService.analyze_attack_paths(
+                project_id=project_id,
+                db=db,
+                finding_id=finding_id,
+                max_depth=3,
+                max_paths=3,
+            )
+            for p in ap_res.get("paths", []):
+                if p.get("verification_status") == PathVerificationStatus.VERIFIED.value:
+                    verified_paths.append(p)
+        except Exception:
+            pass
+
         # Check for existing active assessment
         active_assessment = (
             db.query(RiskAssessment)
@@ -428,6 +578,8 @@ class ContextualRiskService:
             finding=finding,
             asset=asset,
             exposing_relationships=exposing_rels,
+            verified_attack_paths=verified_paths,
+            prior_verification_failed=prior_verif_failed,
             now=now,
         )
 
@@ -450,6 +602,11 @@ class ContextualRiskService:
                     "asset_type",
                     "has_exposure_edge",
                     "risk_accepted_expires_at",
+                    "business_impact",
+                    "has_exploit_evidence",
+                    "has_verified_attack_path",
+                    "prior_verification_failed",
+                    "has_contradictions",
                 ]
                 if all(prev_snapshot.get(k) == current_snapshot.get(k) for k in keys_to_compare):
                     # Inputs identical; return active assessment without duplicating

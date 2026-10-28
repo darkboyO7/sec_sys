@@ -962,3 +962,120 @@ export interface ClosedLoopOverview {
   pending_decisions: SecurityDecision[];
   verified_improvements_count: number;
 }
+
+export interface PlannedCheck {
+  check_id: string;
+  target: string;
+  adapter_name: string;
+  action: string;
+  priority: string;
+  reason_category: string;
+  rationale: string;
+  source_evidence: Record<string, any>;
+}
+
+export interface SkippedCheck {
+  target: string;
+  adapter_name: string;
+  action: string;
+  skip_reason: string;
+  rationale: string;
+  source_evidence: Record<string, any>;
+}
+
+export interface AdaptivePlan {
+  id: string;
+  project_id: string;
+  plan_name: string;
+  status: 'GENERATED' | 'PARTIALLY_EXECUTED' | 'COMPLETED' | 'SUPERSEDED' | 'CANCELLED';
+  scan_budget: number;
+  total_recommended: number;
+  total_skipped: number;
+  recommended_checks: PlannedCheck[];
+  skipped_checks: SkippedCheck[];
+  execution_summary: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaleAssetInfo {
+  asset_id: string;
+  name: string;
+  canonical_identifier: string;
+  asset_type: string;
+  criticality: string;
+  last_seen_at?: string | null;
+  days_since_assessment?: number | null;
+  staleness_reason: string;
+}
+
+export interface CoverageAudit {
+  total_assets: number;
+  covered_assets_count: number;
+  stale_assets_count: number;
+  coverage_percentage: number;
+  stale_assets: StaleAssetInfo[];
+  unassessed_scope_targets: Array<{ target_id: string; target: string; target_type: string; reason: string }>;
+  failing_probes: Array<{ job_id: string; target_input: string; adapter_name: string; status: string; failure_category?: string | null }>;
+  stale_days_threshold: number;
+}
+
+export interface HighestPriorityFinding {
+  finding_id: string;
+  title: string;
+  target_value: string;
+  severity: string;
+  confidence: string;
+  status: string;
+  risk_score: number;
+  inherent_score?: number | null;
+  residual_score?: number | null;
+  priority: string;
+  scoring_version: string;
+  contributing_factors: string[];
+  missing_factors: string[];
+  uncertainty_range: Record<string, any>;
+}
+
+export interface ProjectIntelligenceSummary {
+  project_id: string;
+  project_name: string;
+  timestamp: string;
+  risk_summary: {
+    total_findings: number;
+    active_findings: number;
+    risk_distribution: Record<string, number>;
+    average_risk_score: number;
+    highest_priority_findings: HighestPriorityFinding[];
+  };
+  coverage_audit: CoverageAudit;
+  attack_paths: {
+    total_relationships: number;
+    verified_paths_count: number;
+    hypothetical_paths_count: number;
+    critical_chokepoints: Array<Record<string, any>>;
+  };
+  remediation_intelligence: {
+    total_recommendations: number;
+    total_verifications: number;
+    verified_fixed_count: number;
+    failed_verifications_count: number;
+    inconclusive_verifications_count: number;
+    remediation_verification_rate: number;
+  };
+  monitoring_and_changes: {
+    unhandled_changes_count: number;
+    recent_changes: Array<Record<string, any>>;
+  };
+  adaptive_plan?: AdaptivePlan | null;
+  learning_pipeline: {
+    model_version: string;
+    model_status: string;
+    is_rules_baseline: boolean;
+    dataset_count: number;
+    drift_metrics: Record<string, any>;
+    learning_data_sufficiency: string;
+    inconclusive_rate: number;
+  };
+  data_provenance: Record<string, any>;
+}
