@@ -160,6 +160,7 @@ class ChangeDetectionService:
         if asset:
             obs = asset.observations[-1] if asset.observations else None
             if obs:
+                obs_data = getattr(obs, "observed_attributes", None) or getattr(obs, "raw_payload", {}) or {}
                 detected_changes.append(
                     cls.record_change(
                         db=db,
@@ -168,7 +169,7 @@ class ChangeDetectionService:
                         target_resource=current_job.target_input,
                         title=f"Observed Configuration Updated on {current_job.target_input}",
                         previous_state={},
-                        new_state=obs.raw_payload if isinstance(obs.raw_payload, dict) else {},
+                        new_state=obs_data if isinstance(obs_data, dict) else {},
                         evidence_summary=f"Asset attributes and headers reconciled for {current_job.target_input}.",
                         confidence=1.0,
                         is_confirmed=True,
