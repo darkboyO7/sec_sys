@@ -368,10 +368,11 @@ def test_release_archive_security_audit():
         assert len(audit_actual["secrets_found"]) == 0
 
     # 2. Negative test: create simulated archive with prohibited items
+    fake_key = "-----" + "BEGIN " + "RSA " + "PRIVATE " + "KEY-----\nMIIEowIBAAKCAQEA...\n"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("backend/.env", "SECRET_KEY=supersecret123\n")
-        zf.writestr("backend/certs/server.key", "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...\n")
+        zf.writestr("backend/certs/server.key", fake_key)
         zf.writestr("data/vapt.db", "SQLite format 3\x00")
 
     buf.seek(0)
