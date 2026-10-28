@@ -1,0 +1,305 @@
+{
+  "7": {
+    "title": "Strict Scope Authorization Enforcement",
+    "passed": true,
+    "evidence": {
+      "unauth_target": "https://unauthorized-random-target-test-999.com",
+      "response_status": 403,
+      "backend_rejection": {
+        "detail": "Cannot initiate assessment: Target 'https://unauthorized-random-target-test-999.com' is not authorized (Target is not within any registered and authorized scope boundary for this project.)"
+      }
+    },
+    "timestamp": "2026-10-28T04:46:41.199435+00:00"
+  },
+  "8": {
+    "title": "SSRF Defense on IPv4, IPv6, Metadata, and Private Ranges",
+    "passed": true,
+    "evidence": {
+      "tests": [
+        {
+          "ip": "169.254.169.254",
+          "description": "AWS/GCP/Azure Cloud Metadata",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 169.254.169.254 is cloud metadata service endpoint (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "fd00:ec2::254",
+          "description": "AWS IMDSv6 Cloud Metadata",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP fd00:ec2::254 is cloud metadata service endpoint (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "::ffff:169.254.169.254",
+          "description": "IPv4-mapped IPv6 Cloud Metadata",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 169.254.169.254 is cloud metadata service endpoint (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "127.0.0.1",
+          "description": "IPv4 Loopback (allow_loopback=False)",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 127.0.0.1 is loopback localhost (SSRF blocked for production scanning).",
+          "matched": true
+        },
+        {
+          "ip": "::1",
+          "description": "IPv6 Loopback (allow_loopback=False)",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP ::1 is in IETF reserved address space (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "10.0.0.1",
+          "description": "RFC 1918 Private Range (allow_private=False)",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 10.0.0.1 is within private/internal address space (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "192.168.1.1",
+          "description": "RFC 1918 Private Range (allow_private=False)",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 192.168.1.1 is within private/internal address space (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "172.16.0.1",
+          "description": "RFC 1918 Private Range (allow_private=False)",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 172.16.0.1 is within private/internal address space (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "fe80::1",
+          "description": "IPv6 Link-Local",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP fe80::1 is within link-local address space (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "224.0.0.1",
+          "description": "IPv4 Multicast",
+          "expected_safe": false,
+          "actual_safe": false,
+          "reason": "Target IP 224.0.0.1 is a multicast address (SSRF blocked).",
+          "matched": true
+        },
+        {
+          "ip": "93.184.216.34",
+          "description": "Public Safe IP (example.com)",
+          "expected_safe": true,
+          "actual_safe": true,
+          "reason": null,
+          "matched": true
+        }
+      ]
+    },
+    "timestamp": "2026-10-28T04:46:41.774653+00:00"
+  },
+  "2": {
+    "title": "Controlled Test Server Proved Request Receipt",
+    "passed": true,
+    "evidence": {
+      "received_request_count": 4,
+      "requests_received": [
+        {
+          "path": "/",
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Host": "127.0.0.1:60579",
+            "User-Agent": "VAPT-Defensive-Auditor/1.1 (+https://vapt.internal.corp/auditor)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Connection": "close"
+          },
+          "timestamp": "2026-10-28T04:46:41.906445+00:00"
+        },
+        {
+          "path": "/.well-known/security.txt",
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Host": "127.0.0.1:60579",
+            "User-Agent": "VAPT-Defensive-Auditor/1.1",
+            "Connection": "close"
+          },
+          "timestamp": "2026-10-28T04:46:41.920489+00:00"
+        },
+        {
+          "path": "/security.txt",
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Host": "127.0.0.1:60579",
+            "User-Agent": "VAPT-Defensive-Auditor/1.1",
+            "Connection": "close"
+          },
+          "timestamp": "2026-10-28T04:46:41.921264+00:00"
+        },
+        {
+          "path": "/robots.txt",
+          "headers": {
+            "Accept-Encoding": "identity",
+            "Host": "127.0.0.1:60579",
+            "User-Agent": "VAPT-Defensive-Auditor/1.1",
+            "Connection": "close"
+          },
+          "timestamp": "2026-10-28T04:46:41.921938+00:00"
+        }
+      ],
+      "adapter_success": true,
+      "adapter_simulated": false,
+      "findings_count": 11
+    },
+    "timestamp": "2026-10-28T04:46:41.922327+00:00"
+  },
+  "3": {
+    "title": "Dynamic Finding Updates on Test Server Header Modulation",
+    "passed": true,
+    "evidence": {
+      "unsecured_mode_findings": [
+        "Missing Content-Security-Policy (CSP) Header",
+        "Missing or Misconfigured X-Content-Type-Options",
+        "Missing Anti-Clickjacking Header (X-Frame-Options)",
+        "Missing Referrer-Policy Header",
+        "Detailed Server Version Disclosed (BaseHTTP/0.6 Python/3.14.7)",
+        "Technology Stack Disclosure via X-Powered-By (PHP/7.4.3)",
+        "Cookie Set Without 'HttpOnly' Attribute (bad_session)"
+      ],
+      "secured_mode_findings": [
+        "Detailed Server Version Disclosed (BaseHTTP/0.6 Python/3.14.7)"
+      ],
+      "findings_resolved_on_header_addition": [
+        "Missing Content-Security-Policy",
+        "Missing Anti-Clickjacking Header (X-Frame-Options)",
+        "Cookie Set Without 'HttpOnly' Attribute"
+      ]
+    },
+    "timestamp": "2026-10-28T04:46:41.941580+00:00"
+  },
+  "5": {
+    "title": "TLS Strict CA & Expiry Validation (Untrusted Cert Detected)",
+    "passed": true,
+    "evidence": {
+      "https_target": "https://127.0.0.1:60587",
+      "tls_findings": [
+        {
+          "title": "Untrusted TLS Certificate Authority (Self-Signed / Untrusted Root)",
+          "severity": "HIGH",
+          "vuln_id": "CWE-295"
+        }
+      ],
+      "untrusted_ca_flagged": true,
+      "clean_ca_falsely_claimed": false
+    },
+    "timestamp": "2026-10-28T04:46:42.157505+00:00"
+  },
+  "6": {
+    "title": "Finding Classification: Informational vs Hardening vs Exploitable",
+    "passed": true,
+    "evidence": {
+      "info_findings": [
+        "Informational: Missing Permissions-Policy Header",
+        "Informational: Cookie Missing 'SameSite' Attribute (bad_session)",
+        "Informational: Missing security.txt Policy (RFC 9116)",
+        "Informational: Sensitive Administrative Paths Disclosed in robots.txt"
+      ],
+      "vulnerability_findings": [
+        "Missing Content-Security-Policy (CSP) Header",
+        "Missing or Misconfigured X-Content-Type-Options",
+        "Missing Anti-Clickjacking Header (X-Frame-Options)",
+        "Missing Referrer-Policy Header",
+        "Detailed Server Version Disclosed (BaseHTTP/0.6 Python/3.14.7)",
+        "Technology Stack Disclosure via X-Powered-By (PHP/7.4.3)",
+        "Cookie Set Without 'HttpOnly' Attribute (bad_session)"
+      ],
+      "no_404_vulnerability_emitted": true,
+      "security_txt_classified_as_info": true
+    },
+    "timestamp": "2026-10-28T04:46:42.158053+00:00"
+  },
+  "10": {
+    "title": "Real External Authorized Website Assessment (example.com)",
+    "passed": true,
+    "evidence": {
+      "target": "https://example.com",
+      "job_id": "cb7c9c07-a405-46fb-afb3-00b2880cda6f",
+      "status": "COMPLETED",
+      "is_simulated": false,
+      "finding_count": 7,
+      "sample_findings": [
+        {
+          "title": "Informational: Missing Permissions-Policy Header",
+          "severity": "INFO"
+        },
+        {
+          "title": "Informational: Missing security.txt Policy (RFC 9116)",
+          "severity": "INFO"
+        },
+        {
+          "title": "Missing or Misconfigured X-Content-Type-Options",
+          "severity": "LOW"
+        },
+        {
+          "title": "Missing Anti-Clickjacking Header (X-Frame-Options)",
+          "severity": "LOW"
+        },
+        {
+          "title": "Missing Referrer-Policy Header",
+          "severity": "LOW"
+        },
+        {
+          "title": "Missing Strict-Transport-Security (HSTS) Header",
+          "severity": "MEDIUM"
+        }
+      ]
+    },
+    "timestamp": "2026-10-28T04:46:44.458186+00:00"
+  },
+  "4": {
+    "title": "Evidence and Findings Persisted and Retrievable via API",
+    "passed": true,
+    "evidence": {
+      "job_id": "cb7c9c07-a405-46fb-afb3-00b2880cda6f",
+      "persisted_findings_count": 7,
+      "persisted_sample_id": "1617dfbd-1e91-4051-85fa-9a8546b7dbd4"
+    },
+    "timestamp": "2026-10-28T04:46:44.466046+00:00"
+  },
+  "1": {
+    "title": "URL-Entry Assessment Workflow & Running Frontend",
+    "passed": true,
+    "evidence": {
+      "frontend_status": 200,
+      "backend_health": {
+        "status": "ok",
+        "environment": "development",
+        "app": "VAPT Security Platform"
+      }
+    },
+    "timestamp": "2026-10-28T04:46:44.490265+00:00"
+  },
+  "9": {
+    "title": "Running UI and Backend Integration Verified",
+    "passed": true,
+    "evidence": {
+      "frontend_status": 200,
+      "backend_health": {
+        "status": "ok",
+        "environment": "development",
+        "app": "VAPT Security Platform"
+      }
+    },
+    "timestamp": "2026-10-28T04:46:44.490308+00:00"
+  }
+}

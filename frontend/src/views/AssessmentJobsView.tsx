@@ -60,7 +60,6 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const [timeoutSeconds, setTimeoutSeconds] = useState(30);
   const [idempotencyKey, setIdempotencyKey] = useState('');
   const [launching, setLaunching] = useState(false);
-  const [authorizingTarget, setAuthorizingTarget] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const adapterOptions = [
@@ -161,29 +160,6 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
   const activeJobsCount = jobs.filter((j) => ['QUEUED', 'PREFLIGHT', 'READY', 'RUNNING'].includes(j.status)).length;
   const simulatedJobsCount = jobs.filter((j) => j.is_simulated).length;
   const liveJobsCount = jobs.filter((j) => !j.is_simulated).length;
-
-  const handleAuthorizeAndEnroll = async () => {
-    if (!targetInput.trim()) return;
-    setAuthorizingTarget(true);
-    setError(null);
-    try {
-      // 1. Register candidate target in project scope
-      const registered = await api.registerScopeTarget(project.id, {
-        target_value: targetInput.trim(),
-        description: 'Enrolled via Assessment Launcher for immediate authorized testing',
-      });
-      // 2. Grant explicit ROE authorization
-      await api.authorizeScopeTarget(project.id, registered.id, {
-        evidence: 'Operator ROE authorization granted via dashboard launcher',
-      });
-      // 3. Refresh parent project targets
-      onRefresh();
-    } catch (err: any) {
-      setError(err.message || 'Failed to authorize target in project scope');
-    } finally {
-      setAuthorizingTarget(false);
-    }
-  };
 
   const handleLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -791,18 +767,32 @@ export const AssessmentJobsView: React.FC<AssessmentJobsViewProps> = ({
                 )}
 
                 {targetInput.trim() && !isSelectedTargetAuthorized && (
-                  <div className="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-3">
-                    <div className="text-[11px] text-amber-300 font-mono">
-                      Target '{targetInput.trim()}' is not in this project's authorized scope yet.
+                  <div className="mt-2.5 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-amber-300 font-mono">
+                          Target Scope Not Authorized
+                        </p>
+                        <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                          Target <span className="font-mono text-amber-200">'{targetInput.trim()}'</span> has not been granted explicit Rules of Engagement (ROE) authorization for this project.
+                          To prevent unauthorized network testing, targets must be formally registered and approved in Scopes & Governance before dispatch.
+                        </p>
+                        {onNavigateToScopes && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsLaunchModalOpen(false);
+                              onNavigateToScopes();
+                            }}
+                            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded text-xs font-mono font-medium transition-colors"
+                          >
+                            <span>Open Scopes & ROE Governance</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleAuthorizeAndEnroll}
-                      disabled={authorizingTarget}
-                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded transition-colors shrink-0 shadow-sm"
-                    >
-                      {authorizingTarget ? 'Authorizing...' : 'Authorize Target'}
-                    </button>
                   </div>
                 )}
               </div>

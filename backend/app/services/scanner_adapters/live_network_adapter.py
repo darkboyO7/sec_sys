@@ -22,51 +22,68 @@ from app.services.scanner_adapters.base import (
 )
 
 
-def check_ip_ssrf(ip_str: str, allow_loopback: bool = False) -> Tuple[bool, Optional[str]]:
+def check_ip_ssrf(ip_str: str, allow_loopback: bool = False, allow_private: bool = False) -> Tuple[bool, Optional[str]]:
     """
     Validates whether an IP address is safe for outbound network observation.
-    Blocks link-local, cloud metadata, multicast, reserved, and loopback (unless explicitly authorized).
+    Blocks IPv4/IPv6 cloud metadata, link-local, multicast, reserved, and private address space.
+    Unwraps IPv4-mapped IPv6 addresses.
     """
     try:
         ip = ipaddress.ip_address(ip_str)
     except ValueError:
         return False, f"Invalid IP address format: {ip_str}"
 
-    # Cloud metadata service (169.254.169.254)
-    if str(ip) == "169.254.169.254":
-        return False, "Target IP is cloud metadata service 169.254.169.254 (SSRF blocked)."
+    # Unwrap IPv4-mapped IPv6 addresses (e.g. ::ffff:169.254.169.254 -> 169.254.169.254)
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
 
-    # Link-local addresses (169.254.0.0/16, fe80::/10)
+    str_ip = str(ip)
+
+    # Cloud metadata service endpoints (AWS, GCP, Azure, Oracle Cloud)
+    if str_ip in ("169.254.169.254", "fd00:ec2::254") or str_ip.startswith("fd00:ec2:"):
+        return False, f"Target IP {str_ip} is cloud metadata service endpoint (SSRF blocked)."
+
+    # Link-local addresses (IPv4 169.254.0.0/16, IPv6 fe80::/10)
     if ip.is_link_local:
-        return False, f"Target IP {ip_str} is within link-local address space (SSRF blocked)."
+        return False, f"Target IP {str_ip} is within link-local address space (SSRF blocked)."
 
-    # Multicast addresses
+    # Multicast addresses (IPv4 224.0.0.0/4, IPv6 ff00::/8)
     if ip.is_multicast:
-        return False, f"Target IP {ip_str} is a multicast address (SSRF blocked)."
+        return False, f"Target IP {str_ip} is a multicast address (SSRF blocked)."
 
-    # Reserved / unspecified addresses
+    # Reserved / unspecified addresses (0.0.0.0/8, 240.0.0.0/4, ::)
     if ip.is_reserved:
-        return False, f"Target IP {ip_str} is in IETF reserved address space (SSRF blocked)."
+        return False, f"Target IP {str_ip} is in IETF reserved address space (SSRF blocked)."
     if ip.is_unspecified:
-        return False, f"Target IP {ip_str} is unspecified 0.0.0.0/:: (SSRF blocked)."
+        return False, f"Target IP {str_ip} is unspecified address (SSRF blocked)."
 
-    # Loopback addresses (127.0.0.0/8, ::1)
+    # Loopback addresses (IPv4 127.0.0.0/8, IPv6 ::1)
     if ip.is_loopback and not allow_loopback:
-        return False, f"Target IP {ip_str} is loopback localhost (SSRF blocked for production scanning)."
+        return False, f"Target IP {str_ip} is loopback localhost (SSRF blocked for production scanning)."
+
+    # Private network addresses (RFC 1918 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 and IPv6 ULA fc00::/7)
+    if ip.is_private and not allow_loopback and not allow_private:
+        return False, f"Target IP {str_ip} is within private/internal address space (SSRF blocked)."
 
     return True, None
 
 
-def resolve_and_verify_ssrf(host: str, port: int, allow_loopback: bool = False) -> Tuple[bool, Optional[str], List[str]]:
+def resolve_and_verify_ssrf(
+    host: str,
+    port: int,
+    allow_loopback: bool = False,
+    allow_private: bool = False,
+) -> Tuple[bool, Optional[str], List[str]]:
     """
     Resolves hostname via DNS and enforces SSRF restrictions on all resolved IP addresses.
+    Checks IPv4, IPv6, and cloud metadata hostnames.
     """
     clean_host = host.strip("[]")
 
     # If host is already an IP address
     try:
         ipaddress.ip_address(clean_host)
-        is_safe, reason = check_ip_ssrf(clean_host, allow_loopback=allow_loopback)
+        is_safe, reason = check_ip_ssrf(clean_host, allow_loopback=allow_loopback, allow_private=allow_private)
         if not is_safe:
             return False, reason, [clean_host]
         return True, None, [clean_host]
@@ -75,13 +92,13 @@ def resolve_and_verify_ssrf(host: str, port: int, allow_loopback: bool = False) 
 
     # Check for known dangerous internal hostnames
     lower_host = clean_host.lower()
-    if lower_host in ("metadata.google.internal", "metadata", "instance-data"):
+    if lower_host in ("metadata.google.internal", "metadata", "instance-data", "metadata.internal"):
         return False, f"Hostname '{clean_host}' is a cloud metadata hostname (SSRF blocked).", []
 
     if (lower_host == "localhost" or lower_host.endswith(".localhost")) and not allow_loopback:
         return False, f"Hostname '{clean_host}' resolves to loopback (SSRF blocked).", []
 
-    # Resolve via DNS
+    # Resolve via DNS (both IPv4 and IPv6)
     try:
         addr_info = socket.getaddrinfo(clean_host, port, proto=socket.IPPROTO_TCP)
         resolved_ips = list({entry[4][0] for entry in addr_info})
@@ -89,7 +106,7 @@ def resolve_and_verify_ssrf(host: str, port: int, allow_loopback: bool = False) 
             return False, f"Could not resolve host '{clean_host}' via DNS.", []
 
         for ip in resolved_ips:
-            is_safe, reason = check_ip_ssrf(ip, allow_loopback=allow_loopback)
+            is_safe, reason = check_ip_ssrf(ip, allow_loopback=allow_loopback, allow_private=allow_private)
             if not is_safe:
                 return False, f"Host '{clean_host}' resolved to restricted IP {ip}: {reason}", resolved_ips
 
@@ -102,12 +119,15 @@ def resolve_and_verify_ssrf(host: str, port: int, allow_loopback: bool = False) 
 
 class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
     """
-    Safe HTTP Redirect Handler that tracks hops, enforces maximum redirect limit,
-    and performs SSRF validation at every redirect hop.
+    Safe HTTP Redirect Handler that tracks hops, enforces maximum redirect limits,
+    enforces scope boundaries (cannot pivot to arbitrary external domains),
+    and validates every redirect destination against SSRF rules.
     """
-    def __init__(self, allow_loopback: bool = False, max_redirects: int = 5):
+    def __init__(self, target_host: str, allow_loopback: bool = False, allow_private: bool = False, max_redirects: int = 5):
         super().__init__()
+        self.target_host = target_host.lower().strip("[]")
         self.allow_loopback = allow_loopback
+        self.allow_private = allow_private
         self.max_redirects = max_redirects
         self.redirect_chain: List[Tuple[int, str]] = []
 
@@ -118,8 +138,16 @@ class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
             )
         self.redirect_chain.append((code, newurl))
         parsed = urllib.parse.urlparse(newurl)
+        dest_host = (parsed.hostname or "").lower().strip("[]")
+
+        # Scope boundary enforcement: Redirect destination must stay within target domain or its subdomains
+        if dest_host != self.target_host and not dest_host.endswith("." + self.target_host):
+            raise urllib.error.HTTPError(
+                newurl, 403, f"Redirect to out-of-scope host '{dest_host}' blocked by scope policy.", headers, fp
+            )
+
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        is_safe, reason, _ = resolve_and_verify_ssrf(parsed.hostname or "", port, self.allow_loopback)
+        is_safe, reason, _ = resolve_and_verify_ssrf(dest_host, port, self.allow_loopback, self.allow_private)
         if not is_safe:
             raise urllib.error.HTTPError(newurl, 403, f"SSRF boundary enforcement blocked redirect: {reason}", headers, fp)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -243,6 +271,11 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                     "type": "boolean",
                     "default": False,
                     "description": "Allow loopback 127.0.0.1 testing for development environments",
+                },
+                "allow_private": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Allow RFC 1918 private subnets if explicitly authorized",
                 },
             },
             "additionalProperties": False,
@@ -376,13 +409,6 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         timeout: float,
         cancellation_check: Optional[Callable[[], bool]],
     ) -> AdapterResult:
-        """
-        Coordinates full suite of passive/non-intrusive security checks:
-        1. HTTP response headers and security directives.
-        2. Cookie security attributes.
-        3. Safe security resources (security.txt and robots.txt).
-        4. TLS certificate validity, expiration, SAN, and cipher evaluation (if HTTPS or port 443).
-        """
         all_findings: List[RawAdapterFinding] = []
         all_errors: List[str] = []
 
@@ -409,18 +435,16 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         url = target if "://" in target else f"http://{target}"
         parsed_target = urllib.parse.urlparse(url)
         is_https = parsed_target.scheme == "https" or (parsed_target.scheme != "http" and port == 443)
-        tls_version_str = "None"
         if is_https:
             tls_res = self._execute_live_tls_audit(target, port, config, start_time, timeout, cancellation_check)
             if tls_res.success:
                 all_findings.extend(tls_res.findings)
-                tls_version_str = tls_res.status_summary
             else:
                 all_errors.extend(tls_res.errors)
 
         duration = (time.perf_counter() - start_time) * 1000
         summary = (
-            f"Live Web Security Audit completed successfully: {len(all_findings)} security findings identified "
+            f"Live Web Security Audit completed successfully: {len(all_findings)} security observations identified "
             f"across headers, cookies, resources, and TLS configuration."
         )
         return AdapterResult(
@@ -451,9 +475,12 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         host = parsed.hostname or ""
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         allow_loopback = bool(config.get("allow_loopback", False))
+        allow_private = bool(config.get("allow_private", False))
 
         # SSRF Pre-flight DNS Verification
-        is_safe, ssrf_err, resolved_ips = resolve_and_verify_ssrf(host, port, allow_loopback=allow_loopback)
+        is_safe, ssrf_err, resolved_ips = resolve_and_verify_ssrf(
+            host, port, allow_loopback=allow_loopback, allow_private=allow_private
+        )
         if not is_safe:
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
@@ -479,13 +506,18 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
 
-            # Bounded redirect handler
+            # Bounded redirect handler with scope and SSRF enforcement
             follow_redirects = config.get("follow_redirects", True)
             max_redirects = int(config.get("max_redirects", 5))
 
             handlers: List[Any] = [urllib.request.HTTPSHandler(context=ctx)]
             if follow_redirects:
-                handlers.append(BoundedRedirectHandler(allow_loopback=allow_loopback, max_redirects=max_redirects))
+                handlers.append(BoundedRedirectHandler(
+                    target_host=host,
+                    allow_loopback=allow_loopback,
+                    allow_private=allow_private,
+                    max_redirects=max_redirects,
+                ))
             else:
                 class NoRedirect(urllib.request.HTTPRedirectHandler):
                     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -538,7 +570,6 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                         )
                     )
                 else:
-                    # Check max-age duration
                     max_age_match = re.search(r"max-age=(\d+)", hsts, re.IGNORECASE)
                     if max_age_match:
                         max_age_val = int(max_age_match.group(1))
@@ -681,15 +712,15 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
             if not pp:
                 findings.append(
                     RawAdapterFinding(
-                        title="Missing Permissions-Policy Header",
+                        title="Informational: Missing Permissions-Policy Header",
                         description=(
-                            "The server did not send a Permissions-Policy header to restrict browser APIs "
+                            "The server did not send a Permissions-Policy header to explicitly restrict browser APIs "
                             "(camera, microphone, geolocation, payment request)."
                         ),
-                        severity=FindingSeverity.LOW,
+                        severity=FindingSeverity.INFO,
                         confidence=FindingConfidence.CERTAIN,
-                        vuln_id="CWE-693",
-                        cvss_score=2.0,
+                        vuln_id=None,
+                        cvss_score=None,
                         reproduction_steps="Inspect HTTP headers for absence of Permissions-Policy.",
                         evidence_items=[evidence_item],
                     )
@@ -793,15 +824,15 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 if not samesite_part:
                     findings.append(
                         RawAdapterFinding(
-                            title=f"Cookie Missing 'SameSite' Attribute ({cookie_name})",
+                            title=f"Informational: Cookie Missing 'SameSite' Attribute ({cookie_name})",
                             description=(
-                                f"Cookie '{cookie_name}' does not specify SameSite protection, "
-                                f"increasing exposure to Cross-Site Request Forgery (CSRF)."
+                                f"Cookie '{cookie_name}' does not specify SameSite protection. "
+                                f"Specifying SameSite=Lax or SameSite=Strict provides cross-site request forgery defense."
                             ),
-                            severity=FindingSeverity.LOW,
+                            severity=FindingSeverity.INFO,
                             confidence=FindingConfidence.CERTAIN,
-                            vuln_id="CWE-1275",
-                            cvss_score=3.1,
+                            vuln_id=None,
+                            cvss_score=None,
                             reproduction_steps=f"Inspect Set-Cookie header for '{cookie_name}'.",
                             evidence_items=[cookie_evidence],
                         )
@@ -814,30 +845,33 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 target=target,
                 is_simulated=False,
                 success=True,
-                status_summary=f"Live HTTP header audit succeeded ({len(findings)} findings detected, HTTP {status_code}).",
+                status_summary=f"Live HTTP header audit succeeded ({len(findings)} observations detected, HTTP {status_code}).",
                 findings=findings,
                 errors=errors,
                 execution_duration_ms=duration,
             )
 
         except urllib.error.HTTPError as e:
+            # Operational HTTP error (404, 403, 401, 500) - record raw evidence without fabricating vulnerabilities
             headers = dict(e.headers) if hasattr(e, "headers") else {}
             evidence_item = RawAdapterEvidence(
                 evidence_type="HTTP_RESPONSE_HEADERS",
                 payload=f"HTTP/1.1 {e.code} {e.reason} Response Headers:\n" + "\n".join(f"{k}: {v}" for k, v in headers.items()),
             )
-            findings.append(
-                RawAdapterFinding(
-                    title=f"HTTP Service Responded with Error Status ({e.code})",
-                    description=f"Target {url} returned HTTP status code {e.code} ({e.reason}).",
-                    severity=FindingSeverity.LOW,
-                    confidence=FindingConfidence.CERTAIN,
-                    vuln_id="CWE-755",
-                    cvss_score=2.0,
-                    reproduction_steps=f"Send HTTP GET to {url}.",
-                    evidence_items=[evidence_item],
+            # Only 5xx server internal errors are noted as operational findings, NOT 404s
+            if e.code >= 500:
+                findings.append(
+                    RawAdapterFinding(
+                        title=f"Server Internal Error Status Disclosed (HTTP {e.code})",
+                        description=f"Target {url} returned server error status code {e.code} ({e.reason}).",
+                        severity=FindingSeverity.INFO,
+                        confidence=FindingConfidence.CERTAIN,
+                        vuln_id=None,
+                        cvss_score=None,
+                        reproduction_steps=f"Send HTTP GET to {url}.",
+                        evidence_items=[evidence_item],
+                    )
                 )
-            )
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
                 adapter_name=self.name,
@@ -845,7 +879,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 target=target,
                 is_simulated=False,
                 success=True,
-                status_summary=f"Live HTTP audit completed with HTTP {e.code} status.",
+                status_summary=f"Live HTTP audit observed HTTP {e.code} status ({e.reason}).",
                 findings=findings,
                 errors=[],
                 execution_duration_ms=duration,
@@ -889,8 +923,11 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
     ) -> AdapterResult:
         host = target.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
         allow_loopback = bool(config.get("allow_loopback", False))
+        allow_private = bool(config.get("allow_private", False))
 
-        is_safe, ssrf_err, resolved_ips = resolve_and_verify_ssrf(host, port, allow_loopback=allow_loopback)
+        is_safe, ssrf_err, resolved_ips = resolve_and_verify_ssrf(
+            host, port, allow_loopback=allow_loopback, allow_private=allow_private
+        )
         if not is_safe:
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
@@ -909,120 +946,62 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         findings: List[RawAdapterFinding] = []
         errors: List[str] = []
 
-        try:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+        cert_verified = False
+        cert_verification_error: Optional[str] = None
+        cert_der: Optional[bytes] = None
+        version = "UNKNOWN"
+        cipher_name = "UNKNOWN"
+        parsed_cert: Dict[str, Any] = {}
 
+        # Step 1: Real TLS Handshake WITH Certificate & Hostname Validation
+        try:
+            import certifi
+            verify_ctx = ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            verify_ctx = ssl.create_default_context()
+        try:
             with socket.create_connection((host, port), timeout=timeout) as sock:
-                with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                with verify_ctx.wrap_socket(sock, server_hostname=host) as ssock:
                     cert_der = ssock.getpeercert(binary_form=True)
+                    parsed_cert = ssock.getpeercert() or {}
                     version = ssock.version() or "UNKNOWN"
                     cipher = ssock.cipher()
                     cipher_name = cipher[0] if cipher else "UNKNOWN"
-
-            cert_sha256 = hashlib.sha256(cert_der).hexdigest() if cert_der else "NONE"
-            tls_evidence = RawAdapterEvidence(
-                evidence_type="HANDSHAKE_TRANSCRIPT",
-                payload=f"Host: {host}:{port}\nNegotiated Protocol: {version}\nCipher Suite: {cipher_name}\nCertificate SHA-256: {cert_sha256}",
-            )
-
-            # Check 1: Deprecated TLS protocol versions
-            if version in ["TLSv1", "TLSv1.1", "SSLv3", "SSLv2"]:
-                findings.append(
-                    RawAdapterFinding(
-                        title=f"Deprecated TLS Protocol Negotiated ({version})",
-                        description=(
-                            f"The server negotiated {version}, which is cryptographically deprecated and vulnerable "
-                            f"to POODLE, BEAST, and protocol downgrade attacks. TLS 1.2 or TLS 1.3 is required."
-                        ),
-                        severity=FindingSeverity.HIGH,
-                        confidence=FindingConfidence.CERTAIN,
-                        vuln_id="CWE-326",
-                        cvss_score=7.4,
-                        reproduction_steps=f"Initiate TLS handshake to {host}:{port} and observe negotiated protocol '{version}'.",
-                        evidence_items=[tls_evidence],
-                    )
-                )
-
-            # Check 2: Insecure cipher suite
-            if cipher_name and any(weak in cipher_name.upper() for weak in ["RC4", "3DES", "DES", "MD5", "NULL", "EXPORT", "ANON"]):
-                findings.append(
-                    RawAdapterFinding(
-                        title=f"Insecure Cipher Suite Negotiated ({cipher_name})",
-                        description=f"The server negotiated an insecure or obsolete cipher suite: {cipher_name}.",
-                        severity=FindingSeverity.HIGH,
-                        confidence=FindingConfidence.CERTAIN,
-                        vuln_id="CWE-327",
-                        cvss_score=7.5,
-                        reproduction_steps=f"Initiate TLS handshake to {host}:{port} and inspect negotiated cipher suite.",
-                        evidence_items=[tls_evidence],
-                    )
-                )
-
-            # Check 3: Extract Certificate metadata if available
+                    cert_verified = True
+        except ssl.SSLCertVerificationError as cert_err:
+            cert_verification_error = str(cert_err)
+            # Reconnect unverified solely to extract certificate forensic evidence
             try:
-                # Re-query cert with parsed dict if supported
-                cert_ctx = ssl.create_default_context()
-                cert_ctx.check_hostname = False
-                cert_ctx.verify_mode = ssl.CERT_NONE
+                unverified_ctx = ssl.create_default_context()
+                unverified_ctx.check_hostname = False
+                unverified_ctx.verify_mode = ssl.CERT_NONE
                 with socket.create_connection((host, port), timeout=timeout) as sock2:
-                    with cert_ctx.wrap_socket(sock2, server_hostname=host) as ssock2:
+                    with unverified_ctx.wrap_socket(sock2, server_hostname=host) as ssock2:
+                        cert_der = ssock2.getpeercert(binary_form=True)
                         parsed_cert = ssock2.getpeercert() or {}
-                        if parsed_cert:
-                            not_after_str = parsed_cert.get("notAfter")
-                            if not_after_str:
-                                # Parse OpenSSL date format e.g. "May 15 12:00:00 2026 GMT"
-                                try:
-                                    exp_date = datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
-                                    now_utc = datetime.now(timezone.utc)
-                                    if exp_date <= now_utc:
-                                        findings.append(
-                                            RawAdapterFinding(
-                                                title="Expired TLS Certificate Disclosed",
-                                                description=f"The TLS certificate for {host} expired on {not_after_str}.",
-                                                severity=FindingSeverity.HIGH,
-                                                confidence=FindingConfidence.CERTAIN,
-                                                vuln_id="CWE-298",
-                                                cvss_score=7.4,
-                                                reproduction_steps=f"Inspect peer certificate notAfter attribute: '{not_after_str}'.",
-                                                evidence_items=[tls_evidence],
-                                            )
-                                        )
-                                    elif exp_date <= now_utc + timedelta(days=30):
-                                        findings.append(
-                                            RawAdapterFinding(
-                                                title="TLS Certificate Expiring Soon (< 30 Days)",
-                                                description=f"The TLS certificate for {host} will expire on {not_after_str}.",
-                                                severity=FindingSeverity.LOW,
-                                                confidence=FindingConfidence.CERTAIN,
-                                                vuln_id="CWE-298",
-                                                cvss_score=3.1,
-                                                reproduction_steps=f"Observe certificate expiry date: '{not_after_str}'.",
-                                                evidence_items=[tls_evidence],
-                                            )
-                                        )
-                                except Exception:
-                                    pass
+                        version = ssock2.version() or "UNKNOWN"
+                        cipher = ssock2.cipher()
+                        cipher_name = cipher[0] if cipher else "UNKNOWN"
             except Exception:
                 pass
-
+        except ssl.SSLError as ssl_err:
+            cert_verification_error = str(ssl_err)
+            try:
+                unverified_ctx = ssl.create_default_context()
+                unverified_ctx.check_hostname = False
+                unverified_ctx.verify_mode = ssl.CERT_NONE
+                with socket.create_connection((host, port), timeout=timeout) as sock2:
+                    with unverified_ctx.wrap_socket(sock2, server_hostname=host) as ssock2:
+                        cert_der = ssock2.getpeercert(binary_form=True)
+                        parsed_cert = ssock2.getpeercert() or {}
+                        version = ssock2.version() or "UNKNOWN"
+                        cipher = ssock2.cipher()
+                        cipher_name = cipher[0] if cipher else "UNKNOWN"
+            except Exception:
+                pass
+        except Exception as conn_err:
             duration = (time.perf_counter() - start_time) * 1000
-            return AdapterResult(
-                adapter_name=self.name,
-                adapter_version=self.version,
-                target=target,
-                is_simulated=False,
-                success=True,
-                status_summary=f"Live TLS handshake audit completed ({version}, cipher: {cipher_name}).",
-                findings=findings,
-                errors=errors,
-                execution_duration_ms=duration,
-            )
-
-        except Exception as e:
-            duration = (time.perf_counter() - start_time) * 1000
-            err_msg = str(e)
+            err_msg = str(conn_err)
             fail_cat = "TLS_HANDSHAKE_FAILED"
             if "refused" in err_msg.lower():
                 fail_cat = "CONNECTION_REFUSED"
@@ -1041,6 +1020,164 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 failure_category=fail_cat,
                 execution_duration_ms=duration,
             )
+
+        cert_sha256 = hashlib.sha256(cert_der).hexdigest() if cert_der else "NONE"
+        tls_evidence = RawAdapterEvidence(
+            evidence_type="HANDSHAKE_TRANSCRIPT",
+            payload=(
+                f"Host: {host}:{port}\n"
+                f"TLS Verification: {'VERIFIED' if cert_verified else 'FAILED_UNTRUSTED'}\n"
+                f"Verification Error: {cert_verification_error or 'None'}\n"
+                f"Negotiated Protocol: {version}\n"
+                f"Cipher Suite: {cipher_name}\n"
+                f"Certificate SHA-256: {cert_sha256}"
+            ),
+        )
+
+        # Flag Certificate Trust & Validation Vulnerabilities (Never treat untrusted certs as clean validation)
+        if not cert_verified and cert_verification_error:
+            err_lower = cert_verification_error.lower()
+            if "self-signed" in err_lower or "self signed" in err_lower or "unable to get local issuer" in err_lower:
+                findings.append(
+                    RawAdapterFinding(
+                        title="Untrusted TLS Certificate Authority (Self-Signed / Untrusted Root)",
+                        description=(
+                            f"The server at {host}:{port} presented a TLS certificate that cannot be validated against public CA trust stores: {cert_verification_error}. "
+                            f"Clients will receive security warnings, and the connection is vulnerable to interception."
+                        ),
+                        severity=FindingSeverity.HIGH,
+                        confidence=FindingConfidence.CERTAIN,
+                        vuln_id="CWE-295",
+                        cvss_score=7.4,
+                        reproduction_steps=f"Initiate verified TLS handshake to {host}:{port}.",
+                        evidence_items=[tls_evidence],
+                    )
+                )
+            elif "expired" in err_lower or "has expired" in err_lower:
+                findings.append(
+                    RawAdapterFinding(
+                        title="Expired TLS Certificate Presented",
+                        description=f"The TLS certificate for {host}:{port} has expired: {cert_verification_error}.",
+                        severity=FindingSeverity.HIGH,
+                        confidence=FindingConfidence.CERTAIN,
+                        vuln_id="CWE-298",
+                        cvss_score=7.4,
+                        reproduction_steps=f"Connect with TLS client to {host}:{port}.",
+                        evidence_items=[tls_evidence],
+                    )
+                )
+            elif "hostname" in err_lower or "doesn't match" in err_lower:
+                findings.append(
+                    RawAdapterFinding(
+                        title="TLS Certificate Hostname Mismatch (SAN Violation)",
+                        description=f"The certificate presented at {host}:{port} does not match the requested hostname: {cert_verification_error}.",
+                        severity=FindingSeverity.HIGH,
+                        confidence=FindingConfidence.CERTAIN,
+                        vuln_id="CWE-297",
+                        cvss_score=7.1,
+                        reproduction_steps=f"Verify hostname '{host}' against certificate Subject Alternative Names.",
+                        evidence_items=[tls_evidence],
+                    )
+                )
+            else:
+                findings.append(
+                    RawAdapterFinding(
+                        title="TLS Certificate Validation Failed",
+                        description=f"TLS certificate validation failed for {host}:{port}: {cert_verification_error}.",
+                        severity=FindingSeverity.HIGH,
+                        confidence=FindingConfidence.CERTAIN,
+                        vuln_id="CWE-295",
+                        cvss_score=7.4,
+                        reproduction_steps=f"Connect with verifying TLS client to {host}:{port}.",
+                        evidence_items=[tls_evidence],
+                    )
+                )
+
+        # Check 1: Deprecated TLS protocol versions
+        if version in ["TLSv1", "TLSv1.1", "SSLv3", "SSLv2"]:
+            findings.append(
+                RawAdapterFinding(
+                    title=f"Deprecated TLS Protocol Negotiated ({version})",
+                    description=(
+                        f"The server negotiated {version}, which is cryptographically deprecated and vulnerable "
+                        f"to POODLE, BEAST, and protocol downgrade attacks. TLS 1.2 or TLS 1.3 is required."
+                    ),
+                    severity=FindingSeverity.HIGH,
+                    confidence=FindingConfidence.CERTAIN,
+                    vuln_id="CWE-326",
+                    cvss_score=7.4,
+                    reproduction_steps=f"Initiate TLS handshake to {host}:{port} and observe negotiated protocol '{version}'.",
+                    evidence_items=[tls_evidence],
+                )
+            )
+
+        # Check 2: Insecure cipher suite
+        if cipher_name and any(weak in cipher_name.upper() for weak in ["RC4", "3DES", "DES", "MD5", "NULL", "EXPORT", "ANON"]):
+            findings.append(
+                RawAdapterFinding(
+                    title=f"Insecure Cipher Suite Negotiated ({cipher_name})",
+                    description=f"The server negotiated an insecure or obsolete cipher suite: {cipher_name}.",
+                    severity=FindingSeverity.HIGH,
+                    confidence=FindingConfidence.CERTAIN,
+                    vuln_id="CWE-327",
+                    cvss_score=7.5,
+                    reproduction_steps=f"Initiate TLS handshake to {host}:{port} and inspect negotiated cipher suite.",
+                    evidence_items=[tls_evidence],
+                )
+            )
+
+        # Check 3: Check certificate expiration and validity dates
+        if parsed_cert:
+            not_after_str = parsed_cert.get("notAfter")
+            if not_after_str:
+                try:
+                    exp_date = datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(timezone.utc)
+                    if exp_date <= now_utc and cert_verified:
+                        findings.append(
+                            RawAdapterFinding(
+                                title="Expired TLS Certificate Disclosed",
+                                description=f"The TLS certificate for {host} expired on {not_after_str}.",
+                                severity=FindingSeverity.HIGH,
+                                confidence=FindingConfidence.CERTAIN,
+                                vuln_id="CWE-298",
+                                cvss_score=7.4,
+                                reproduction_steps=f"Inspect peer certificate notAfter attribute: '{not_after_str}'.",
+                                evidence_items=[tls_evidence],
+                            )
+                        )
+                    elif exp_date <= now_utc + timedelta(days=30):
+                        findings.append(
+                            RawAdapterFinding(
+                                title="Informational: TLS Certificate Expiring Soon (< 30 Days)",
+                                description=f"The TLS certificate for {host} will expire on {not_after_str}.",
+                                severity=FindingSeverity.INFO,
+                                confidence=FindingConfidence.CERTAIN,
+                                vuln_id=None,
+                                cvss_score=None,
+                                reproduction_steps=f"Observe certificate expiry date: '{not_after_str}'.",
+                                evidence_items=[tls_evidence],
+                            )
+                        )
+                except Exception:
+                    pass
+
+        duration = (time.perf_counter() - start_time) * 1000
+        status_msg = (
+            f"Live TLS handshake audit completed ({'CA-Verified' if cert_verified else 'Untrusted Certificate'}, "
+            f"{version}, cipher: {cipher_name})."
+        )
+        return AdapterResult(
+            adapter_name=self.name,
+            adapter_version=self.version,
+            target=target,
+            is_simulated=False,
+            success=True,
+            status_summary=status_msg,
+            findings=findings,
+            errors=errors,
+            execution_duration_ms=duration,
+        )
 
     # --------------------------------------------------------------------------
     # 4. Safe Security Resources Audit (security.txt and robots.txt)
@@ -1064,7 +1201,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         ctx.verify_mode = ssl.CERT_NONE
         opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
 
-        # Check A: security.txt (RFC 9116)
+        # Check A: security.txt (RFC 9116) - Informational hardening observation, NOT an exploitable flaw
         security_txt_found = False
         for path in ("/.well-known/security.txt", "/security.txt"):
             try:
@@ -1084,15 +1221,16 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
         if not security_txt_found:
             findings.append(
                 RawAdapterFinding(
-                    title="Missing Vulnerability Disclosure Policy (security.txt RFC 9116)",
+                    title="Informational: Missing security.txt Policy (RFC 9116)",
                     description=(
-                        f"The host at {origin} does not publish a security.txt file at /.well-known/security.txt or /security.txt. "
-                        f"RFC 9116 defines this standard for security researchers to responsibly report vulnerabilities."
+                        f"The host at {origin} does not publish an optional security.txt file at /.well-known/security.txt or /security.txt. "
+                        f"RFC 9116 defines an optional convention for security researchers to coordinate vulnerability reporting. "
+                        f"This is an informational hardening observation, not an exploitable vulnerability."
                     ),
-                    severity=FindingSeverity.LOW,
-                    confidence=FindingConfidence.CERTAIN,
-                    vuln_id="CWE-1059",
-                    cvss_score=2.0,
+                    severity=FindingSeverity.INFO,
+                    confidence=FindingConfidence.FIRM,
+                    vuln_id=None,
+                    cvss_score=None,
                     reproduction_steps=f"Probe for {origin}/.well-known/security.txt and {origin}/security.txt (HTTP 404 observed).",
                     evidence_items=[
                         RawAdapterEvidence(
@@ -1124,15 +1262,16 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                         evidence_text = "\n".join(disclosed[:10])
                         findings.append(
                             RawAdapterFinding(
-                                title="Sensitive Administrative Paths Disclosed in robots.txt",
+                                title="Informational: Sensitive Administrative Paths Disclosed in robots.txt",
                                 description=(
                                     f"The robots.txt file at {origin} explicitly disallows crawling of administrative or sensitive paths, "
-                                    f"disclosing their location to unauthorized actors: {disclosed[:3]}"
+                                    f"disclosing their location to unauthorized actors: {disclosed[:3]}. "
+                                    f"Ensure critical endpoints are protected by strong authentication rather than obscurity."
                                 ),
-                                severity=FindingSeverity.LOW,
+                                severity=FindingSeverity.INFO,
                                 confidence=FindingConfidence.CERTAIN,
                                 vuln_id="CWE-200",
-                                cvss_score=3.1,
+                                cvss_score=None,
                                 reproduction_steps=f"Inspect {origin}/robots.txt for sensitive Disallow directives.",
                                 evidence_items=[
                                     RawAdapterEvidence(
@@ -1152,7 +1291,7 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
             target=target,
             is_simulated=False,
             success=True,
-            status_summary=f"Security resources audit completed ({len(findings)} findings).",
+            status_summary=f"Security resources audit completed ({len(findings)} observations).",
             findings=findings,
             errors=errors,
             execution_duration_ms=duration,
@@ -1172,8 +1311,11 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
     ) -> AdapterResult:
         host = target.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
         allow_loopback = bool(config.get("allow_loopback", False))
+        allow_private = bool(config.get("allow_private", False))
 
-        is_safe, ssrf_err, _ = resolve_and_verify_ssrf(host, port, allow_loopback=allow_loopback)
+        is_safe, ssrf_err, _ = resolve_and_verify_ssrf(
+            host, port, allow_loopback=allow_loopback, allow_private=allow_private
+        )
         if not is_safe:
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
