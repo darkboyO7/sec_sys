@@ -200,6 +200,19 @@ npm run dev
 ```
 - Dashboard URL: `http://localhost:5173`
 
+#### Terminal 3 — Start Background Assessment Worker:
+```powershell
+.\.venv\Scripts\Activate.ps1
+Set-Location backend
+python scripts/run_background_worker.py --poll-interval 1.0
+```
+
+#### Run Full Autonomous Vision Demonstration (All 12 Stages End-to-End):
+```powershell
+.\.venv\Scripts\Activate.ps1
+python backend/scripts/demonstrate_full_vision_lifecycle.py
+```
+
 ---
 
 ## 4. Bootstrapping Your First Admin Account & Testing an Assessment
@@ -227,7 +240,11 @@ npm run dev
 .\.venv\Scripts\Activate.ps1
 .\.venv\Scripts\pytest.exe backend/tests
 ```
-*Executes 131 automated tests covering:*
+*Executes 313+ automated tests covering:*
+- *Prompt 7 Gap Closure & Resilience: Responsible new security checks (HTTP TRACE method detection, cleartext password forms, .git/HEAD metadata, .env configuration leaks, crossdomain.xml wildcard), fail-closed failure resilience (target unreachable, redirect SSRF boundary, stale worker recovery, claim mutual exclusion, inconclusive verification).*
+- *Prompt 6 Autonomous Security Intelligence: Closed-loop security intelligence engine, change detection and delta analysis, contextual decision proposals with deduplication, RBAC governance gates, posture improvement measurement, and unified security operations dashboard integration.*
+- *Prompt 5 Security Hardening & Full Integration: SSRF boundary protection against CGNAT (RFC 6598) and cloud metadata services (AWS, GCP, Azure, Oracle, Alibaba), Merkle tree evidence proofs, and 12-stage end-to-end full vision operational verification.*
+- *Prompt 4 Remediation, Continuous Monitoring & Learning: Continuous monitoring recurring schedules, independent verification lifecycle, baseline learning governance, and prediction ledger.*
 - *Phase 7A Isolated Worker Process & IPC Execution Boundary: out-of-process scanner execution via `subprocess.Popen` (`shell=False`), sanitized environment inheritance systematically stripping `SECRET_KEY`, `DATABASE_URL`, and auth credentials, versioned JSON IPC protocol (`WorkerIPCRequest`/`WorkerIPCResponse`, v1.0.0), Windows process tree tracking (`worker_pid` recorded in database via migration `a1b2c3d4e5f6`), cooperative cancellation and forceful process tree termination via `taskkill /F /T /PID`, canonical Win32 `OpenProcess` & `GetExitCodeProcess` liveness checks, stream size clamping at 10MB (`WORKER_PAYLOAD_EXCEEDED`), IPC identity mismatch fail-closed enforcement (`IPC_IDENTITY_MISMATCH`), and non-zero exit crash handling (`WORKER_PROCESS_CRASHED`).*
 - *Phase 6B.1 Independent Security Audit & Concurrency Proof: database-enforced unique constraints on `(project_id, idempotency_key)` preventing concurrent TOCTOU job duplication, worker claim ownership (`claimed_by`) with atomic conditional updates, stale execution attempt discard, cancellation request distinction (`CANCELLATION_REQUESTED` vs `CANCELLED`), timeout and failure observation in adapter loops, project-isolated stale recovery sweep, evidence raw vs persisted cryptographic hashing taxonomy, 1MB aggregate evidence payload cap, and cross-project authorization boundary validation.*
 - *Phase 6B Worker Reliability, Concurrency & Evidence Integrity: atomic worker claiming mutual exclusion (`WHERE status='QUEUED'/'READY'`), idempotency key request digest matching with `HTTP 409 Conflict` on payload mismatch, concurrent cancellation handling and race with completion, stale worker completion discard via attempt snapshot, transactional savepoint rollback during ingestion (`INGESTION_TRANSACTION_FAILED`), cooperative cancellation token during execution loops, abandoned job recovery sweep (`ABANDONED_EXECUTION_RECOVERED`), multibyte UTF-8 boundary truncation ($\le 65,536$ bytes) preventing split characters and `UnicodeDecodeError`, dual-hash evidence provenance (`raw_sha256_hash` vs. `sha256_hash` with `is_truncated`), future timestamp clamping and UTC normalization, max 10 active jobs capacity enforcement (`HTTP 429 Too Many Requests`), operational retry limits and non-retryable governance failure blocking, monotonic non-decreasing progress clamping, and server-side project/job ownership binding preventing tenant injection.*
@@ -244,7 +261,7 @@ Set-Location frontend
 npm run test
 Set-Location ..
 ```
-*Executes 6 frontend unit tests covering token storage, request routing, scope validation, assessment orchestration, finding stats, and state machine transition requests.*
+*Executes 8 frontend unit tests covering token storage, request routing, scope validation, assessment orchestration, finding stats, closed-loop decision APIs, and state machine transition requests.*
 
 ### Running Frontend Production Build:
 ```powershell

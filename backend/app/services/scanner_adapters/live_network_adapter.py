@@ -660,6 +660,8 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                 response_headers = response.info()
                 headers = dict(response_headers)
                 raw_headers_str = "\n".join(f"{k}: {v}" for k, v in headers.items())
+                body_bytes = response.read(32768)
+                body_text = body_bytes.decode("utf-8", errors="replace")
 
             evidence_item = RawAdapterEvidence(
                 evidence_type="HTTP_RESPONSE_HEADERS",
@@ -1038,6 +1040,89 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                         evidence_items=[evidence_item],
                     )
                 )
+
+            # ------------------------------------------------------------------
+            # Check 11: HTTP Method Tampering & Insecure Verbs (OPTIONS probe)
+            # ------------------------------------------------------------------
+            try:
+                options_req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "VAPT-Defensive-Auditor/1.1 (+https://vapt.internal.corp/auditor)"},
+                    method="OPTIONS",
+                )
+                with opener.open(options_req, timeout=min(timeout, 5.0)) as opt_resp:
+                    opt_headers = dict(opt_resp.info())
+                    allow_header = opt_headers.get("Allow") or opt_headers.get("allow") or ""
+                    if allow_header:
+                        allow_methods = [m.strip().upper() for m in allow_header.split(",")]
+                        options_evidence = RawAdapterEvidence(
+                            evidence_type="HTTP_RESPONSE_HEADERS",
+                            payload=f"OPTIONS {url} Status: {opt_resp.getcode()}\nAllow: {allow_header}",
+                        )
+                        if "TRACE" in allow_methods or "TRACK" in allow_methods:
+                            findings.append(
+                                RawAdapterFinding(
+                                    title="Insecure HTTP Method Enabled: TRACE (Cross-Site Tracing / XST Risk)",
+                                    description=(
+                                        f"The web server at {url} permits the HTTP TRACE (or TRACK) method in its Allow header: '{allow_header}'. "
+                                        f"TRACE reflects incoming requests including sensitive cookies and authentication tokens back to the client, "
+                                        f"enabling attackers to bypass HttpOnly cookie protection via Cross-Site Tracing (XST)."
+                                    ),
+                                    severity=FindingSeverity.MEDIUM,
+                                    confidence=FindingConfidence.CERTAIN,
+                                    vuln_id="CWE-200",
+                                    cvss_score=5.3,
+                                    reproduction_steps=f"Send HTTP OPTIONS to {url} and inspect 'Allow' response header.",
+                                    evidence_items=[options_evidence],
+                                )
+                            )
+                        elif "DEBUG" in allow_methods:
+                            findings.append(
+                                RawAdapterFinding(
+                                    title="Potentially Insecure HTTP Method Enabled: DEBUG",
+                                    description=(
+                                        f"The server advertises support for the DEBUG HTTP method: '{allow_header}'. "
+                                        f"This method is typically associated with administrative or debugging interfaces."
+                                    ),
+                                    severity=FindingSeverity.LOW,
+                                    confidence=FindingConfidence.CERTAIN,
+                                    vuln_id="CWE-200",
+                                    cvss_score=3.7,
+                                    reproduction_steps=f"Send HTTP OPTIONS to {url}.",
+                                    evidence_items=[options_evidence],
+                                )
+                            )
+            except Exception:
+                pass
+
+            # ------------------------------------------------------------------
+            # Check 12: Cleartext Sensitive Form / Password Input over HTTP
+            # ------------------------------------------------------------------
+            if url.startswith("http://") and body_text:
+                password_input_match = re.search(r"<input[^>]+type=[\"']password[\"'][^>]*>", body_text, re.IGNORECASE)
+                if password_input_match:
+                    matched_snippet = password_input_match.group(0)[:150]
+                    findings.append(
+                        RawAdapterFinding(
+                            title="Cleartext Transmission of Sensitive Password Field over HTTP",
+                            description=(
+                                f"The web page at {url} renders a password input field over unencrypted HTTP. "
+                                f"Credentials entered into this form will be transmitted in plaintext across the network, "
+                                f"exposing them to passive sniffing, Wi-Fi eavesdropping, and man-in-the-middle interception."
+                            ),
+                            severity=FindingSeverity.HIGH,
+                            confidence=FindingConfidence.CERTAIN,
+                            vuln_id="CWE-319",
+                            cvss_score=7.4,
+                            reproduction_steps=f"Inspect HTML source of {url} for '<input type=\"password\">'.",
+                            evidence_items=[
+                                RawAdapterEvidence(
+                                    evidence_type="HTTP_REQUEST_RESPONSE",
+                                    payload=f"URL: {url}\nMatched snippet: {matched_snippet}",
+                                )
+                            ],
+                        )
+                    )
 
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
@@ -1509,6 +1594,123 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                                     RawAdapterEvidence(
                                         evidence_type="CONFIG_AUDIT",
                                         payload=f"URL: {robots_url}\nSensitive Directives:\n{evidence_text}",
+                                    )
+                                ],
+                            )
+                        )
+        except Exception:
+            pass
+
+        # Check C: Exposed Git Repository Metadata (/.git/HEAD)
+        try:
+            git_url = f"{origin}/.git/HEAD"
+            req = urllib.request.Request(
+                git_url,
+                headers={"User-Agent": "VAPT-Defensive-Auditor/1.1 (+https://vapt.internal.corp/auditor)"},
+                method="GET",
+            )
+            with opener.open(req, timeout=min(timeout, 5.0)) as resp:
+                if resp.getcode() == 200:
+                    git_content = resp.read(512).decode("utf-8", errors="replace").strip()
+                    # A genuine git HEAD file either starts with "ref: refs/" or is a 40-char commit SHA
+                    if git_content.startswith("ref: refs/") or (len(git_content) == 40 and all(c in "0123456789abcdefABCDEF" for c in git_content)):
+                        findings.append(
+                            RawAdapterFinding(
+                                title="Public Exposure of Git Repository Metadata (.git/HEAD)",
+                                description=(
+                                    f"The web server at {origin} exposes Git repository metadata at /.git/HEAD ('{git_content[:60]}'). "
+                                    f"This allows unauthenticated attackers to download the entire Git repository, reconstruct complete application "
+                                    f"source code, view commit logs, and extract embedded secrets or cryptographic credentials."
+                                ),
+                                severity=FindingSeverity.HIGH,
+                                confidence=FindingConfidence.CERTAIN,
+                                vuln_id="CWE-538",
+                                cvss_score=7.5,
+                                reproduction_steps=f"Initiate HTTP GET to {git_url} and observe valid Git HEAD reference: '{git_content[:50]}'.",
+                                evidence_items=[
+                                    RawAdapterEvidence(
+                                        evidence_type="HTTP_REQUEST_RESPONSE",
+                                        payload=f"URL: {git_url}\nContent:\n{git_content[:150]}",
+                                    )
+                                ],
+                            )
+                        )
+        except Exception:
+            pass
+
+        # Check D: Exposed Environment Configuration (/.env)
+        try:
+            env_url = f"{origin}/.env"
+            req = urllib.request.Request(
+                env_url,
+                headers={"User-Agent": "VAPT-Defensive-Auditor/1.1 (+https://vapt.internal.corp/auditor)"},
+                method="GET",
+            )
+            with opener.open(req, timeout=min(timeout, 5.0)) as resp:
+                if resp.getcode() == 200:
+                    env_raw = resp.read(1024).decode("utf-8", errors="replace")
+                    env_lines = [line.strip() for line in env_raw.splitlines() if line.strip() and not line.strip().startswith("#")]
+                    sensitive_env_keys = ("APP_KEY", "DB_PASSWORD", "DATABASE_URL", "SECRET_KEY", "API_KEY", "AWS_SECRET_ACCESS_KEY", "POSTGRES_PASSWORD", "MYSQL_ROOT_PASSWORD", "JWT_SECRET")
+                    matched_keys = []
+                    for line in env_lines:
+                        if "=" in line:
+                            key = line.split("=")[0].strip()
+                            if any(k in key.upper() for k in sensitive_env_keys) or key.upper().startswith(("DB_", "AWS_", "SECRET_", "AUTH_")):
+                                matched_keys.append(key)
+                    if matched_keys:
+                        findings.append(
+                            RawAdapterFinding(
+                                title="Public Exposure of Application Environment Configuration (.env)",
+                                description=(
+                                    f"An environment configuration file is publicly accessible at {env_url}. "
+                                    f"The file exposes sensitive configuration parameters ({', '.join(matched_keys[:5])}), "
+                                    f"potentially allowing complete compromise of databases, cloud accounts, and application secrets."
+                                ),
+                                severity=FindingSeverity.CRITICAL,
+                                confidence=FindingConfidence.CERTAIN,
+                                vuln_id="CWE-552",
+                                cvss_score=8.6,
+                                reproduction_steps=f"Initiate HTTP GET to {env_url} and observe environment key definitions: {matched_keys[:3]}.",
+                                evidence_items=[
+                                    RawAdapterEvidence(
+                                        evidence_type="CONFIG_AUDIT",
+                                        payload=f"URL: {env_url}\nDiscovered Keys (Values Redacted for Safety):\n" + "\n".join(f"{k}=[REDACTED]" for k in matched_keys[:8]),
+                                    )
+                                ],
+                            )
+                        )
+        except Exception:
+            pass
+
+        # Check E: Permissive Cross-Domain Policy (/crossdomain.xml)
+        try:
+            cd_url = f"{origin}/crossdomain.xml"
+            req = urllib.request.Request(
+                cd_url,
+                headers={"User-Agent": "VAPT-Defensive-Auditor/1.1 (+https://vapt.internal.corp/auditor)"},
+                method="GET",
+            )
+            with opener.open(req, timeout=min(timeout, 5.0)) as resp:
+                if resp.getcode() == 200:
+                    cd_content = resp.read(2048).decode("utf-8", errors="replace")
+                    if "<allow-access-from" in cd_content.lower() and ('domain="*"' in cd_content or "domain='*'" in cd_content):
+                        findings.append(
+                            RawAdapterFinding(
+                                title="Overly Permissive Cross-Domain Policy (crossdomain.xml Wildcard)",
+                                description=(
+                                    f"The cross-domain policy at {cd_url} permits arbitrary external domains "
+                                    f"to interact with this host via wildcard '<allow-access-from domain=\"*\"/>'. "
+                                    f"This weakens SOP protections for clients processing crossdomain.xml."
+                                ),
+                                severity=FindingSeverity.MEDIUM,
+                                confidence=FindingConfidence.CERTAIN,
+                                vuln_id="CWE-942",
+                                cvss_score=5.3,
+                                reproduction_steps=f"Fetch {cd_url} and inspect allow-access-from directives.",
+                                evidence_items=[
+                                    RawAdapterEvidence(
+                                        evidence_type="CONFIG_AUDIT",
+                                        payload=f"URL: {cd_url}\nMatched Wildcard Directive:\n<allow-access-from domain=\"*\"/>",
                                     )
                                 ],
                             )
