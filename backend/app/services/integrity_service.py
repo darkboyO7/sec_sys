@@ -337,17 +337,32 @@ class IntegrityService:
 
         merkle_tree = MerkleTree(leaf_hashes)
 
+        # Check for missing evidence records if job summary recorded expected evidence
+        job = db.query(AssessmentJob).filter(AssessmentJob.id == job_id).first()
+        expected_evidence_count = 0
+        if job and job.summary_stats and isinstance(job.summary_stats, dict):
+            expected_evidence_count = job.summary_stats.get("evidence_count", 0)
+
+        missing_evidence = False
+        if expected_evidence_count > 0 and len(evidence_items) < expected_evidence_count:
+            missing_evidence = True
+
+        overall_valid = (len(corrupted_ids) == 0) and not missing_evidence
+
+        summary_msg = f"Evidence integrity verified: {len(evidence_items)} records checked, {len(corrupted_ids)} corrupted."
+        if missing_evidence:
+            summary_msg = f"Evidence integrity check failed: Expected {expected_evidence_count} evidence records, but found {len(evidence_items)} (missing evidence detected)."
+
         return {
             "job_id": job_id,
             "total_evidence_checked": len(evidence_items),
-            "is_valid": len(corrupted_ids) == 0,
+            "expected_evidence_count": expected_evidence_count,
+            "is_valid": overall_valid,
+            "missing_evidence": missing_evidence,
             "corrupted_evidence_ids": corrupted_ids,
             "merkle_root": merkle_tree.root_hash,
             "evidence_records": evidence_records,
-            "summary": (
-                f"Evidence integrity verified: {len(evidence_items)} records checked, "
-                f"{len(corrupted_ids)} corrupted."
-            ),
+            "summary": summary_msg,
         }
 
     @classmethod

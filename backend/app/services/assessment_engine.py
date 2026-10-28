@@ -467,12 +467,13 @@ class AssessmentExecutionEngine:
                         if ev_type not in PERMITTED_EVIDENCE_TYPES:
                             ev_type = "CONFIG_AUDIT"
 
+                        authoritative_hash = hashlib.sha256(raw_ev.payload.encode("utf-8")).hexdigest()
                         evidence = FindingEvidence(
                             finding_id=finding.id,
                             evidence_type=ev_type,
                             payload=raw_ev.payload,
-                            sha256_hash=raw_ev.sha256_hash or hashlib.sha256(raw_ev.payload.encode("utf-8")).hexdigest(),
-                            raw_sha256_hash=raw_ev.raw_sha256_hash or raw_ev.sha256_hash,
+                            sha256_hash=authoritative_hash,
+                            raw_sha256_hash=raw_ev.raw_sha256_hash or authoritative_hash,
                             is_truncated=raw_ev.is_truncated,
                             observed_at=raw_ev.observed_at,
                         )
@@ -687,6 +688,20 @@ class AssessmentExecutionEngine:
         }
         if job.failure_category in NON_RETRYABLE_CATEGORIES:
             return False, job, f"Job failed with non-retryable governance failure '{job.failure_category}'."
+
+        # Execution boundary check: Re-verify target is still authorized by scope policy before re-queueing
+        from app.services.scope_engine import ScopeEngine
+        from app.models.scope import ScopeTarget, ScopeExclusion
+        has_scope_records = db.query(ScopeTarget).filter(ScopeTarget.project_id == job.project_id).first() is not None or \
+                            db.query(ScopeExclusion).filter(ScopeExclusion.project_id == job.project_id).first() is not None
+        if has_scope_records:
+            scope_eval = ScopeEngine.validate_target_in_scope(
+                db=db,
+                project_id=job.project_id,
+                target=job.target_input,
+            )
+            if not scope_eval.get("is_authorized"):
+                return False, job, f"Cannot retry job: Target '{job.target_input}' is no longer authorized by scope policy ({scope_eval.get('status')})."
 
         job.attempt_count += 1
         job.retry_count += 1

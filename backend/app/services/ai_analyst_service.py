@@ -93,7 +93,15 @@ class AIAnalystService:
                         "sha256_digest": f.fingerprint,
                     })
             elif ctype == "evidence":
-                ev = db.query(FindingEvidence).filter(FindingEvidence.id == rid).first()
+                ev = (
+                    db.query(FindingEvidence)
+                    .join(AssessmentFinding, FindingEvidence.finding_id == AssessmentFinding.id)
+                    .filter(
+                        FindingEvidence.id == rid,
+                        AssessmentFinding.project_id == project_id,
+                    )
+                    .first()
+                )
                 if ev:
                     verified.append({
                         "citation_type": "evidence",

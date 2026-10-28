@@ -42,6 +42,47 @@ DANGEROUS_INTERNAL_HOSTNAMES = {
 }
 
 
+def normalize_and_detect_ip(host_str: str) -> str:
+    """
+    Normalizes alternative, obfuscated, and non-standard IP representations into canonical dotted-decimal or IPv6.
+    Handles:
+    - URL percent-encoding (%31%32%37...)
+    - Hex and octal single dword integers (0x7f000001, 2130706433, 017700000001)
+    - Dotted octal and hex (0177.0.0.1, 0x7f.0.0.1)
+    - IPv6 brackets and zone indices ([fe80::1%eth0])
+    """
+    if not host_str:
+        return ""
+    h = urllib.parse.unquote(host_str).strip("[]")
+    if "%" in h:
+        h = h.split("%")[0]
+
+    # 1. Single integer dword (dec, hex, oct)
+    if "." not in h and ":" not in h:
+        try:
+            val = int(h, 8) if (h.startswith("0") and len(h) > 1 and not h.startswith(("0x", "0o", "0X", "0O"))) else int(h, 0)
+            if 0 <= val <= 0xFFFFFFFF:
+                return str(ipaddress.IPv4Address(val))
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Dotted notation with alternative number bases
+    if "." in h and ":" not in h:
+        parts = h.split(".")
+        if len(parts) == 4:
+            try:
+                nums = [
+                    int(p, 8) if (p.startswith("0") and len(p) > 1 and not p.startswith(("0x", "0o", "0X", "0O"))) else int(p, 0)
+                    for p in parts
+                ]
+                if all(0 <= n <= 255 for n in nums):
+                    return ".".join(str(n) for n in nums)
+            except (ValueError, TypeError):
+                pass
+
+    return h
+
+
 def check_ip_ssrf(ip_str: str, allow_loopback: bool = False, allow_private: bool = False) -> Tuple[bool, Optional[str]]:
     """
     Validates whether an IP address is safe for outbound network observation.
@@ -118,7 +159,7 @@ def resolve_and_verify_ssrf(
     Resolves hostname via DNS and enforces SSRF restrictions on all resolved IP addresses.
     Checks IPv4, IPv6, and cloud metadata hostnames.
     """
-    clean_host = host.strip("[]")
+    clean_host = normalize_and_detect_ip(host)
 
     # If host is already an IP address
     try:
@@ -208,8 +249,9 @@ class SafeHTTPHandler(urllib.request.HTTPHandler):
         self.verified_ip = verified_ip
 
     def http_open(self, req):
+        verified_ip = getattr(req, "_verified_ip", None) or self.verified_ip
         return self.do_open(
-            lambda host, **kw: SafeHTTPConnection(host, verified_ip=self.verified_ip, **kw),
+            lambda host, **kw: SafeHTTPConnection(host, verified_ip=verified_ip, **kw),
             req,
         )
 
@@ -220,8 +262,9 @@ class SafeHTTPSHandler(urllib.request.HTTPSHandler):
         self.verified_ip = verified_ip
 
     def https_open(self, req):
+        verified_ip = getattr(req, "_verified_ip", None) or self.verified_ip
         return self.do_open(
-            lambda host, **kw: SafeHTTPSConnection(host, verified_ip=self.verified_ip, context=self._context, **kw),
+            lambda host, **kw: SafeHTTPSConnection(host, verified_ip=verified_ip, context=self._context, **kw),
             req,
         )
 
@@ -230,11 +273,12 @@ class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
     """
     Safe HTTP Redirect Handler that tracks hops, enforces maximum redirect limits,
     enforces scope boundaries (cannot pivot to arbitrary external domains),
-    and validates every redirect destination against SSRF rules.
+    validates every redirect destination against SSRF rules, and dynamically
+    pins redirected sockets to each hop's verified IP address.
     """
     def __init__(self, target_host: str, allow_loopback: bool = False, allow_private: bool = False, max_redirects: int = 5):
         super().__init__()
-        self.target_host = target_host.lower().strip("[]")
+        self.target_host = normalize_and_detect_ip(target_host).lower().strip("[]")
         self.allow_loopback = allow_loopback
         self.allow_private = allow_private
         self.max_redirects = max_redirects
@@ -248,9 +292,23 @@ class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
             )
         self.redirect_chain.append((code, newurl))
         parsed = urllib.parse.urlparse(newurl)
-        dest_host = (parsed.hostname or "").lower().strip("[]")
 
-        # Scope boundary enforcement: Redirect destination must stay within target domain or its subdomains
+        # 1. Scheme enforcement: strictly allow only HTTP and HTTPS
+        if parsed.scheme not in ("http", "https"):
+            raise urllib.error.HTTPError(
+                newurl, 400, f"Dangerous scheme '{parsed.scheme}' in redirect. Only HTTP and HTTPS are permitted.", headers, fp
+            )
+
+        # 2. Credential-carrying URL rejection
+        if parsed.username or parsed.password:
+            raise urllib.error.HTTPError(
+                newurl, 400, "Embedded credentials in redirect URL are forbidden.", headers, fp
+            )
+
+        raw_dest_host = parsed.hostname or ""
+        dest_host = normalize_and_detect_ip(raw_dest_host).lower().strip("[]")
+
+        # 3. Scope boundary enforcement: Redirect destination must stay within target domain or its subdomains
         if dest_host != self.target_host and not dest_host.endswith("." + self.target_host):
             raise urllib.error.HTTPError(
                 newurl, 403, f"Redirect to out-of-scope host '{dest_host}' blocked by scope policy.", headers, fp
@@ -263,10 +321,14 @@ class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
         if not is_safe:
             raise urllib.error.HTTPError(newurl, 403, f"SSRF boundary enforcement blocked redirect: {reason}", headers, fp)
 
-        if redirect_resolved_ips:
-            self.last_verified_ip = redirect_resolved_ips[0]
+        new_req = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new_req is not None:
+            if redirect_resolved_ips:
+                self.last_verified_ip = redirect_resolved_ips[0]
+                new_req._verified_ip = redirect_resolved_ips[0]
+            new_req._verified_host = dest_host
 
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        return new_req
 
 
 class LiveNetworkAuditorAdapter(BaseScannerAdapter):

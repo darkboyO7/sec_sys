@@ -149,7 +149,18 @@ class FindingLifecycleService:
             actor_role in (ProjectRole.LEAD,)
         )
 
-        # 3. Special rules for FALSE_POSITIVE
+        # Zero-Trust RBAC: Viewers have read-only permissions
+        if actor_role == ProjectRole.VIEWER and actor.system_role != SystemRole.ADMIN:
+            raise FindingAuthorizationError("Viewers have read-only permissions and cannot alter finding lifecycle states.")
+
+        # 3. Special rules for REMEDIATION_APPROVED
+        if to_status == FindingLifecycleStatus.REMEDIATION_APPROVED:
+            if not is_lead_or_admin:
+                raise FindingAuthorizationError(
+                    "Only a Project LEAD or System ADMIN can approve remediation for a finding."
+                )
+
+        # 4. Special rules for FALSE_POSITIVE
         if to_status == FindingLifecycleStatus.FALSE_POSITIVE:
             if not is_lead_or_admin:
                 raise FindingAuthorizationError(
