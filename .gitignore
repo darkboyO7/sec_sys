@@ -53,6 +53,10 @@ data/
 
 # Node / Frontend
 node_modules/
+# Build & Releases
+dist/
+release/
+backend/dist/
 frontend/dist/
 frontend/dist-ssr/
 *.tsbuildinfo

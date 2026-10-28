@@ -448,3 +448,42 @@ def test_bounded_redirect_handler_blocks_out_of_scope_redirect():
     assert "scope policy" in str(exc_info.value)
 
 
+def test_live_cors_security_audit_detects_wildcard_with_credentials():
+    """
+    Verify that LiveNetworkAuditorAdapter detects dangerous CORS configurations
+    such as wildcard ACAO combined with ACAC: true.
+    """
+    class CORSHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+
+        def log_message(self, format, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), CORSHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        adapter = LiveNetworkAuditorAdapter()
+        res = adapter.execute(
+            target=f"http://127.0.0.1:{port}",
+            config={"profile": "LIVE_HTTP_HEADERS", "allow_loopback": True, "timeout_seconds": 5},
+        )
+        assert res.success is True
+        titles = [f.title for f in res.findings]
+        assert any("Wildcard Origin With Credentials" in t for t in titles)
+        cors_finding = next(f for f in res.findings if "Wildcard Origin With Credentials" in f.title)
+        assert cors_finding.severity == FindingSeverity.HIGH
+        assert cors_finding.vuln_id == "CWE-942"
+    finally:
+        server.shutdown()
+
+
+

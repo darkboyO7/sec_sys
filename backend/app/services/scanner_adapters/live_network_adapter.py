@@ -925,6 +925,87 @@ class LiveNetworkAuditorAdapter(BaseScannerAdapter):
                         )
                     )
 
+            # ------------------------------------------------------------------
+            # Check 9: Cross-Origin Resource Sharing (CORS) Security Audit
+            # ------------------------------------------------------------------
+            acao = header_keys_lower.get("access-control-allow-origin")
+            acac = header_keys_lower.get("access-control-allow-credentials", "").lower() == "true"
+            if acao:
+                cors_evidence = RawAdapterEvidence(
+                    evidence_type="HTTP_RESPONSE_HEADERS",
+                    payload=f"Access-Control-Allow-Origin: {acao}\nAccess-Control-Allow-Credentials: {header_keys_lower.get('access-control-allow-credentials', 'false')}",
+                )
+                if acao == "*" and acac:
+                    findings.append(
+                        RawAdapterFinding(
+                            title="Critical CORS Misconfiguration: Wildcard Origin With Credentials Permitted",
+                            description=(
+                                "The server returned 'Access-Control-Allow-Origin: *' in conjunction with "
+                                "'Access-Control-Allow-Credentials: true'. This permits untrusted third-party origins "
+                                "to access authenticated session data and responses."
+                            ),
+                            severity=FindingSeverity.HIGH,
+                            confidence=FindingConfidence.CERTAIN,
+                            vuln_id="CWE-942",
+                            cvss_score=7.5,
+                            reproduction_steps=f"Inspect CORS response headers from {url}.",
+                            evidence_items=[cors_evidence],
+                        )
+                    )
+                elif acao.lower() == "null":
+                    findings.append(
+                        RawAdapterFinding(
+                            title="Insecure 'null' Origin Permitted in CORS Configuration",
+                            description=(
+                                "The server allows the 'null' origin in Access-Control-Allow-Origin. "
+                                "Sandboxed iframes and local file scheme origins can abuse this to execute cross-origin requests."
+                            ),
+                            severity=FindingSeverity.MEDIUM,
+                            confidence=FindingConfidence.CERTAIN,
+                            vuln_id="CWE-942",
+                            cvss_score=5.3,
+                            reproduction_steps=f"Send request with 'Origin: null' and observe reflected ACAO.",
+                            evidence_items=[cors_evidence],
+                        )
+                    )
+                elif acao == "*":
+                    findings.append(
+                        RawAdapterFinding(
+                            title="Informational: Permissive Wildcard Access-Control-Allow-Origin Header",
+                            description=(
+                                f"The resource at {url} allows all origins via 'Access-Control-Allow-Origin: *'. "
+                                f"Ensure this endpoint is intentionally public and does not return sensitive tenant information."
+                            ),
+                            severity=FindingSeverity.INFO,
+                            confidence=FindingConfidence.CERTAIN,
+                            vuln_id="CWE-942",
+                            cvss_score=None,
+                            reproduction_steps=f"Inspect ACAO header: '{acao}'.",
+                            evidence_items=[cors_evidence],
+                        )
+                    )
+
+            # ------------------------------------------------------------------
+            # Check 10: Cache-Control for Authenticated/Cookie Responses
+            # ------------------------------------------------------------------
+            cache_ctrl = header_keys_lower.get("cache-control", "")
+            if cookie_headers and ("no-store" not in cache_ctrl.lower() and "private" not in cache_ctrl.lower()):
+                findings.append(
+                    RawAdapterFinding(
+                        title="Informational: Cache-Control Lacks 'no-store' on Cookie-Setting Endpoint",
+                        description=(
+                            f"The endpoint at {url} sets cookies without declaring 'Cache-Control: no-store'. "
+                            f"Intermediate caching proxies or browser caches may retain sensitive session tokens."
+                        ),
+                        severity=FindingSeverity.INFO,
+                        confidence=FindingConfidence.CERTAIN,
+                        vuln_id="CWE-525",
+                        cvss_score=None,
+                        reproduction_steps=f"Inspect Cache-Control header: '{cache_ctrl or 'None'}' along with Set-Cookie.",
+                        evidence_items=[evidence_item],
+                    )
+                )
+
             duration = (time.perf_counter() - start_time) * 1000
             return AdapterResult(
                 adapter_name=self.name,
