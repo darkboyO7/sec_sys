@@ -1,0 +1,30 @@
+# PROMPT 44 - Reproducible Releases, Upgrade Safety and Deployment Acceptance Gates
+
+Repository: `D:\alt`
+
+Inspect the repository's build scripts, dependency manifests and lockfiles, Alembic migrations, Windows startup scripts, configuration templates, packaging process, tests, security checks, and release artifacts.
+
+## Objective
+Create a repeatable release process that produces a clean, testable, recoverable VAPT System package for the existing Windows development and deployment workflow.
+
+## Requirements
+
+1. Inspect Git status before changes and preserve unrelated user modifications.
+2. Identify the actual runtime prerequisites and distinguish development dependencies from runtime dependencies.
+3. Verify that Python and frontend dependencies are reproducibly installed using the repository's supported lockfiles or pinned dependency strategy.
+4. Audit packaging rules to exclude unnecessary development artifacts, `.git` internals, `node_modules`, caches, secrets, local databases, temporary evidence, and user-specific configuration.
+5. Include all required runtime assets, migration files, templates, and documented configuration examples.
+6. Add a pre-release validation pipeline that runs the relevant backend tests, frontend tests, type checks, production builds, migration checks, secret scanning, and packaging validation.
+7. Make release gates fail on actual critical failures. Do not silently ignore failed tests or convert failures into success.
+8. Verify that database migrations can be applied safely to a clean installation and that upgrade behavior is tested against a representative existing database copy.
+9. Ensure the release can start on supported Windows installations without requiring WSL or undocumented machine-specific paths.
+10. Add a documented upgrade procedure with backup creation, migration execution, post-upgrade health checks, and a recovery path.
+11. Verify package contents, required files, checksums, and archive integrity.
+12. Ensure startup scripts do not expose secrets, bypass authorization, or disable security controls to improve convenience.
+13. Make release metadata truthful: record version, source revision when available, build time, dependency manifest references, and test status.
+14. Do not claim a release is signed unless an actual signing mechanism is implemented and verified.
+15. Do not overwrite the last known-good release until the new candidate passes acceptance checks.
+
+Generate a clean release candidate only if the repository's actual tooling supports it. Keep user databases, recovery copies, and existing releases untouched.
+
+Run relevant validation commands and report exact results, package location only if verified, exclusions, migration results, known limitations, and Git status. Never fabricate release artifacts, test results, or deployment success.

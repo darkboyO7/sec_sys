@@ -3528,6 +3528,29 @@ export interface ConnectorSyncEventRead {
   execution_metadata?: Record<string, any> | null;
 }
 
+// Prompt 43: Full-Stack Contract Integrity & Domain Enums
+export type ScheduleRunStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'SKIPPED_DISK_LOW';
+export type RecoveryBundleStatus = 'UNVERIFIED' | 'VERIFIED' | 'CORRUPTED' | 'RESTORE_VERIFIED';
+export type ThreatIntelSource = 'CISA_KEV' | 'NVD_CVE' | 'EPSS' | 'VENDOR_ADVISORY' | 'LOCAL_FIXTURE';
+export type ExperimentStatus = 'DRAFT' | 'RUNNING' | 'COMPLETED' | 'CANCELLED' | 'INCONCLUSIVE';
+export type ExperimentDecision =
+  | 'ACCEPTED'
+  | 'REJECTED_INFERIOR_METRICS'
+  | 'REJECTED_LEAKAGE'
+  | 'REJECTED_INSUFFICIENT_DATA'
+  | 'PENDING_REVIEW';
+export type SplitStrategy = 'TEMPORAL_AWARE' | 'STRATIFIED_HASH' | 'CHRONOLOGICAL_WINDOW';
+export type ConnectorType =
+  | 'QUALYS'
+  | 'TENABLE_IO'
+  | 'RAPID7'
+  | 'SONARQUBE'
+  | 'SNYK'
+  | 'DEFECTDOJO'
+  | 'AWS_SECURITY_HUB'
+  | 'GENERIC_WEBHOOK';
+export type NotificationSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
 
 
 

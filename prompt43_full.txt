@@ -1,0 +1,34 @@
+<USER_REQUEST>
+# PROMPT 43 — Full-Stack Contract Integrity and End-to-End Workflow Assurance
+
+Repository: `D:\alt`
+
+Inspect the FastAPI application, OpenAPI schemas, React/TypeScript frontend, API client, authentication flow, database models, background jobs, and current test suites.
+
+## Objective
+Eliminate frontend/backend contract drift and demonstrate that important user workflows operate against real persisted backend state.
+
+## Requirements
+
+1. Inventory frontend API calls and map them to actual backend endpoints.
+2. Identify missing endpoints, incompatible field names, incorrect optionality, enum mismatches, timestamp inconsistencies, and undocumented error responses.
+3. Establish a reliable source of truth for API schemas using the existing OpenAPI and TypeScript tooling where practical.
+4. Generate or validate client types without overwriting unrelated custom code.
+5. Replace fabricated frontend records or placeholder success paths with real backend integration where those paths are intended to be operational.
+6. Ensure loading, empty, error, authorization-denied, timeout, and retry states are handled consistently.
+7. Verify that mutation responses and subsequent reads reflect persisted state.
+8. Test important workflows end to end: authentication, authorized asset selection, assessment request, job tracking, finding review, evidence inspection, remediation approval where supported, independent retest, and report export.
+9. Verify pagination, filters, cancellation, stale data, duplicate submissions, and concurrent updates.
+10. Use deterministic fixtures and isolated test data. Keep external scanning and destructive operations disabled in tests.
+11. Add API integration tests and frontend tests using the existing test infrastructure.
+12. Ensure frontend permission checks do not replace server-side authorization.
+13. Avoid tests that pass only because mocked responses conceal backend failures.
+14. Report workflows as fully verified, partially verified, simulated, or blocked according to actual evidence.
+
+Do not rewrite the entire frontend or backend for stylistic reasons. Preserve working functionality and current architecture.
+
+Run backend tests, frontend tests, type checks, production builds, and appropriate end-to-end tests. Report exact commands, results, changed files, and workflow gaps. Preserve unrelated modifications and do not alter the recovery mirror.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:58:36+05:30.
+</ADDITIONAL_METADATA>

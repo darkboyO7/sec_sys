@@ -67,6 +67,23 @@ def extract_frontend_enums(types_ts_path: Path) -> Dict[str, Set[str]]:
         "FindingConfidence",
         "ApprovalWorkflowType",
         "GovernanceApprovalStatus",
+        "TargetType",
+        "AuthorizationStatus",
+        "AssetCriticality",
+        "AssetStatus",
+        "ReportType",
+        "ReportFormat",
+        "AlertLifecycleStatus",
+        "NotificationSeverity",
+        "CaseSeverity",
+        "CaseStatus",
+        "ConnectorStatus",
+        "ConnectorCapability",
+        "ScheduleRunStatus",
+        "RecoveryBundleStatus",
+        "ThreatIntelSource",
+        "ExperimentDecision",
+        "SplitStrategy",
     ]
 
     for type_name in target_types:
@@ -90,6 +107,15 @@ def main():
     from app.models.project import ProjectRole
     from app.models.assessment import AssessmentStatus, FindingSeverity, FindingConfidence
     from app.models.governance import ApprovalWorkflowType, GovernanceApprovalStatus
+    from app.models.scope import TargetType, AuthorizationStatus
+    from app.models.asset import AssetCriticality, AssetStatus
+    from app.models.report import ReportType, ReportFormat
+    from app.models.notification import NotificationSeverity, AlertLifecycleStatus
+    from app.models.incident import CaseSeverity, CaseStatus
+    from app.models.connector import ConnectorStatus, ConnectorCapability
+    from app.models.recovery import ScheduleRunStatus, RecoveryBundleStatus
+    from app.models.threat_intel import ThreatIntelSource
+    from app.models.model_experiment import ExperimentDecision, SplitStrategy
 
     # 1. Generate and inspect OpenAPI spec
     openapi_spec = app.openapi()
@@ -141,6 +167,23 @@ def main():
         "FindingConfidence": {c.value for c in FindingConfidence},
         "ApprovalWorkflowType": {w.value for w in ApprovalWorkflowType},
         "GovernanceApprovalStatus": {s.value for s in GovernanceApprovalStatus},
+        "TargetType": {t.value for t in TargetType},
+        "AuthorizationStatus": {a.value for a in AuthorizationStatus},
+        "AssetCriticality": {c.value for c in AssetCriticality},
+        "AssetStatus": {a.value for a in AssetStatus},
+        "ReportType": {r.value for r in ReportType},
+        "ReportFormat": {r.value for r in ReportFormat},
+        "NotificationSeverity": {s.value for s in NotificationSeverity},
+        "AlertLifecycleStatus": {s.value for s in AlertLifecycleStatus},
+        "CaseSeverity": {s.value for s in CaseSeverity},
+        "CaseStatus": {s.value for s in CaseStatus},
+        "ConnectorStatus": {s.value for s in ConnectorStatus},
+        "ConnectorCapability": {c.value for c in ConnectorCapability},
+        "ScheduleRunStatus": {s.value for s in ScheduleRunStatus},
+        "RecoveryBundleStatus": {s.value for s in RecoveryBundleStatus},
+        "ThreatIntelSource": {s.value for s in ThreatIntelSource},
+        "ExperimentDecision": {d.value for d in ExperimentDecision},
+        "SplitStrategy": {s.value for s in SplitStrategy},
     }
 
     enum_mismatches = {}
