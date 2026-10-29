@@ -136,6 +136,10 @@ import type {
   DryRunImpact,
   DeduplicationProposal,
   DataQualityIssue,
+  IncidentCaseSummary,
+  IncidentCaseDetail,
+  CorrelationExplanation,
+  TimelineEvent,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -2294,6 +2298,106 @@ class ApiService {
         body: JSON.stringify({ status }),
       }
     );
+  }
+
+  // Prompt 39: Security Incident Investigation and Case Management
+  async createIncidentCase(projectId: string, data: {
+    title: string;
+    description?: string;
+    severity?: string;
+    lead_investigator_id?: string;
+    assigned_team?: string;
+  }): Promise<IncidentCaseDetail> {
+    return this.request<IncidentCaseDetail>(`/projects/${encodeURIComponent(projectId)}/incidents/cases`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listIncidentCases(
+    projectId: string,
+    statusFilter?: string,
+    severityFilter?: string
+  ): Promise<IncidentCaseSummary[]> {
+    const params = new URLSearchParams();
+    if (statusFilter) params.append('status', statusFilter);
+    if (severityFilter) params.append('severity', severityFilter);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return this.request<IncidentCaseSummary[]>(`/projects/${encodeURIComponent(projectId)}/incidents/cases${qs}`);
+  }
+
+  async getIncidentCase(projectId: string, caseId: string): Promise<IncidentCaseDetail> {
+    return this.request<IncidentCaseDetail>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}`);
+  }
+
+  async linkAssetToCase(projectId: string, caseId: string, data: {
+    asset_id: string;
+    relationship_type?: string;
+    confidence?: number;
+    is_contradictory?: boolean;
+    notes?: string;
+  }): Promise<{ status: string; link_id: string }> {
+    return this.request<{ status: string; link_id: string }>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/assets`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async linkFindingToCase(projectId: string, caseId: string, data: {
+    finding_id: string;
+    correlation_type?: string;
+    confidence?: number;
+    rationale?: string;
+  }): Promise<{ status: string; link_id: string }> {
+    return this.request<{ status: string; link_id: string }>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/findings`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async attachEvidenceToCase(projectId: string, caseId: string, data: {
+    evidence_summary: string;
+    finding_evidence_id?: string;
+    is_contradictory?: boolean;
+    provenance_details?: Record<string, any>;
+  }): Promise<{ status: string; evidence_id: string; digest: string }> {
+    return this.request<{ status: string; evidence_id: string; digest: string }>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async transitionCaseStatus(projectId: string, caseId: string, data: {
+    to_status: string;
+    reason: string;
+    closure_summary?: string;
+    reopening_rationale?: string;
+    root_cause_hypothesis?: string;
+    is_containment_verified?: boolean;
+  }): Promise<IncidentCaseDetail> {
+    return this.request<IncidentCaseDetail>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/transition`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addCaseNote(projectId: string, caseId: string, data: {
+    content: string;
+    note_type?: string;
+    is_alternative_hypothesis?: boolean;
+  }): Promise<{ status: string; note_id: string }> {
+    return this.request<{ status: string; note_id: string }>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/notes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getCaseCorrelations(projectId: string, caseId: string): Promise<CorrelationExplanation> {
+    return this.request<CorrelationExplanation>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/correlations`);
+  }
+
+  async getCaseTimeline(projectId: string, caseId: string): Promise<TimelineEvent[]> {
+    return this.request<TimelineEvent[]>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/timeline`);
   }
 }
 

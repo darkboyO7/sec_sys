@@ -1,0 +1,368 @@
+<USER_REQUEST>
+# Prompt 29 — Evidence Lifecycle Governance, Data Retention, Privacy, and Verifiable Deletion
+
+Act as a principal data-governance architect, application-security engineer, and database lifecycle specialist working directly in the existing VAPT System repository.
+
+## Mission
+
+Inspect and improve how the VAPT System collects, stores, classifies, retains, exports, archives, redacts, and deletes security assessment data.
+
+The objective is to make evidence and operational records useful, traceable, privacy-conscious, and manageable throughout their entire lifecycle while preserving the integrity of security findings, audit records, recovery procedures, and learning outcomes.
+
+This is an implementation task. Inspect the real application, identify verified gaps, implement focused improvements, and validate them through automated tests.
+
+**Writable repository:** `D:\alt`
+
+**Recovery mirror:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`
+
+The recovery mirror is strictly read-only and must remain untouched.
+
+## 1. Map the actual data lifecycle
+
+Inspect the existing database models, storage services, APIs, background jobs, and frontend workflows.
+
+Inventory the actual data categories, including where applicable:
+
+- Assets and asset observations.
+- Assessment jobs and execution history.
+- Findings, severity assessments, and remediation status.
+- Raw and normalized evidence.
+- Evidence hashes and provenance records.
+- Knowledge graph nodes, edges, and derived relationships.
+- Attack paths and risk calculations.
+- Remediation approvals and independent retest results.
+- Audit events and security decisions.
+- User, authentication, and authorization records.
+- Learning datasets, prediction records, and model metadata.
+- Logs, exports, temporary files, backups, and recovery artifacts.
+
+For every category, determine:
+
+1. Where it is stored.
+2. Whether it contains sensitive or identifying information.
+3. Which components depend on it.
+4. Whether it is authoritative, derived, or reproducible.
+5. Whether it has an established retention policy.
+6. Whether it can be archived, redacted, or deleted safely.
+7. Whether its deletion affects auditability, graph consistency, risk calculations, or learning.
+
+Do not assume that all stored data is evidence or that all derived data can be safely regenerated. Verify the actual dependency relationships.
+
+## 2. Introduce explicit data classification
+
+Where the current architecture lacks a consistent classification model, implement a practical classification system.
+
+Potential categories include:
+
+- Operational metadata.
+- Asset and configuration information.
+- Security findings and risk assessments.
+- Raw assessment evidence.
+- Credentials or secret-like material discovered during assessment.
+- Audit and approval records.
+- User and authentication data.
+- Derived analytics and learning artifacts.
+
+Adapt these categories to the actual application rather than adding an unnecessarily complex enterprise taxonomy.
+
+Define which categories may be displayed, exported, archived, redacted, or deleted by each authorized role.
+
+Requirements:
+
+- Classification decisions must be enforced server-side.
+- Frontend visibility must not substitute for authorization.
+- Sensitive evidence must not automatically become accessible to every user who can view a finding.
+- Data exports must respect the permissions and scope of the requesting user.
+- Classification changes must be auditable where they affect security or access decisions.
+- Unclassified data must not automatically receive the least restrictive handling.
+
+## 3. Build a configurable retention-policy engine
+
+Inspect whether retention behavior currently exists. Reuse it where practical.
+
+Implement a policy mechanism that can define, for applicable data categories:
+
+- Retention duration.
+- Archive eligibility.
+- Deletion eligibility.
+- Required approval.
+- Legal or investigation hold behavior, if supported by the product requirements.
+- Dependencies that must be preserved.
+- Whether a record is eligible for redaction or anonymization.
+- The expected handling of expired records that cannot yet be safely deleted.
+
+Requirements:
+
+1. Use explicit, validated policy configuration.
+2. Avoid hardcoding unrelated retention durations throughout application code.
+3. Provide safe defaults and clearly documented examples.
+4. Treat missing or invalid policy configuration conservatively.
+5. Preview affected records before executing destructive operations.
+6. Record policy decisions and execution outcomes.
+7. Make policy execution idempotent.
+8. Prevent a record from being deleted while a required dependency or hold prevents deletion.
+9. Distinguish policy expiration from actual deletion.
+10. Do not invent legal retention periods or claim regulatory compliance without a verified basis.
+
+Use the application's existing authorization model. If retention-policy changes require privileged approval, enforce that requirement on the backend.
+
+## 4. Implement a safe retention preview and execution workflow
+
+Create an auditable lifecycle workflow that separates planning from execution.
+
+A preview should report, at minimum:
+
+- Records eligible for action.
+- Records excluded from action.
+- The policy responsible for each decision.
+- Relevant dependency or hold restrictions.
+- The estimated scope of the operation.
+- Any unresolved integrity or storage errors.
+
+Execution must revalidate the preview's assumptions before changing data.
+
+Requirements:
+
+- Require appropriate authorization for destructive actions.
+- Require explicit confirmation or approval when the operation is high impact.
+- Prevent stale previews from authorizing changes after relevant policy or record state has changed.
+- Use bounded batches for large operations.
+- Track progress and partial failures.
+- Prevent overlapping executions of the same lifecycle operation.
+- Make retries safe and idempotent.
+- Preserve a clear audit record of the operator, policy, scope, and outcome.
+- Never report successful deletion when some targeted records remain.
+
+Provide a dry-run mode and deterministic tests. Do not execute broad deletion against the current development database as part of implementation.
+
+## 5. Preserve audit integrity while managing retention
+
+The VAPT System needs to preserve trustworthy records of security decisions and lifecycle operations.
+
+Inspect the existing audit chain, event hashing, evidence provenance, and recovery mechanisms.
+
+Implement a coherent retention strategy that distinguishes:
+
+- Data that may be deleted.
+- Data that may be redacted.
+- Data that must be retained under current policy.
+- Data whose integrity metadata must survive removal of its payload.
+- Data that cannot be removed until dependent records are reconciled.
+
+If raw evidence is removed, determine whether a minimal audit record can preserve its identifier, original digest, creation time, deletion authorization, policy reference, and deletion outcome without retaining the sensitive payload.
+
+Do not claim that a hash proves the truth of deleted evidence. A digest can help detect changes to known content but cannot independently reconstruct or validate content that is no longer available.
+
+If the existing append-only audit design conflicts with deletion requirements, document and implement a deliberate strategy rather than silently rewriting historical events or breaking the audit chain.
+
+Test that lifecycle operations cannot silently invalidate predecessor hashes, provenance links, or audit verification.
+
+## 6. Design secure evidence redaction and secret handling
+
+Security assessment evidence may accidentally contain passwords, tokens, private keys, session cookies, personal information, or confidential configuration.
+
+Inspect evidence ingestion and display paths.
+
+Where justified, implement:
+
+- Detection of common secret-like patterns.
+- Redacted previews for authorized users.
+- Explicit separation between original evidence and sanitized representations.
+- Restricted access to original evidence.
+- Redaction metadata that identifies the transformation without exposing the secret.
+- Safe export behavior that does not inadvertently restore redacted material.
+- Tests using synthetic secrets.
+- Clear warnings when automated detection is incomplete.
+
+Do not modify the original evidence in place merely to make a preview safer if doing so would invalidate its digest or destroy forensic value.
+
+Preserve original evidence when required by the current policy, and restrict access appropriately. If a retention policy permits deleting the original, use the controlled lifecycle process.
+
+Avoid logging matched secret values or copying them into audit events.
+
+Do not claim automated redaction detects every secret format.
+
+## 7. Implement safe export and archival controls
+
+Inspect the existing export, report, backup, and evidence-download functionality.
+
+Implement or strengthen controls so that:
+
+- Exports contain only records the requester is authorized to access.
+- Export scopes and filters are validated server-side.
+- Large exports are bounded or processed asynchronously.
+- Export filenames and archive paths are safe.
+- Archive contents are inspected before release.
+- Sensitive fields are redacted where required by policy.
+- Export metadata identifies generation time, scope, and applicable redaction behavior.
+- Temporary export files are cleaned up safely after their permitted lifetime.
+- Failed exports do not leave partial files accessible as completed reports.
+- Export operations are auditable without copying the entire sensitive payload into logs.
+
+For archival, verify that archived data can be retrieved and checked for integrity when required.
+
+Do not assume that moving a file to an archive automatically makes it secure or that a backup automatically complies with deletion policies.
+
+## 8. Reconcile retention with backups and recovery
+
+Inspect backup creation, restoration, and data-retention behavior together.
+
+Identify what happens when a record is deleted from the live database but still exists in:
+
+- SQLite database snapshots.
+- WAL or SHM files.
+- Application backups.
+- Export archives.
+- Temporary storage.
+- Historical release artifacts.
+- Derived datasets or cached representations.
+
+Implement a documented approach for handling these copies within the actual capabilities of the system.
+
+Requirements:
+
+1. Clearly distinguish deletion from the live database from expiration of every backup copy.
+2. Ensure restoration does not silently resurrect records that must remain deleted under the applicable policy.
+3. Where necessary, maintain a minimal, access-controlled deletion or suppression record that can be reapplied during restoration.
+4. Protect suppression metadata against unauthorized modification.
+5. Verify that retention and suppression state is consistent after restoration.
+6. Do not destroy the only viable recovery copy before a replacement has been verified.
+7. Do not claim immediate or universal deletion when backup copies remain.
+8. Do not restore old data over newer records without explicit authorization and verified recovery conditions.
+
+Preserve the existing bounded recovery and integrity-verification controls.
+
+## 9. Protect graph, risk, and learning consistency
+
+Evidence and findings may influence the knowledge graph, contextual risk scores, attack paths, monitoring decisions, and adaptive learning.
+
+Before deleting or redacting a record, identify and handle its downstream dependencies.
+
+Implement appropriate behavior for:
+
+- Findings that reference expiring evidence.
+- Graph nodes and edges derived from removed observations.
+- Risk calculations that depend on unavailable evidence.
+- Attack paths whose supporting relationships become invalid.
+- Historical predictions and their recorded outcomes.
+- Training examples derived from evidence that is later restricted or deleted.
+- Cached or materialized summaries containing removed information.
+
+Requirements:
+
+- Do not silently treat unavailable evidence as proof that a security issue has disappeared.
+- Distinguish deleted, unavailable, expired, invalidated, and verified-negative evidence where appropriate.
+- Preserve enough provenance to explain prior security decisions when policy permits.
+- Recompute derived state when required, or explicitly mark it stale until recomputation completes.
+- Prevent restricted or deleted data from silently re-entering future learning datasets.
+- Keep historical outcome records consistent with the system's actual retention and governance policy.
+
+Do not delete authoritative findings merely because one supporting evidence item expires. Evaluate whether alternative evidence or independent verification still supports the finding.
+
+## 10. Provide a lifecycle governance interface
+
+Inspect the current dashboard and existing administrative workflows.
+
+Where appropriate, add an accessible interface for authorized operators to:
+
+- Inspect configured retention policies.
+- Preview records approaching expiration.
+- Review exclusions and hold restrictions.
+- Inspect redaction and archival status.
+- Review lifecycle execution history.
+- Start an authorized dry run.
+- Confirm a permitted lifecycle operation.
+- Inspect failed or partially completed batches.
+- Retry eligible failed operations.
+- Review unresolved dependencies.
+
+Show meaningful counts, statuses, and errors. Avoid displaying raw sensitive evidence unnecessarily.
+
+The interface must reflect actual backend state. It must not claim that a deletion, export, or archival operation succeeded merely because a button was clicked.
+
+If the current product architecture does not justify a dedicated interface, implement the equivalent secure API and documented CLI workflow instead.
+
+## 11. Add deterministic lifecycle tests
+
+Use disposable databases, temporary directories, and synthetic evidence.
+
+Test at least:
+
+- Correct policy selection for each supported data category.
+- Preview accuracy.
+- Exclusion of records protected by required holds.
+- Authorization failures for policy changes and destructive actions.
+- Stale-preview rejection.
+- Idempotent execution and retries.
+- Partial batch failure and recovery.
+- Audit-chain consistency after permitted lifecycle actions.
+- Original evidence digest verification before removal.
+- Redaction without accidental mutation of original evidence.
+- Export authorization and sensitive-field redaction.
+- Safe handling of archive paths.
+- Prevention of unauthorized payload retrieval after deletion.
+- Reconciliation of dependent graph and risk data.
+- Prevention of restricted records re-entering learning datasets.
+- Restoration behavior when suppression records exist.
+- Explicit reporting when backup copies remain.
+- Concurrent lifecycle operations against overlapping records.
+- Preservation of unrelated records after failed operations.
+
+Verify actual persisted state, not only HTTP responses or mock calls.
+
+Never run destructive tests against the real development database or recovery mirror.
+
+## 12. Documentation and operator experience
+
+Document:
+
+- Supported data classifications.
+- Default retention behavior.
+- How retention policies are configured.
+- How to preview and execute lifecycle operations.
+- Which actions require approval.
+- How evidence redaction works and its limitations.
+- How exports and archives are protected.
+- How deletion interacts with audit history and backups.
+- How restoration handles previously deleted records.
+- How to investigate partial failures.
+- Which copies may remain after live-record deletion.
+- Which controls require manual operation.
+
+Provide practical Windows-compatible commands and clear explanations. Do not claim legal or regulatory compliance without the necessary evidence and review.
+
+## 13. Execution rules
+
+- Inspect the real repository before editing.
+- Work only inside `D:\alt`.
+- Leave the recovery mirror untouched.
+- Preserve unrelated user changes.
+- Do not reset Git or delete existing user data.
+- Do not run destructive retention operations against real application data.
+- Do not silently rewrite immutable audit history.
+- Do not weaken authentication, authorization, scope restrictions, or recovery protections.
+- Do not fabricate deletion, restoration, or integrity-verification results.
+- Keep the implementation proportionate to the existing architecture.
+
+Proceed autonomously through inspection, implementation, tests, and documentation. Do not stop after returning a plan.
+
+## 14. Final evidence report
+
+Report:
+
+1. The actual data categories and lifecycle gaps identified.
+2. The files changed and major implementation decisions.
+3. Retention-policy behavior and default settings.
+4. Preview, approval, execution, and audit behavior.
+5. Evidence redaction and export safeguards.
+6. Backup, restoration, and deletion-reconciliation behavior.
+7. Graph, risk, and learning consistency protections.
+8. Exact backend and frontend test counts, failures, and skips.
+9. Remaining limitations, including copies that cannot yet be automatically expired.
+10. Confirmation that `D:\alt` was the only project location modified and the recovery mirror remained untouched.
+
+**Success means the VAPT System can manage sensitive evidence throughout its lifecycle without silently breaking auditability, resurrecting deleted data, corrupting security reasoning, or claiming deletion that has not been verified.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:42:18+05:30.
+</ADDITIONAL_METADATA>

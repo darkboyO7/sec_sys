@@ -1,0 +1,34 @@
+<USER_REQUEST>
+# PROMPT 40 — Secure Integration Framework, Connector Contracts and Data Synchronization
+
+Repository: `D:\alt`
+
+Inspect current provider integrations, adapters, configuration management, background jobs, event handling, authentication, evidence provenance, and data-import pipelines.
+
+## Objective
+Create a consistent framework for integrating authorized external security data sources without allowing integrations to bypass platform security controls.
+
+## Requirements
+
+1. Inventory existing connectors and classify each as implemented, simulated, disabled, or unverified.
+2. Define a common connector contract for configuration validation, capability discovery, data retrieval, normalization, health checks, errors, and shutdown.
+3. Use typed schemas and versioned contracts for connector inputs and outputs.
+4. Support explicit capability declarations so unsupported operations cannot be invoked accidentally.
+5. Store credentials through the existing secure configuration mechanism. Never place secrets in source code, ordinary logs, or exported connector metadata.
+6. Add connection timeouts, bounded retries, response-size limits, rate limiting, and provider-specific error classification.
+7. Validate imported data and preserve source identifiers, retrieval times, provenance, and integrity information.
+8. Make synchronization idempotent and safe after restarts.
+9. Distinguish deletion at a source from temporary source unavailability.
+10. Prevent connectors from changing assessment scope, bypassing approvals, or triggering privileged operations implicitly.
+11. Protect outbound HTTP integrations against SSRF, DNS rebinding, unsafe redirects, and access to prohibited destinations.
+12. Add configuration testing and connection validation that do not expose credentials.
+13. Build an authorized connector-management UI with truthful health states.
+14. Add mock-provider tests for outages, malformed responses, pagination, throttling, duplicates, credential failures, and restart recovery.
+
+Do not add providers merely to inflate the integration list. Implement a small number of genuinely useful connectors and document limitations for unsupported ones.
+
+Run relevant tests and builds, inspect dependency changes, and report exact integration status. Preserve existing working adapters and unrelated changes.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:58:19+05:30.
+</ADDITIONAL_METADATA>

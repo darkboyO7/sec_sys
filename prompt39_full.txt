@@ -1,0 +1,29 @@
+# PROMPT 39 — Evidence-Preserving Security Incident Investigation and Case Management
+
+Repository: `D:\alt`
+
+Inspect existing findings, alerts, events, evidence, audit history, asset relationships, remediation, retesting, and notification functionality.
+
+## Objective
+Provide a coherent investigation workflow that connects related security observations into reviewable cases without confusing correlation with confirmed causation.
+
+## Requirements
+
+1. Introduce or extend an incident/case model only if an equivalent capability does not already exist.
+2. Support case lifecycle states, severity, ownership, assignment, timestamps, linked assets, findings, alerts, evidence, and related assessment jobs.
+3. Preserve the original records and their identifiers.
+4. Build explainable correlation rules using shared assets, verified relationships, time windows, common evidence references, and compatible event types.
+5. Label inferred relationships and confidence clearly. Do not present temporal correlation as proof of a common cause.
+6. Preserve contradictory evidence and allow investigators to document alternative explanations.
+7. Provide an investigation timeline with provenance and immutable historical transitions.
+8. Support analyst notes, evidence references, task assignments, and review decisions under appropriate authorization.
+9. Require authorized approval for privileged state changes and preserve separation of duties.
+10. Add controlled case closure, reopening, and evidence-preservation rules.
+11. Integrate with existing alerting and reporting services.
+12. Provide APIs and a usable frontend investigation workspace.
+13. Enforce object-level authorization and workspace isolation.
+14. Add tests for incorrect correlations, duplicate events, concurrent updates, unauthorized access, reopening, and evidence integrity.
+
+Do not introduce automated exploit execution, destructive containment, or automatic remediation as part of case management. Investigation records must not rewrite original findings or evidence.
+
+Run relevant backend and frontend tests, type checks, and production builds. Report what is implemented, what remains manual, and the exact validation results. Preserve unrelated changes and do not modify the recovery mirror.

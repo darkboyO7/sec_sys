@@ -1,0 +1,338 @@
+<USER_REQUEST>
+# Prompt 28 — Secure Windows Deployment, Configuration Governance, and Safe Application Upgrades
+
+Act as a senior Windows application-security engineer, Python deployment architect, and secure configuration specialist working directly in the existing VAPT System repository.
+
+## Mission
+
+Make the VAPT System safer and more predictable to install, configure, start, stop, upgrade, and operate on Windows.
+
+Inspect the actual implementation first. Identify configuration risks, unsafe defaults, startup inconsistencies, insecure file permissions, migration hazards, and operational gaps. Implement focused improvements and verify them with automated tests.
+
+This is not a request to introduce Kubernetes, WSL, mandatory cloud services, or a complex enterprise deployment stack. Preserve the existing Windows-first development and local-operation workflow.
+
+**Writable repository:** `D:\alt`
+
+**Recovery mirror:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`
+
+The recovery mirror must remain untouched.
+
+## 1. Inspect the existing deployment lifecycle
+
+Examine the actual repository for:
+
+- Backend and frontend startup scripts.
+- Python environment setup and dependency installation.
+- Node.js and frontend build requirements.
+- Environment-variable loading and configuration precedence.
+- Development versus production settings.
+- Database initialization and Alembic migration behavior.
+- Default authentication, session, token, and secret configuration.
+- CORS, host binding, trusted proxy, and API URL settings.
+- Logging, diagnostics, health checks, and shutdown handling.
+- Local data directories, evidence storage, logs, backups, and temporary files.
+- Existing Windows scripts, PowerShell commands, documentation, and release packaging.
+- Upgrade, rollback, recovery, and first-run behavior.
+
+Determine which commands are actually used by the current project. Reuse existing entry points where possible instead of creating competing startup mechanisms.
+
+Record verified issues before changing code.
+
+## 2. Establish one validated configuration system
+
+Inspect whether backend settings are scattered across modules or loaded inconsistently.
+
+Where necessary, implement a central, typed configuration layer that provides:
+
+- Explicit configuration sources and documented precedence.
+- Validation of required and optional values.
+- Clear distinction between development, testing, and production modes.
+- Safe defaults for security-sensitive settings.
+- Strict parsing of booleans, integers, durations, URLs, paths, and enumerated values.
+- Validation of filesystem paths and writable directories.
+- Consistent configuration access throughout the application.
+- A redacted configuration diagnostic that shows effective non-secret settings without revealing secret values.
+
+Requirements:
+
+1. Reject malformed security-sensitive configuration instead of silently falling back to unsafe defaults.
+2. Never substitute a known or predictable production secret when configuration is missing.
+3. Avoid duplicate configuration implementations that disagree about effective values.
+4. Preserve testability through explicit test configuration and synthetic credentials.
+5. Keep local development straightforward with clearly documented example configuration.
+6. Avoid silently changing existing environment-variable names unless compatibility and migration are handled deliberately.
+
+Do not print secret values in validation errors, logs, exception messages, or diagnostic output.
+
+## 3. Harden first-run initialization and secret handling
+
+Inspect how the application creates its initial configuration, authentication material, signing keys, and database.
+
+Implement appropriate protections so that:
+
+- First-run setup does not create publicly known production credentials.
+- Development-only convenience defaults cannot accidentally become production settings.
+- Required secrets are generated or provisioned through a documented secure mechanism where appropriate.
+- Secret generation uses cryptographically secure randomness.
+- Secret files are not committed to Git or included in release archives.
+- Existing valid secrets are not silently overwritten during restart or upgrade.
+- Secret rotation behavior is documented and tested.
+- Missing or invalid secrets cause a clear startup failure when the affected security feature requires them.
+- Sensitive diagnostic information is redacted.
+- Example configuration files contain placeholders, never actual credentials.
+
+Do not rotate existing secrets automatically on every startup. Do not invalidate existing user sessions or data without an explicit, documented migration or rotation procedure.
+
+## 4. Secure the local network exposure model
+
+Review backend and frontend binding behavior and the actual deployment assumptions.
+
+Verify that:
+
+- Local-only operation binds to loopback by default where appropriate.
+- Binding to a network interface requires an explicit, documented configuration choice.
+- A frontend development server does not become an unintended public service.
+- CORS uses deliberate allowed origins rather than broad wildcard defaults when credentials are involved.
+- Host-header validation and trusted-host protections are appropriate for the deployment.
+- Forwarded headers are trusted only when supplied by explicitly configured trusted proxies.
+- Browser-facing session and authentication protections are consistent with the existing authentication architecture.
+- Debug mode, interactive documentation, and development-only endpoints are not accidentally exposed in production mode.
+- Health and diagnostic endpoints reveal no secrets, filesystem internals, tokens, or sensitive assessment data.
+- API security does not depend on the frontend hiding controls.
+
+Do not introduce unnecessary networking complexity into the local application. Document precisely what is and is not exposed under each supported operating mode.
+
+## 5. Harden Windows filesystem behavior
+
+Review all paths used for configuration, SQLite databases, logs, evidence, exports, backups, and temporary files.
+
+Implement appropriate safeguards against:
+
+- Accidental writes outside designated application data directories.
+- Path traversal through user-controlled filenames or export destinations.
+- Confusing relative paths that resolve differently depending on the current working directory.
+- Unexpected symbolic links or reparse-point behavior where relevant.
+- Overly broad file permissions.
+- Sensitive temporary files left behind after failures.
+- Log and evidence paths colliding with source or configuration files.
+- File-locking issues and unsafe concurrent file replacement.
+- Sensitive data included in temporary archives.
+
+Use robust path handling compatible with supported Windows environments. Avoid hardcoding developer-specific absolute paths into application runtime logic.
+
+Where permission enforcement is practical, use least-privilege Windows file and directory permissions. Do not claim permissions are secure without checking the actual behavior of the implementation and its deployment instructions.
+
+Preserve legitimate user data. Never run broad recursive deletion or destructive cleanup as part of setup.
+
+## 6. Implement a safe startup preflight
+
+Create or strengthen a startup validation process that checks prerequisites before the application accepts work.
+
+Where relevant, validate:
+
+- Required configuration values.
+- Dependency and runtime compatibility.
+- Database connectivity.
+- Alembic migration state.
+- Required data directories and their writability.
+- Essential cryptographic configuration.
+- Required frontend build artifacts in production mode.
+- Existing lock files and signs of interrupted initialization.
+- Security-critical configuration combinations.
+- The availability of required local services.
+
+Separate fatal startup conditions from warnings and optional capabilities.
+
+Examples of fatal conditions include invalid required secrets, a broken database schema, or a security configuration that would invalidate a mandatory authorization guarantee.
+
+Examples of warnings include unavailable optional monitoring integrations.
+
+The preflight must not report success merely because a process started. It must verify the conditions needed for safe operation.
+
+Do not perform automatic destructive repair when a check fails. Provide an actionable error and a safe recovery path.
+
+## 7. Make database initialization and upgrades safe
+
+Inspect the current database and migration lifecycle.
+
+Implement appropriate protections for:
+
+- First-time database creation.
+- Alembic migration execution and head validation.
+- Interrupted migration handling.
+- Concurrent startup attempts.
+- Existing databases with pending migrations.
+- Incompatible or unknown schema versions.
+- Backup requirements before risky schema changes.
+- Data integrity checks after migrations.
+- Recovery when migration execution fails.
+
+Requirements:
+
+1. Do not silently recreate or reset an existing database.
+2. Do not treat an empty database as proof that the intended database was selected.
+3. Avoid running competing migrations concurrently.
+4. Make upgrade failures visible and actionable.
+5. Preserve existing records and relationships.
+6. Use explicit migration scripts for schema changes.
+7. Test upgrades from representative prior schema states where practical.
+8. Clearly distinguish schema migration from data recovery or restoration.
+
+If automatic migration on startup is inappropriate for the current architecture, provide an explicit upgrade command and ensure startup reports the required action clearly.
+
+## 8. Build an idempotent Windows setup and startup workflow
+
+Inspect existing setup and run scripts before introducing changes.
+
+Provide a coherent operator workflow for:
+
+- First-time environment setup.
+- Configuration initialization.
+- Dependency installation.
+- Database initialization.
+- Database migration.
+- Frontend production build where required.
+- Starting the backend and frontend in development mode.
+- Starting the supported production configuration.
+- Stopping services cleanly.
+- Checking application health.
+- Running diagnostics.
+- Upgrading an existing installation.
+- Recovering safely from an interrupted upgrade.
+
+Requirements:
+
+- Use PowerShell or existing Windows-compatible scripts where appropriate.
+- Quote paths correctly, including paths containing spaces.
+- Detect missing prerequisites and show useful remediation steps.
+- Avoid unnecessary administrator privileges.
+- Do not download and execute unverified remote scripts.
+- Avoid duplicating startup logic across several scripts.
+- Make setup idempotent: rerunning it must not overwrite configuration, regenerate existing secrets, or destroy existing data.
+- Return meaningful exit codes so automation can distinguish success from failure.
+- Do not expose credentials through process arguments or terminal output.
+
+Keep the workflow simple enough for a beginner to follow from the documentation.
+
+## 9. Implement a safe upgrade and rollback protocol
+
+Develop a documented, tested upgrade procedure appropriate to the current architecture.
+
+A normal upgrade should:
+
+1. Verify the existing installation and required configuration.
+2. Check disk space and required dependencies where practical.
+3. Create a verified backup when the upgrade could affect persistent data.
+4. Validate the target version and migration plan.
+5. Prevent conflicting upgrade operations.
+6. Apply the upgrade through controlled steps.
+7. Run post-upgrade schema and application checks.
+8. Report success only after the required checks pass.
+9. Preserve enough diagnostic information to investigate failures.
+10. Provide a recovery procedure for a failed upgrade.
+
+Do not assume rolling back application files automatically rolls back database migrations. Define separate recovery behavior for code, schema, configuration, and persistent data.
+
+Never automatically restore an old database over newer user data without explicit authorization and verified recovery conditions.
+
+If a fully automatic rollback cannot be made safe, implement a clear manual recovery procedure rather than pretending rollback is reliable.
+
+## 10. Add deployment and configuration security tests
+
+Use isolated temporary directories and disposable test databases.
+
+Add deterministic tests for:
+
+- Missing required production secrets.
+- Rejection of malformed security-sensitive configuration.
+- Safe redaction of secrets in errors and diagnostics.
+- Distinction between development and production defaults.
+- Repeated setup without overwriting existing configuration.
+- Repeated startup without regenerating established secrets.
+- Invalid database paths and unavailable data directories.
+- Detection of pending or inconsistent migrations.
+- Rejection of unsupported schema states.
+- Safe handling of paths containing spaces.
+- Path traversal attempts against export and evidence paths.
+- Concurrent initialization attempts where practical.
+- Startup failure when mandatory security preconditions are not met.
+- Correct exit codes from setup and health-check scripts.
+- Preservation of existing data after simulated upgrade failure.
+- Clean shutdown of background workers and database connections.
+
+Do not use real production credentials or real assessment data in tests.
+
+Run tests against the actual configuration, startup, and migration paths rather than testing only helper functions in isolation.
+
+## 11. Operational documentation
+
+Update the appropriate documentation with:
+
+- Supported Windows and runtime requirements.
+- First-run setup instructions.
+- Required and optional environment variables.
+- Safe secret provisioning and rotation.
+- Local-only versus explicitly network-accessible operation.
+- Development and production startup commands.
+- Startup preflight behavior.
+- Database migration and backup procedures.
+- Upgrade and recovery instructions.
+- Troubleshooting for common configuration errors.
+- Security limitations and features requiring manual setup.
+
+Use exact commands supported by the repository. Clearly mark examples and placeholders.
+
+Do not instruct users to disable security controls as a routine troubleshooting step.
+
+## 12. Regression and acceptance validation
+
+After implementation:
+
+1. Run configuration and startup tests.
+2. Run relevant backend unit and integration tests.
+3. Run frontend tests and the production build.
+4. Validate the Alembic migration chain.
+5. Test initialization against both a fresh disposable database and an existing disposable database.
+6. Exercise failed-startup and interrupted-upgrade scenarios.
+7. Verify that existing application data remains readable.
+8. Check the actual listening addresses and exposure behavior in supported modes where testable.
+9. Verify that secrets are absent from logs, reports, and release artifacts.
+10. Confirm that authentication, RBAC, scope restrictions, evidence integrity, approval gates, and recovery controls remain intact.
+
+Report exact results. Do not claim an upgrade or recovery scenario was tested if only its helper functions were tested.
+
+## 13. Execution rules
+
+- Inspect the actual repository before editing.
+- Work only inside `D:\alt`.
+- Leave `C:\Users\Dark_Boy_\Downloads\VAPT_System` untouched.
+- Preserve unrelated user changes.
+- Do not reset Git or delete user data.
+- Do not introduce WSL or mandatory cloud services.
+- Do not weaken authentication, authorization, or target-scope enforcement.
+- Do not silently replace existing configuration or secrets.
+- Do not fabricate tests, migration results, or deployment guarantees.
+- Prefer focused changes that fit the current architecture.
+
+Proceed autonomously through inspection, implementation, validation, and documentation. Do not stop after producing a plan.
+
+## 14. Final evidence report
+
+Report:
+
+1. The verified deployment and configuration risks found.
+2. The files changed and the purpose of each major change.
+3. Configuration validation and startup preflight behavior.
+4. Secret-handling and filesystem safeguards implemented.
+5. Database migration and upgrade safety improvements.
+6. Windows setup, startup, shutdown, and diagnostic commands.
+7. Exact backend and frontend test counts, failures, and skips.
+8. Fresh-install, existing-database, and failure-recovery results.
+9. Remaining manual steps, known limitations, and unverified scenarios.
+10. Confirmation that `D:\alt` was the only project location modified and the recovery mirror remained untouched.
+
+**Success means a new operator can install and start the application safely, an existing operator can upgrade without silently losing data, and invalid security configuration fails clearly instead of degrading into an unsafe state.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:41:08+05:30.
+</ADDITIONAL_METADATA>

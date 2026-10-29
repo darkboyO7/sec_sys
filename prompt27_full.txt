@@ -1,0 +1,317 @@
+<USER_REQUEST>
+# Prompt 27 — Security Control Verification, Mutation Testing, and Continuous Regression Assurance
+
+Act as a principal security test engineer, application-security architect, and quality-assurance specialist working directly in the existing VAPT System repository.
+
+## Mission
+
+Build a trustworthy, repeatable verification framework that tests whether the VAPT System's security guarantees are actually enforced across API endpoints, assessment workflows, persistence, evidence handling, authorization, remediation, recovery, and release operations.
+
+A passing unit-test suite is not sufficient if critical security checks are never exercised, tests can pass without executing their intended assertions, or authorization failures are accidentally accepted.
+
+Inspect the existing implementation, identify concrete verification gaps, implement the highest-impact improvements, and demonstrate them with deterministic automated tests.
+
+**Writable repository:** `D:\alt`
+
+**Recovery mirror:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`
+
+The recovery mirror is strictly read-only. Never modify it.
+
+## 1. Establish the real testing baseline
+
+Inspect the existing backend and frontend test infrastructure, including:
+
+- Unit, integration, API, and end-to-end tests.
+- Authentication, RBAC, scope authorization, and tenant isolation tests, if applicable.
+- Assessment adapter and worker tests.
+- Evidence integrity, provenance, and audit-chain tests.
+- Knowledge graph, risk scoring, and attack-path tests.
+- Remediation approval and independent retesting tests.
+- Recovery, backup, restoration, and data-integrity tests.
+- Database migration and concurrency tests.
+- Frontend API-client, component, and workflow tests.
+- CI workflows, test configuration, coverage settings, fixtures, mocks, and test markers.
+
+Identify untested security-critical code paths and tests that provide weak or misleading assurance.
+
+Determine which tests execute real application code and which merely mock the behavior being tested. Preserve useful mocks for unit tests, but do not treat mocked behavior as proof of end-to-end correctness.
+
+Run the existing baseline where practical. Record exact commands, pass/fail/skip counts, environmental limitations, and known gaps.
+
+## 2. Create a security-control verification matrix
+
+Build a maintainable matrix mapping each important security invariant to:
+
+- The component enforcing it.
+- The relevant API, service, or workflow.
+- The positive test proving legitimate behavior works.
+- The negative test proving unauthorized behavior is rejected.
+- The persisted state or audit evidence expected after execution.
+- The failure behavior expected if dependencies or verification steps fail.
+
+Include at least these control families:
+
+1. Authentication and session validation.
+2. Role-based and resource-level authorization.
+3. Assessment scope enforcement.
+4. Explicit exclusions overriding inclusions.
+5. Fail-closed handling of unverified targets.
+6. Dual-approval requirements where configured.
+7. Evidence integrity and provenance.
+8. Audit-chain consistency and tamper detection.
+9. Conflict preservation and certainty handling in the knowledge graph.
+10. Risk-calculation inputs and explainability.
+11. Remediation approval and execution constraints.
+12. Independent retest integrity.
+13. Background job ownership and state transitions.
+14. Recovery preconditions and postcondition verification.
+15. Database transaction and concurrency correctness.
+16. Secret handling and release artifact integrity.
+
+Map these controls to the actual repository implementation. Do not invent nonexistent modules or report a control as implemented solely because it appears in documentation.
+
+## 3. Strengthen authentication and authorization testing
+
+Create tests that exercise the actual server-side enforcement points.
+
+Verify that:
+
+- Unauthenticated requests cannot access protected resources.
+- Authenticated users cannot exceed their assigned permissions.
+- Read-only users cannot perform unauthorized mutations.
+- Users cannot access another user's or tenant's resources where isolation is required.
+- Resource identifiers cannot be changed to bypass ownership or scope checks.
+- Client-side authorization state never substitutes for server-side authorization.
+- Missing, malformed, expired, or invalid credentials fail safely.
+- Unauthorized requests do not cause partial writes or privileged side effects.
+- Authorization errors do not disclose unnecessary sensitive information.
+
+Use separate test identities and persisted records. Test both allowed and denied operations.
+
+Avoid testing authorization exclusively through mocked permission functions; at least the critical API-level checks must traverse the actual authentication and authorization middleware or dependency chain.
+
+If the application is intentionally single-user and local, validate its real access-control model rather than adding unnecessary multi-user architecture merely to satisfy this prompt.
+
+## 4. Verify assessment scope and target safety
+
+Exercise the real policy-enforcement path with synthetic targets and controlled fixtures.
+
+Test:
+
+- In-scope versus out-of-scope target decisions.
+- Explicit exclusions overriding broader inclusions.
+- Missing or invalid authorization evidence.
+- Unverified DNS results or unresolved targets.
+- Policy changes between job submission and execution.
+- Scope changes while a job is queued.
+- Attempts to bypass scope restrictions through alternate API routes or direct service calls.
+- Attempts to submit malformed or ambiguous targets.
+- Cancellation and failure behavior when authorization can no longer be established.
+
+Use deterministic fake resolvers and simulated assessment adapters. Do not perform unauthorized network testing or introduce disruptive traffic.
+
+Where real network adapters exist, use controlled local fixtures and confirm that every outbound operation is preceded by the appropriate server-side authorization and target validation.
+
+## 5. Add mutation testing for critical security controls
+
+Inspect available mutation-testing tools and choose an approach compatible with the current Python and TypeScript projects.
+
+Use mutation testing to evaluate whether tests would detect deliberate changes such as:
+
+- Replacing an authorization check with unconditional permission.
+- Reversing a scope inclusion or exclusion decision.
+- Accepting an unverified target.
+- Bypassing an approval requirement.
+- Treating a failed evidence-integrity check as successful.
+- Skipping an audit-chain consistency check.
+- Marking a failed retest as passed.
+- Accepting an invalid recovery postcondition.
+- Removing a required server-side validation.
+- Allowing a failed release-integrity check to pass.
+
+Apply mutations only in disposable working copies, isolated test fixtures, or tool-managed temporary files. Never deliberately weaken the main application's production code and leave the change behind.
+
+For every critical mutation, demonstrate that the relevant test suite fails for the intended reason. If a mutation survives, investigate the missing assertion and add a meaningful test where appropriate.
+
+Do not game mutation scores with assertions that merely detect implementation text or with tests that duplicate the implementation's logic without independently checking its behavior.
+
+Begin with a focused set of high-impact mutations. Expand coverage only when results demonstrate value.
+
+## 6. Verify audit integrity and evidence handling
+
+Create tests for the complete evidence lifecycle where supported:
+
+- Evidence creation and persistence.
+- Stable digest generation.
+- Retrieval and integrity verification.
+- Detection of altered stored evidence.
+- Detection of missing or inconsistent provenance.
+- Audit-chain ordering and predecessor-hash verification.
+- Rejection or explicit handling of malformed audit events.
+- Preservation of conflicting observations.
+- Failure behavior when integrity verification is unavailable.
+- Correct attribution of the actor and operation.
+
+Verify that rejected or tampered evidence cannot silently become trusted input to risk calculations or remediation decisions.
+
+Use synthetic evidence and deterministic fixtures. Never use real customer data or actual secrets in tests.
+
+## 7. Test remediation and recovery as stateful workflows
+
+Exercise complete transitions rather than isolated helper functions.
+
+For remediation, verify:
+
+- A finding cannot bypass required approval.
+- Approval is bound to the intended action and scope.
+- Rejected or expired approvals cannot be reused.
+- Duplicate submissions do not cause unsafe repeated side effects.
+- Failed execution is recorded honestly.
+- Independent retesting cannot merely reuse the original expected result.
+- A failed retest does not mark the finding resolved.
+
+For recovery, verify:
+
+- Preconditions are checked before changes occur.
+- Invalid recovery plans fail safely.
+- Rollback or compensation behavior is correct when supported.
+- Postconditions are independently checked.
+- Partial failure is visible and does not produce a false success state.
+- Audit history remains consistent after recovery.
+- Security policies and assessment scope are never relaxed to make recovery succeed.
+
+Use fake execution adapters and disposable test databases. Never perform destructive recovery against user data or real infrastructure.
+
+## 8. Test transaction integrity and concurrency
+
+Exercise the database and background-job paths under controlled concurrent activity.
+
+Include:
+
+- Simultaneous updates to the same finding.
+- Duplicate job submissions.
+- Competing remediation approvals or state transitions.
+- Concurrent evidence insertion and audit-chain updates.
+- Database lock and transient transaction failures.
+- Worker termination during a state transition.
+- Application restart with queued or abandoned jobs.
+- Retry behavior after partial completion.
+- Conflicting updates and stale-version handling.
+
+Assert the final persisted state, not just the returned HTTP response.
+
+Verify that the system cannot silently lose evidence, create contradictory terminal states, bypass approval, or mark incomplete work as successful.
+
+Keep concurrency tests deterministic and bounded. Avoid relying on arbitrary sleeps or timing assumptions when synchronization primitives and explicit barriers can be used.
+
+## 9. Verify frontend and API contract integrity
+
+Add tests that detect mismatches between frontend assumptions and actual backend behavior.
+
+Where applicable, cover:
+
+- API request and response schema validation.
+- Missing or renamed response fields.
+- Validation errors and unauthorized responses.
+- Stale asynchronous responses overwriting current state.
+- Duplicate submissions caused by repeated interactions.
+- Loading, empty, error, and retry states.
+- Server-side authorization when the UI displays privileged controls.
+- Correct display of failed, incomplete, and unverified security operations.
+
+Ensure the frontend cannot present an operation as successful simply because a request was submitted.
+
+Use the actual API contract and existing test infrastructure. Avoid introducing a second incompatible source of truth for schemas.
+
+## 10. Detect ineffective tests and improve coverage quality
+
+Review the suite for:
+
+- Assertions that are absent or too weak.
+- Tests that always pass due to swallowed exceptions.
+- Unexpectedly skipped tests.
+- Fixtures that bypass the security behavior under test.
+- Over-mocking of authorization or persistence.
+- Shared state that makes tests order-dependent.
+- Tests that require external services without clear isolation.
+- Tests that pass while expected database writes never occur.
+- Security checks covered only by happy-path tests.
+- Unstable concurrency tests.
+- Coverage exclusions that hide critical code.
+
+Use branch coverage where supported and meaningful, but do not treat a single coverage percentage as proof of security.
+
+Define targeted minimum expectations for critical control modules based on the baseline. Avoid arbitrary repository-wide thresholds that encourage meaningless assertions or make unrelated changes unnecessarily difficult.
+
+## 11. Integrate a practical security regression gate
+
+Integrate the verification suite into existing local scripts and CI where present.
+
+The gate should:
+
+1. Run deterministic unit tests.
+2. Run critical API and integration tests.
+3. Run database and stateful workflow tests.
+4. Run frontend tests and contract checks.
+5. Execute the selected critical mutation tests where practical.
+6. Report skipped tests and missing tools explicitly.
+7. Fail when required security-control tests fail.
+8. Preserve diagnostic output without exposing secrets.
+9. Distinguish test failures from environment or dependency failures.
+10. Produce a machine-readable summary of the verification results.
+
+Keep ordinary development tests reasonably fast. Separate slower mutation and stress suites into explicit commands or scheduled jobs if necessary, while ensuring critical security regression tests remain mandatory.
+
+Do not convert failed tests into skips merely to make the gate green.
+
+## 12. Documentation and maintainability
+
+Document:
+
+- How to run the full test suite on Windows.
+- How to run critical security tests independently.
+- How to execute mutation tests safely.
+- How to interpret mutation survivors.
+- How the control-verification matrix is maintained.
+- Which tests require external tools or services.
+- Which controls remain unverified.
+- How new security-critical features must add positive, negative, and persistence tests.
+
+Use clear commands and explanations suitable for an operator who is not a testing specialist.
+
+## 13. Execution rules
+
+- Inspect the actual repository before editing.
+- Work only in `D:\alt`.
+- Leave the recovery mirror untouched.
+- Preserve unrelated user changes.
+- Do not reset Git or delete existing data.
+- Do not introduce real offensive or destructive security tests.
+- Do not weaken security controls to satisfy test expectations.
+- Do not claim a mutation was killed unless the test actually failed because of it.
+- Do not fabricate coverage, test, or security results.
+- Do not claim all controls are verified if important paths remain untested.
+
+Proceed autonomously: inspect, implement, test, diagnose failures, fix verified defects, and rerun the affected tests.
+
+## 14. Final evidence report
+
+Provide:
+
+1. The initial testing baseline and commands executed.
+2. The security-control verification matrix location.
+3. The critical control gaps discovered and fixes implemented.
+4. The API-level authorization and scope tests added.
+5. The evidence, remediation, recovery, and concurrency tests added.
+6. Mutation cases executed, killed, survived, or blocked by unavailable tooling.
+7. Exact backend and frontend test counts, including failures and skips.
+8. Relevant branch-coverage results and their limitations.
+9. CI or local release-gate integration details.
+10. Remaining unverified controls and known limitations.
+11. Confirmation that `D:\alt` was the only project location modified and that the recovery mirror remained untouched.
+
+**Success means the tests demonstrate that critical security controls reject realistic unauthorized or corrupted operations—not merely that the application can start and its happy paths execute.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:39:20+05:30.
+</ADDITIONAL_METADATA>

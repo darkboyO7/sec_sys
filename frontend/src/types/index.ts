@@ -3207,6 +3207,122 @@ export interface DataQualityIssue {
   resolved_at?: string | null;
 }
 
+// Prompt 39: Security Incident Investigation and Case Management
+export type CaseSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFORMATIONAL';
+export type CaseStatus = 'OPEN' | 'TRIAGED' | 'INVESTIGATING' | 'CONTAINED' | 'CLOSED' | 'REOPENED';
+export type CaseAssetRelationshipType = 'PRIMARY_TARGET' | 'PIVOT_VECTOR' | 'IMPACTED_DEPENDENCY' | 'OBSERVED_CORRELATION';
+export type CorrelationType = 'CONFIRMED_CAUSATION' | 'PROBABLE_CORRELATION' | 'TEMPORAL_COINCIDENCE' | 'CONTRADICTORY_EVIDENCE';
+
+export interface LinkedAssetItem {
+  id: string;
+  asset_id: string;
+  relationship_type: CaseAssetRelationshipType;
+  confidence: number;
+  is_contradictory: boolean;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface LinkedFindingItem {
+  id: string;
+  finding_id: string;
+  correlation_type: CorrelationType;
+  confidence: number;
+  rationale?: string | null;
+  created_at: string;
+}
+
+export interface LinkedEvidenceItem {
+  id: string;
+  finding_evidence_id?: string | null;
+  evidence_digest: string;
+  evidence_summary: string;
+  is_contradictory: boolean;
+  created_at: string;
+}
+
+export interface CaseTransitionItem {
+  id: string;
+  from_status: CaseStatus;
+  to_status: CaseStatus;
+  transitioned_by_id?: string | null;
+  reason: string;
+  created_at: string;
+}
+
+export interface CaseNoteItem {
+  id: string;
+  author_id?: string | null;
+  note_type: string;
+  content: string;
+  is_alternative_hypothesis: boolean;
+  created_at: string;
+}
+
+export interface IncidentCaseSummary {
+  id: string;
+  project_id: string;
+  case_number: string;
+  title: string;
+  severity: CaseSeverity;
+  status: CaseStatus;
+  lead_investigator_id?: string | null;
+  assigned_team?: string | null;
+  opened_at: string;
+  closed_at?: string | null;
+  is_containment_verified: boolean;
+  created_at: string;
+}
+
+export interface IncidentCaseDetail {
+  id: string;
+  project_id: string;
+  case_number: string;
+  title: string;
+  description?: string | null;
+  severity: CaseSeverity;
+  status: CaseStatus;
+  lead_investigator_id?: string | null;
+  assigned_team?: string | null;
+  opened_at: string;
+  closed_at?: string | null;
+  reopened_at?: string | null;
+  root_cause_hypothesis?: string | null;
+  alternative_explanations: Array<Record<string, any>>;
+  is_containment_verified: boolean;
+  closure_summary?: string | null;
+  closure_approved_by_id?: string | null;
+  reopening_rationale?: string | null;
+  linked_assets: LinkedAssetItem[];
+  linked_findings: LinkedFindingItem[];
+  linked_evidence: LinkedEvidenceItem[];
+  transitions: CaseTransitionItem[];
+  notes: CaseNoteItem[];
+  created_at: string;
+}
+
+export interface CorrelationExplanation {
+  case_id: string;
+  case_number: string;
+  total_linked_findings: number;
+  total_linked_assets: number;
+  confirmed_causation: Array<Record<string, any>>;
+  probable_correlations: Array<Record<string, any>>;
+  temporal_coincidences: Array<Record<string, any>>;
+  contradictory_findings: Array<Record<string, any>>;
+  contradictory_evidence_count: number;
+  alternative_hypotheses_count: number;
+  correlation_summary: string;
+}
+
+export interface TimelineEvent {
+  event_type: string;
+  timestamp: string;
+  actor_id?: string | null;
+  summary: string;
+  details: Record<string, any>;
+}
+
 
 
 

@@ -27,6 +27,7 @@ import {
   Gauge,
   Bell,
   Zap,
+  Briefcase,
 } from 'lucide-react';
 
 export type NavigationTab =
@@ -43,6 +44,7 @@ export type NavigationTab =
   | 'deployment'
   | 'evidence-lifecycle'
   | 'alerts'
+  | 'incidents'
   | 'scopes'
   | 'orchestration'
   | 'assessments'
@@ -132,6 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'assessments', label: 'Assessment Jobs', icon: PlayCircle, badge: assessmentCount > 0 ? assessmentCount : undefined },
         { id: 'monitoring', label: 'Continuous Monitor', icon: Clock },
         { id: 'findings', label: 'Finding Lifecycle', icon: ShieldAlert, badge: findingCount > 0 ? findingCount : undefined },
+        { id: 'incidents', label: 'Incident Cases', icon: Briefcase },
         { id: 'alerts', label: 'Alerting & Escalation', icon: Bell },
         { id: 'verification', label: 'Remediation & Verify', icon: CheckCircle },
       ],

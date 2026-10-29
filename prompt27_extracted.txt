@@ -1,0 +1,80 @@
+<USER_REQUEST>
+# Prompt 27 — Security Control Verification, Mutation Testing, and Continuous Regression Assurance
+
+Act as a principal security test engineer, application-security architect, and quality-assurance specialist working directly in the existing VAPT System repository.
+
+## Mission
+
+Build a trustworthy, repeatable verification framework that tests whether the VAPT System's security guarantees are actually enforced across API endpoints, assessment workflows, persistence, evidence handling, authorization, remediation, recovery, and release operations.
+
+A passing unit-test suite is not sufficient if critical security checks are never exercised, tests can pass without executing their intended assertions, or authorization failures are accidentally accepted.
+
+Inspect the existing implementation, identify concrete verification gaps, implement the highest-impact improvements, and demonstrate them with deterministic automated tests.
+
+**Writable repository:** `D:\alt`
+
+**Recovery mirror:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`
+
+The recovery mirror is strictly read-only. Never modify it.
+
+## 1. Establish the real testing baseline
+
+Inspect the existing backend and frontend test infrastructure, including:
+
+- Unit, integration, API, and end-to-end tests.
+- Authentication, RBAC, scope authorization, and tenant isolation tests, if applicable.
+- Assessment adapter and worker tests.
+- Evidence integrity, provenance, and audit-chain tests.
+- Knowledge graph, risk scoring, and attack-path tests.
+- Remediation approval and independent retesting tests.
+- Recovery, backup, restoration, and data-integrity tests.
+- Database migration and concurrency tests.
+- Frontend API-client, component, and workflow tests.
+- CI workflows, test configuration, coverage settings, fixtures, mocks, and test markers.
+
+Identify untested security-critical code paths and tests that provide weak or misleading assurance.
+
+Determine which tests execute real application code and which merely mock the behavior bein
+<truncated 11675 bytes>
+l tools or services.
+- Which controls remain unverified.
+- How new security-critical features must add positive, negative, and persistence tests.
+
+Use clear commands and explanations suitable for an operator who is not a testing specialist.
+
+## 13. Execution rules
+
+- Inspect the actual repository before editing.
+- Work only in `D:\alt`.
+- Leave the recovery mirror untouched.
+- Preserve unrelated user changes.
+- Do not reset Git or delete existing data.
+- Do not introduce real offensive or destructive security tests.
+- Do not weaken security controls to satisfy test expectations.
+- Do not claim a mutation was killed unless the test actually failed because of it.
+- Do not fabricate coverage, test, or security results.
+- Do not claim all controls are verified if important paths remain untested.
+
+Proceed autonomously: inspect, implement, test, diagnose failures, fix verified defects, and rerun the affected tests.
+
+## 14. Final evidence report
+
+Provide:
+
+1. The initial testing baseline and commands executed.
+2. The security-control verification matrix location.
+3. The critical control gaps discovered and fixes implemented.
+4. The API-level authorization and scope tests added.
+5. The evidence, remediation, recovery, and concurrency tests added.
+6. Mutation cases executed, killed, survived, or blocked by unavailable tooling.
+7. Exact backend and frontend test counts, including failures and skips.
+8. Relevant branch-coverage results and their limitations.
+9. CI or local release-gate integration details.
+10. Remaining unverified controls and known limitations.
+11. Confirmation that `D:\alt` was the only project location modified and that the recovery mirror remained untouched.
+
+**Success means the tests demonstrate that critical security controls reject realistic unauthorized or corrupted operations—not merely that the application can start and its happy paths execute.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:39:20+05:30.
+</ADDITIONAL_METADATA>

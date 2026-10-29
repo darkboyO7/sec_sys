@@ -209,6 +209,18 @@ from app.models.model_experiment import (
     ExperimentDecision,
     ModelControlledExperiment,
 )
+from app.models.incident import (
+    CaseSeverity,
+    CaseStatus,
+    RelationshipType,
+    CorrelationType,
+    IncidentCase,
+    IncidentCaseAsset,
+    IncidentCaseFinding,
+    IncidentCaseEvidence,
+    IncidentCaseTransition,
+    IncidentCaseNote,
+)
 
 __all__ = [
     "Base",
@@ -378,4 +390,14 @@ __all__ = [
     "SplitStrategy",
     "ExperimentDecision",
     "ModelControlledExperiment",
+    "CaseSeverity",
+    "CaseStatus",
+    "RelationshipType",
+    "CorrelationType",
+    "IncidentCase",
+    "IncidentCaseAsset",
+    "IncidentCaseFinding",
+    "IncidentCaseEvidence",
+    "IncidentCaseTransition",
+    "IncidentCaseNote",
 ]
