@@ -3,9 +3,9 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "vapt-platform-sbom",
-  "documentNamespace": "https://vapt.internal/spdx/doc-333e449c-2315-4a61-98e5-f667e9c2aaa1",
+  "documentNamespace": "https://vapt.internal/spdx/doc-b4541cd7-7526-4246-bef7-75bd530acdcd",
   "creationInfo": {
-    "created": "2026-10-29T15:02:00.894136+00:00",
+    "created": "2026-10-29T15:25:47.155744+00:00",
     "creators": [
       "Tool: vapt-sbom-generator-1.0.0"
     ]

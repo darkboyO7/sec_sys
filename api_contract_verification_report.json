@@ -1,7 +1,7 @@
 {
   "openapi_version": "3.1.0",
-  "total_backend_routes": 290,
-  "total_frontend_calls": 259,
+  "total_backend_routes": 299,
+  "total_frontend_calls": 269,
   "unmatched_frontend_calls": [],
   "enum_mismatches": {},
   "status": "PASSED"

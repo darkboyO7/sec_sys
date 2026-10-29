@@ -516,6 +516,7 @@ class AssetIdentityService:
                 }
                 for a in source.aliases
             ],
+            "finding_ids": [f.id for f in source.findings],
         }
 
         # Create merge record
@@ -615,6 +616,18 @@ class AssetIdentityService:
                 )
                 for a in aliases_to_restore:
                     a.asset_id = source.id
+
+            # Restore findings recorded in snapshot
+            saved_finding_ids = snapshot.get("finding_ids", [])
+            if saved_finding_ids:
+                from app.models.finding import VulnerabilityFinding
+                findings_to_restore = (
+                    db.query(VulnerabilityFinding)
+                    .filter(VulnerabilityFinding.id.in_(saved_finding_ids))
+                    .all()
+                )
+                for f in findings_to_restore:
+                    f.asset_id = source.id
 
         now = utc_now()
         merge_rec.is_reversed = True

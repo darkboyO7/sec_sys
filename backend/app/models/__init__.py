@@ -196,6 +196,14 @@ from app.models.authorization import (
     TokenRevocationRecord,
     AccessDenialAuditRecord,
 )
+from app.models.canonical_asset import (
+    ResolutionMatchOutcome,
+    DeduplicationProposalStatus,
+    DataQualityIssueType,
+    DataQualityIssueStatus,
+    AssetDeduplicationProposal,
+    AssetDataQualityIssue,
+)
 
 __all__ = [
     "Base",
@@ -356,4 +364,10 @@ __all__ = [
     "ThreatCorrelationRecord",
     "TokenRevocationRecord",
     "AccessDenialAuditRecord",
+    "ResolutionMatchOutcome",
+    "DeduplicationProposalStatus",
+    "DataQualityIssueType",
+    "DataQualityIssueStatus",
+    "AssetDeduplicationProposal",
+    "AssetDataQualityIssue",
 ]

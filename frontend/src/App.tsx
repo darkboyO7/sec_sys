@@ -34,6 +34,7 @@ import { ComplianceGovernanceView } from './views/ComplianceGovernanceView';
 import { IntelligentSchedulingView } from './views/IntelligentSchedulingView';
 import { ThreatIntelligenceView } from './views/ThreatIntelligenceView';
 import { IdentityAuthorizationView } from './views/IdentityAuthorizationView';
+import { CanonicalAssetIdentityView } from './views/CanonicalAssetIdentityView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -329,6 +330,10 @@ export const App: React.FC = () => {
                     setActiveTab('graph');
                   }}
                 />
+              )}
+
+              {activeTab === 'canonical-identity' && (
+                <CanonicalAssetIdentityView projectId={activeProject.id} />
               )}
 
               {activeTab === 'drift' && (

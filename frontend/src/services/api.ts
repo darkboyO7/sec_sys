@@ -132,6 +132,10 @@ import type {
   AccessDenialAudit,
   LogoutResponse,
   RevokeAllSessionsResponse,
+  ResolutionResult,
+  DryRunImpact,
+  DeduplicationProposal,
+  DataQualityIssue,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -2104,6 +2108,140 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Prompt 37: Asset Identity Resolution, Data Quality and Canonical Security Records
+  // -------------------------------------------------------------------------
+
+  async resolveAssetEntity(
+    projectId: string,
+    candidateTarget: string,
+    attributes?: Record<string, any>
+  ): Promise<ResolutionResult> {
+    return this.request<ResolutionResult>(`/projects/${encodeURIComponent(projectId)}/asset-identity/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({
+        candidate_target: candidateTarget,
+        attributes: attributes || null,
+      }),
+    });
+  }
+
+  async evaluateDeduplicationDryRun(
+    projectId: string,
+    sourceAssetId: string,
+    targetAssetId: string
+  ): Promise<DryRunImpact> {
+    const q = new URLSearchParams({
+      source_asset_id: sourceAssetId,
+      target_asset_id: targetAssetId,
+    });
+    return this.request<DryRunImpact>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/deduplication/dry-run?${q.toString()}`,
+      { method: 'POST' }
+    );
+  }
+
+  async listDeduplicationProposals(
+    projectId: string,
+    statusFilter?: string
+  ): Promise<DeduplicationProposal[]> {
+    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
+    return this.request<DeduplicationProposal[]>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/deduplication/proposals${qs}`
+    );
+  }
+
+  async proposeAssetDeduplication(
+    projectId: string,
+    payload: {
+      source_asset_id: string;
+      target_asset_id: string;
+      rationale: string;
+      confidence?: number;
+    }
+  ): Promise<DeduplicationProposal> {
+    return this.request<DeduplicationProposal>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/deduplication/proposals`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  async approveDeduplicationProposal(
+    projectId: string,
+    proposalId: string,
+    comments?: string
+  ): Promise<DeduplicationProposal> {
+    return this.request<DeduplicationProposal>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/deduplication/proposals/${encodeURIComponent(proposalId)}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ comments: comments || null }),
+      }
+    );
+  }
+
+  async rejectDeduplicationProposal(
+    projectId: string,
+    proposalId: string,
+    comments?: string
+  ): Promise<DeduplicationProposal> {
+    return this.request<DeduplicationProposal>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/deduplication/proposals/${encodeURIComponent(proposalId)}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ comments: comments || null }),
+      }
+    );
+  }
+
+  async revertDeduplicationProposal(
+    projectId: string,
+    proposalId: string,
+    comments?: string
+  ): Promise<DeduplicationProposal> {
+    return this.request<DeduplicationProposal>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/deduplication/proposals/${encodeURIComponent(proposalId)}/revert`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ comments: comments || null }),
+      }
+    );
+  }
+
+  async runDataQualityAudit(projectId: string): Promise<DataQualityIssue[]> {
+    return this.request<DataQualityIssue[]>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/data-quality/audit`,
+      { method: 'POST' }
+    );
+  }
+
+  async listDataQualityIssues(
+    projectId: string,
+    statusFilter?: string
+  ): Promise<DataQualityIssue[]> {
+    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
+    return this.request<DataQualityIssue[]>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/data-quality/issues${qs}`
+    );
+  }
+
+  async updateDataQualityIssueStatus(
+    projectId: string,
+    issueId: string,
+    status: 'RESOLVED' | 'IGNORED'
+  ): Promise<DataQualityIssue> {
+    return this.request<DataQualityIssue>(
+      `/projects/${encodeURIComponent(projectId)}/asset-identity/data-quality/issues/${encodeURIComponent(issueId)}/status`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      }
+    );
   }
 }
 

@@ -43,6 +43,7 @@ from app.api.v1.endpoints import (
     scheduling,
     threat_intel,
     authorization,
+    canonical_identity,
 )
 
 api_router = APIRouter()
@@ -90,3 +91,4 @@ api_router.include_router(compliance.router, tags=["Compliance Intelligence, Sec
 api_router.include_router(scheduling.router, tags=["Intelligent Scheduling & Orchestration"])
 api_router.include_router(threat_intel.router, tags=["Threat Intelligence & Vulnerability Correlation"])
 api_router.include_router(authorization.router, tags=["Identity Security & Authorization Governance"])
+api_router.include_router(canonical_identity.router, prefix="/projects", tags=["Asset Identity Resolution & Data Quality"])

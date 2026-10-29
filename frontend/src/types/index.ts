@@ -3093,6 +3093,77 @@ export interface RevokeAllSessionsResponse {
   revoked_before: string;
 }
 
+// Prompt 37: Asset Identity Resolution, Data Quality and Canonical Security Records
+export type ResolutionOutcome =
+  | 'EXACT_MATCH'
+  | 'STRONG_CORRELATION'
+  | 'AMBIGUOUS_CONFLICT'
+  | 'UNMATCHED';
+
+export interface ResolutionResult {
+  outcome: ResolutionOutcome;
+  matched_asset_id?: string | null;
+  matched_canonical_identifier?: string | null;
+  confidence: number;
+  match_reasons: string[];
+  conflicts_detected: string[];
+}
+
+export interface DryRunImpact {
+  source_asset_id: string;
+  source_canonical_identifier: string;
+  target_asset_id: string;
+  target_canonical_identifier: string;
+  findings_to_repoint: number;
+  aliases_to_transfer: number;
+  observations_to_repoint: number;
+  conflicts_detected: string[];
+  safe_to_merge: boolean;
+}
+
+export type DeduplicationProposalStatus = 'PROPOSED' | 'APPROVED' | 'REJECTED' | 'REVERTED';
+
+export interface DeduplicationProposal {
+  id: string;
+  project_id: string;
+  source_asset_id: string;
+  target_asset_id: string;
+  status: DeduplicationProposalStatus;
+  confidence_score: number;
+  match_reasons: string[];
+  conflicts_detected: string[];
+  dry_run_impact: Record<string, any>;
+  proposed_by_id?: string | null;
+  reviewed_by_id?: string | null;
+  review_comments?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+  reverted_at?: string | null;
+}
+
+export type DataQualityIssueType =
+  | 'ORPHANED_FINDING'
+  | 'MISSING_ASSET_REFERENCE'
+  | 'DUPLICATE_IDENTIFIER'
+  | 'INCONSISTENT_TIMESTAMPS'
+  | 'INVALID_RELATIONSHIP'
+  | 'STALE_OBSERVATION';
+
+export type DataQualityIssueStatus = 'OPEN' | 'RESOLVED' | 'IGNORED';
+
+export interface DataQualityIssue {
+  id: string;
+  project_id: string;
+  issue_type: DataQualityIssueType;
+  severity: string;
+  affected_resource_type: string;
+  affected_resource_id: string;
+  details: Record<string, any>;
+  status: DataQualityIssueStatus;
+  detected_at: string;
+  resolved_at?: string | null;
+}
+
 
 
 

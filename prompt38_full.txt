@@ -1,0 +1,32 @@
+# PROMPT 38 — Controlled Experiments, Model Evaluation and Defensible Adaptive Learning
+
+Repository: `D:\alt`
+
+Inspect the existing AI and machine-learning services, prediction or recommendation models, outcome ledger, feedback collection, evaluation jobs, risk scoring, audit history, and configuration.
+
+## Objective
+Make every adaptive-learning change measurable, reproducible, reversible, and supported by held-out evidence.
+
+## Requirements
+
+1. Inventory every component that learns from outcomes, changes weights, updates recommendations, or modifies decision thresholds.
+2. Separate model training, candidate evaluation, approval, deployment, and rollback.
+3. Define reproducible dataset snapshots with provenance, timestamps, schema versions, and integrity digests.
+4. Prevent data leakage between training, validation, and test datasets, including temporal leakage.
+5. Use time-aware splits when the prediction problem depends on changing conditions.
+6. Establish baseline metrics before accepting model changes.
+7. Select evaluation metrics appropriate to each task. Include calibration and uncertainty where meaningful.
+8. Evaluate class imbalance, missing labels, noisy outcomes, and sample-size limitations.
+9. Prevent a candidate from replacing the active model merely because it performs better on its training data.
+10. Introduce explicit minimum evidence thresholds, regression limits, reviewer approvals, and versioned model artifacts.
+11. Maintain a decision ledger linking model versions, datasets, evaluation results, approvals, and deployed changes.
+12. Support rollback to a previously approved version.
+13. Detect distribution shifts and degraded performance without automatically responding with unsafe model updates.
+14. Add deterministic fixtures and tests for leakage, mislabeled data, insufficient samples, evaluation regressions, rollback, and concurrent model promotion.
+15. Ensure AI explanations cannot fabricate measured performance or override deterministic security policies.
+
+If a model lacks sufficient real outcome data, report that limitation rather than generating synthetic evidence and presenting it as real performance.
+
+Integrate the implementation with existing dashboards and audit facilities. Do not automatically enable autonomous remediation or relax authorization policies.
+
+Run all relevant tests and report actual dataset sizes, metrics, baseline comparisons, changed files, and limitations. Never fabricate model improvements or production readiness.

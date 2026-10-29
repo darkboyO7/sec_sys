@@ -49,6 +49,7 @@ export type NavigationTab =
   | 'monitoring'
   | 'findings'
   | 'assets'
+  | 'canonical-identity'
   | 'drift'
   | 'knowledge'
   | 'graph'
@@ -116,6 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       category: 'DISCOVERY & GRAPH',
       items: [
         { id: 'assets', label: 'Asset Inventory', icon: Server, badge: assetCount > 0 ? assetCount : undefined },
+        { id: 'canonical-identity', label: 'Canonical Identity & DQ', icon: CheckCircle },
         { id: 'drift', label: 'Exposure Drift', icon: Activity },
         { id: 'knowledge', label: 'Knowledge Integrity', icon: Shield },
         { id: 'graph', label: 'Knowledge Graph', icon: Network },
