@@ -79,6 +79,9 @@ import type {
   PerformanceBudgetsResponse,
   BenchmarkSuiteResponse,
   StaleJobReconciliationResult,
+  QueryCacheMetrics,
+  SqliteWalStatus,
+  CacheClearResponse,
   SecurityControlsCatalogResponse,
   MutationScenario,
   MutationDrillResult,
@@ -1662,6 +1665,24 @@ class ApiService {
     return this.request<StaleJobReconciliationResult>(`/system/performance/reconcile-stale-jobs?timeout_seconds=${timeoutSeconds}`, {
       method: 'POST',
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 41: Evidence-Based Performance Engineering & Database Optimization
+  // ---------------------------------------------------------------------------
+  async getQueryCacheMetrics(): Promise<QueryCacheMetrics> {
+    return this.request<QueryCacheMetrics>('/system/performance/cache-metrics');
+  }
+
+  async clearQueryCache(projectId?: string): Promise<CacheClearResponse> {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<CacheClearResponse>(`/system/performance/cache-clear${query}`, {
+      method: 'POST',
+    });
+  }
+
+  async getSqliteWalStatus(): Promise<SqliteWalStatus> {
+    return this.request<SqliteWalStatus>('/system/performance/sqlite-wal');
   }
 
   // ---------------------------------------------------------------------------

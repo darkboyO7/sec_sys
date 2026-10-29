@@ -11,6 +11,9 @@ import {
   Layers,
   Cpu,
   ShieldAlert,
+  Database,
+  Trash2,
+  Server,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -18,14 +21,18 @@ import type {
   PerformanceBudgetsResponse,
   BenchmarkSuiteResponse,
   StaleJobReconciliationResult,
+  QueryCacheMetrics,
+  SqliteWalStatus,
 } from '../types';
 
 export const PerformanceEngineeringView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'workload' | 'budgets' | 'benchmark'>('workload');
+  const [activeTab, setActiveTab] = useState<'workload' | 'budgets' | 'benchmark' | 'optimization'>('workload');
   const [workloadStatus, setWorkloadStatus] = useState<WorkloadQueueStatus | null>(null);
   const [budgetsResponse, setBudgetsResponse] = useState<PerformanceBudgetsResponse | null>(null);
   const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkSuiteResponse | null>(null);
   const [reconciliationResult, setReconciliationResult] = useState<StaleJobReconciliationResult | null>(null);
+  const [cacheMetrics, setCacheMetrics] = useState<QueryCacheMetrics | null>(null);
+  const [walStatus, setWalStatus] = useState<SqliteWalStatus | null>(null);
   const [benchmarkSize, setBenchmarkSize] = useState<'SMALL' | 'MEDIUM' | 'LARGE'>('SMALL');
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -41,16 +48,36 @@ export const PerformanceEngineeringView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [wlData, bgData] = await Promise.all([
+      const [wlData, bgData, cmData, walData] = await Promise.all([
         api.getWorkloadQueueStatus(),
         api.getPerformanceBudgets(),
+        api.getQueryCacheMetrics().catch(() => null),
+        api.getSqliteWalStatus().catch(() => null),
       ]);
       setWorkloadStatus(wlData);
       setBudgetsResponse(bgData);
+      setCacheMetrics(cmData);
+      setWalStatus(walData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed loading performance telemetry');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    setActionLoading('cache_clear');
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await api.clearQueryCache();
+      setSuccessMessage(res.message || 'All query cache partitions purged.');
+      const updated = await api.getQueryCacheMetrics();
+      setCacheMetrics(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to clear query cache');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -162,6 +189,17 @@ export const PerformanceEngineeringView: React.FC = () => {
         >
           <Activity className="w-4 h-4" />
           Synthetic Benchmarking Suite
+        </button>
+        <button
+          onClick={() => setActiveTab('optimization')}
+          className={`pb-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'optimization'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          Database & Query Optimization
         </button>
       </div>
 
@@ -289,7 +327,7 @@ export const PerformanceEngineeringView: React.FC = () => {
                   <ul className="space-y-1 text-sm text-gray-700">
                     {reconciliationResult.details.map((detail, idx) => (
                       <li key={idx} className="font-mono text-xs text-indigo-700">
-                        • {detail}
+                        â€¢ {detail}
                       </li>
                     ))}
                   </ul>
@@ -345,7 +383,7 @@ export const PerformanceEngineeringView: React.FC = () => {
                 {budgetsResponse?.budgets.map((b) => (
                   <tr key={b.operation} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-mono font-medium text-gray-900">{b.operation}</td>
-                    <td className="px-6 py-4 text-gray-600 font-mono">≤ {b.budget_ms} ms</td>
+                    <td className="px-6 py-4 text-gray-600 font-mono">â‰¤ {b.budget_ms} ms</td>
                     <td className="px-6 py-4 text-gray-700 font-mono">{b.p50_ms.toFixed(2)} ms</td>
                     <td className="px-6 py-4 text-gray-900 font-bold font-mono">{b.p95_ms.toFixed(2)} ms</td>
                     <td className="px-6 py-4 text-gray-500 font-mono">{b.p99_ms.toFixed(2)} ms</td>
@@ -468,6 +506,129 @@ export const PerformanceEngineeringView: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 4: Database Optimization & Query Cache */}
+      {activeTab === 'optimization' && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Database className="w-5 h-5 text-indigo-600" />
+                Query Cache & Database Optimization (Prompt 41)
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Thread-safe, memory-bounded LRU cache with multi-tenant role isolation, composite query indexes, and SQLite WAL pragma optimization.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleClearCache}
+                disabled={actionLoading !== null}
+                className="inline-flex items-center gap-2 px-3.5 py-2 border border-red-300 text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Purge Query Cache
+              </button>
+            </div>
+          </div>
+
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <div className="text-xs uppercase font-semibold text-gray-500">Cached Items</div>
+              <div className="mt-2 text-2xl font-bold text-gray-900">
+                {cacheMetrics ? `${cacheMetrics.total_cached_items} / ${cacheMetrics.max_capacity}` : '—'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Bounded Capacity</div>
+            </div>
+
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <div className="text-xs uppercase font-semibold text-gray-500">Cache Hit Ratio</div>
+              <div className="mt-2 text-2xl font-bold text-indigo-600">
+                {cacheMetrics ? `${(cacheMetrics.hit_ratio * 100).toFixed(1)}%` : '—'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {cacheMetrics ? `${cacheMetrics.hits} Hits / ${cacheMetrics.misses} Misses` : 'No lookups yet'}
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <div className="text-xs uppercase font-semibold text-gray-500">Evictions & Purges</div>
+              <div className="mt-2 text-2xl font-bold text-gray-900">
+                {cacheMetrics ? cacheMetrics.evictions : 0}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {cacheMetrics ? `${cacheMetrics.invalidations} Invalidations` : '0 Invalidations'}
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <div className="text-xs uppercase font-semibold text-gray-500">SQLite WAL Status</div>
+              <div className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                <Server className="w-4 h-4" />
+                {walStatus?.wal_concurrency_enabled ? 'WAL Mode Active' : 'WAL Unavailable'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Timeout: {walStatus ? `${walStatus.busy_timeout_ms}ms` : '—'}
+              </div>
+            </div>
+          </div>
+
+          {/* SQLite WAL Pragma Inspection Card */}
+          {walStatus && (
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+              <h4 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Server className="w-4 h-4 text-gray-500" />
+                SQLite Engine Runtime Configuration
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-mono">
+                <div className="p-3 bg-gray-50 rounded border border-gray-100">
+                  <div className="text-xs text-gray-500 font-sans uppercase">Journal Mode</div>
+                  <div className="font-bold text-indigo-700 mt-1">{walStatus.journal_mode}</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded border border-gray-100">
+                  <div className="text-xs text-gray-500 font-sans uppercase">Synchronous Level</div>
+                  <div className="font-bold text-gray-800 mt-1">{walStatus.synchronous_level} (NORMAL)</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded border border-gray-100">
+                  <div className="text-xs text-gray-500 font-sans uppercase">Busy Timeout</div>
+                  <div className="font-bold text-gray-800 mt-1">{walStatus.busy_timeout_ms} ms</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded border border-gray-100">
+                  <div className="text-xs text-gray-500 font-sans uppercase">Page Size</div>
+                  <div className="font-bold text-gray-800 mt-1">{walStatus.page_size_bytes} bytes</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Optimization Evidence Overview */}
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">
+              Implemented Database Engineering Controls
+            </h4>
+            <div className="space-y-3 text-sm text-gray-600">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <span><strong>Composite Covering Indexes:</strong> Added index on <code>vulnerability_findings(project_id, status, severity, last_observed_at)</code> and <code>assets(project_id, status, freshness_status)</code> eliminating sequential scans.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <span><strong>Direct SQL Aggregation:</strong> Replaced Python in-memory iterations with direct SQL <code>COUNT(*) ... GROUP BY</code> operations for finding status and severity distributions.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <span><strong>Heavy Evidence Payload Deferral:</strong> Findings listing endpoints default to <code>include_payloads=false</code>, deferring multi-megabyte raw logs until individual drilldown.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                <span><strong>Multi-Tenant Role Isolation:</strong> Cache partitions strictly namespace keys by <code>proj:&lt;id&gt;:role:&lt;role&gt;</code>, preventing cross-tenant and cross-privilege cache poisoning.</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

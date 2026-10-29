@@ -76,7 +76,7 @@ class FindingEvidenceResponse(BaseModel):
     id: str
     finding_id: str
     evidence_type: str
-    payload: str
+    payload: Optional[str] = None
     sha256_hash: str
     raw_sha256_hash: Optional[str] = None
     is_truncated: bool = False

@@ -29,6 +29,7 @@ from app.schemas.finding import (
 )
 from app.services.finding_lifecycle_service import FindingLifecycleService
 from app.services.finding_validation_service import FindingValidationService
+from app.services.query_cache_service import DatabaseOptimizationService
 from app.api.deps import get_current_user, verify_project_access, get_client_ip
 
 router = APIRouter()
@@ -142,6 +143,7 @@ def get_finding_statistics(
     """
     Retrieve aggregated metrics across all 13 finding lifecycle states,
     severities, unresolved items, and contradictory evidence signals.
+    Optimized via direct SQL group-by aggregations and thread-safe isolated cache.
     """
     verify_project_access(project_id, current_user, db)
 
@@ -149,51 +151,15 @@ def get_finding_statistics(
     expired = FindingLifecycleService.sweep_expired_accepted_risks(project_id, db)
     if expired > 0:
         db.commit()
+        DatabaseOptimizationService.invalidate_project_findings(project_id)
 
-    findings = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.project_id == project_id).all()
-
-    by_status = {s.value: 0 for s in FindingLifecycleStatus}
-    by_severity = {s.value: 0 for s in FindingSeverity}
-    reopened_count = 0
-    accepted_risk_count = 0
-    contradiction_count = 0
-    unresolved_count = 0
-
-    unresolved_statuses = {
-        FindingLifecycleStatus.DETECTED,
-        FindingLifecycleStatus.NEEDS_VALIDATION,
-        FindingLifecycleStatus.CONFIRMED,
-        FindingLifecycleStatus.INCONCLUSIVE,
-        FindingLifecycleStatus.REOPENED,
-        FindingLifecycleStatus.REMEDIATION_PROPOSED,
-        FindingLifecycleStatus.REMEDIATION_APPROVED,
-        FindingLifecycleStatus.REMEDIATION_ATTEMPTED,
-        FindingLifecycleStatus.REMEDIATED_PENDING_VERIFICATION,
-        FindingLifecycleStatus.EXPIRED,
-    }
-
-    for f in findings:
-        by_status[f.status.value] = by_status.get(f.status.value, 0) + 1
-        by_severity[f.severity.value] = by_severity.get(f.severity.value, 0) + 1
-
-        if f.status in unresolved_statuses:
-            unresolved_count += 1
-        if f.status == FindingLifecycleStatus.REOPENED:
-            reopened_count += 1
-        if f.status == FindingLifecycleStatus.ACCEPTED_RISK:
-            accepted_risk_count += 1
-        if f.has_contradictions:
-            contradiction_count += 1
-
-    return FindingStatsResponse(
-        total=len(findings),
-        by_status=by_status,
-        by_severity=by_severity,
-        unresolved_count=unresolved_count,
-        reopened_count=reopened_count,
-        accepted_risk_count=accepted_risk_count,
-        contradiction_count=contradiction_count,
+    stats = DatabaseOptimizationService.get_finding_stats_optimized(
+        db,
+        project_id,
+        current_user.system_role.value,
+        use_cache=True,
     )
+    return FindingStatsResponse(**stats)
 
 
 @router.post("/projects/{project_id}/findings/sweep-expired-risks")
@@ -323,6 +289,7 @@ def transition_finding(
         assigned_to_id=transition_in.assigned_to_id,
     )
     db.commit()
+    DatabaseOptimizationService.invalidate_project_findings(project_id)
 
     return _format_finding_detail(updated_finding, db)
 
@@ -376,6 +343,7 @@ def accept_finding_risk(
         compensating_controls=risk_in.compensating_controls,
     )
     db.commit()
+    DatabaseOptimizationService.invalidate_project_findings(project_id)
 
     return _format_finding_detail(updated, db)
 
@@ -427,6 +395,7 @@ def mark_finding_false_positive(
         client_ip=client_ip,
     )
     db.commit()
+    DatabaseOptimizationService.invalidate_project_findings(project_id)
 
     return _format_finding_detail(updated, db)
 
@@ -480,6 +449,7 @@ def propose_remediation(
         assigned_to_id=rem_in.assigned_to_id,
     )
     db.commit()
+    DatabaseOptimizationService.invalidate_project_findings(project_id)
 
     return _format_finding_detail(updated, db)
 
@@ -528,5 +498,6 @@ def validate_finding(
         explicit_quality_score=val_in.evidence_quality_score,
     )
     db.commit()
+    DatabaseOptimizationService.invalidate_project_findings(project_id)
 
     return _format_finding_detail(updated, db)

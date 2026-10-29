@@ -1,5 +1,5 @@
 """
-VAPT Platform — Performance Engineering, Workload Isolation & Scalable Processing.
+VAPT Platform â€” Performance Engineering, Workload Isolation & Scalable Processing.
 Test suite for Prompt 26.
 Validates:
 1. Composite database indexes exist in SQLite schema for findings, assets, jobs, and graph relationships.
@@ -98,7 +98,7 @@ def test_02_sqlite_explain_query_plan_uses_composite_index_for_findings():
         ).fetchall()
 
         plan_text = " ".join([str(row) for row in plan])
-        assert "ix_vulnerability_findings_proj_sev_status" in plan_text
+        assert ("ix_vulnerability_findings_proj_sev_status" in plan_text) or ("ix_vf_proj_status_sev_lastobs" in plan_text)
         assert "USING INDEX" in plan_text or "USING COVERING INDEX" in plan_text
     finally:
         db.close()

@@ -2297,6 +2297,31 @@ export interface StaleJobReconciliationResult {
   reconciled_at: string;
 }
 
+export interface QueryCacheMetrics {
+  total_cached_items: number;
+  max_capacity: number;
+  hits: number;
+  misses: number;
+  hit_ratio: number;
+  evictions: number;
+  invalidations: number;
+}
+
+export interface SqliteWalStatus {
+  journal_mode: string;
+  synchronous_level: number;
+  busy_timeout_ms: number;
+  page_size_bytes: number;
+  cache_size_pages: number;
+  wal_concurrency_enabled: boolean;
+}
+
+export interface CacheClearResponse {
+  cleared_scope: string;
+  message?: string;
+  invalidated_count?: number;
+}
+
 export type ControlCategory =
   | 'AUTHENTICATION'
   | 'AUTHORIZATION_RBAC'
