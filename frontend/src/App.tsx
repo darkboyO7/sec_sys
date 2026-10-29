@@ -29,6 +29,7 @@ import { PerformanceEngineeringView } from './views/PerformanceEngineeringView';
 import { SecurityControlVerificationView } from './views/SecurityControlVerificationView';
 import { DeploymentGovernanceView } from './views/DeploymentGovernanceView';
 import { EvidenceLifecycleGovernanceView } from './views/EvidenceLifecycleGovernanceView';
+import { AlertCenterView } from './views/AlertCenterView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -424,6 +425,9 @@ export const App: React.FC = () => {
           )}
           {activeTab === 'evidence-lifecycle' && (
             <EvidenceLifecycleGovernanceView />
+          )}
+          {activeTab === 'alerts' && (
+            <AlertCenterView projectId={activeProject?.id || 'default'} />
           )}
         </main>
       </div>

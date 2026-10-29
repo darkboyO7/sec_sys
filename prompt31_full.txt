@@ -1,0 +1,348 @@
+<USER_REQUEST>
+# PROMPT 31 — Reliable Security Alerting, Event Delivery, Escalation & Notification Intelligence
+
+You are working on my existing VAPT System repository at `D:\alt`.
+
+The system is a defensive security assessment and continuous security intelligence platform built with a FastAPI/Python backend, React/TypeScript/Vite frontend, SQLAlchemy/Alembic persistence, and SQLite WAL for local development.
+
+Your task is to **inspect, implement, integrate, and validate a dependable event-driven alerting and notification subsystem**. Do not merely produce a plan or architectural document. Make appropriate code changes, add migrations only when necessary, run relevant tests, update documentation, and report the exact outcome.
+
+## 1. Begin with repository discovery
+
+Before editing:
+
+1. Inspect the actual repository structure, current Git status, active branch, recent commits, existing event and notification mechanisms, database models, migration head, background workers, API conventions, authentication, RBAC, frontend routing, and test organization.
+2. Search for existing alert, event, notification, incident, job-failure, finding, remediation, retest, monitoring, and audit functionality.
+3. Identify which capabilities already exist and can be extended. Avoid creating a second subsystem that duplicates existing functionality.
+4. Establish a baseline by running relevant existing tests where practical.
+5. Inspect existing authorization, scope, persistence, and audit controls before designing integrations.
+6. Preserve unrelated user changes. Never reset, clean, overwrite, or revert unrelated work.
+7. Do not modify the recovery mirror at `C:\Users\Dark_Boy_\Downloads\VAPT_System`.
+
+Base all implementation decisions on the actual repository, not assumptions from previous plans or reports.
+
+## 2. Define a canonical security-event model
+
+Design or improve a versioned internal event contract for meaningful security and operational events.
+
+Include, where applicable:
+
+- Stable event ID.
+- Event type and schema version.
+- Event creation time and processing time.
+- Tenant or workspace identifier, if the existing architecture supports it.
+- Related asset, assessment, finding, remediation, retest, monitoring run, or operational job identifiers.
+- Severity and priority, using the system's existing conventions.
+- Event origin and source component.
+- Correlation ID and causation ID.
+- Idempotency key where duplicate delivery is possible.
+- Evidence and provenance references.
+- A concise, sanitized event summary.
+- Links to authorized application resources.
+- Delivery and processing status where appropriate.
+
+Use typed, validated schemas consistent with the existing FastAPI/Pydantic conventions.
+
+Do not place passwords, API keys, session tokens, sensitive request headers, unrestricted evidence contents, or unnecessary personal information inside events. Store references to protected evidence rather than copying sensitive payloads into notification records.
+
+Document event compatibility and schema evolution rules. Reject malformed or unsupported event versions safely.
+
+## 3. Integrate actual lifecycle events
+
+Trace real application code paths and integrate events at meaningful state transitions.
+
+Consider these event categories where the corresponding functionality exists:
+
+- Newly confirmed or materially changed security findings.
+- Critical risk increases or verified exposure changes.
+- Assessment started, completed, cancelled, or failed.
+- Remediation proposed, approved, executed, or failed.
+- Independent retest passed or failed.
+- Monitoring detected a material change.
+- Authorization or scope validation rejected an operation.
+- A background worker repeatedly failed or a job exceeded its operational deadline.
+- Backup, restoration, integrity verification, or recovery operations failed.
+- Required security controls became unhealthy.
+
+Only emit events for states that are actually committed or otherwise verifiably reached. Do not emit a success notification merely because a request was accepted or a worker was scheduled.
+
+Avoid treating every repeated observation as a new incident. Distinguish a new event, a changed state, a repeated observation, and a resolved condition.
+
+Ensure that event integration does not weaken authorization, alter assessment scope, bypass approval requirements, or change the defensive nature of the platform.
+
+## 4. Guarantee reliable event publication
+
+Inspect transaction boundaries and implement the simplest reliable publication strategy suitable for the existing architecture.
+
+Where event publication must remain consistent with a database mutation, prefer a transactional outbox or an equivalent proven repository-compatible design.
+
+The implementation must address:
+
+- The database transaction commits, but event publication fails.
+- An event is delivered more than once.
+- A worker crashes after processing an event but before acknowledging it.
+- Two workers attempt to process the same event.
+- An event is malformed or permanently unprocessable.
+- A notification provider is unavailable.
+- A retry occurs after a process restart.
+- An older event is delivered after a newer state transition.
+
+Use persistent state for work that must survive restarts. Avoid relying solely on in-memory queues for durable security notifications.
+
+Implement bounded exponential backoff with jitter where appropriate, maximum attempts, retry scheduling, and a dead-letter or terminal-failure state. Preserve enough metadata for authorized investigation and controlled replay.
+
+Use idempotent processing and uniqueness constraints where appropriate. Never claim exactly-once delivery unless the entire delivery path genuinely guarantees it; document the actual delivery semantics.
+
+Do not introduce an unnecessary external message broker for this local-first application. If a broker is already present, evaluate whether it is correctly configured and used before changing it.
+
+## 5. Build actionable alert deduplication and grouping
+
+Implement deterministic alert grouping that reduces noise without hiding meaningful security changes.
+
+Evaluate a stable grouping key based on appropriate combinations of:
+
+- Event category.
+- Affected asset or protected resource.
+- Finding identity or rule identifier.
+- Relevant state transition.
+- Severity.
+- Existing incident or correlation identifier.
+
+Requirements:
+
+1. Repeated observations of the same unchanged condition should not create an unlimited stream of equivalent active alerts.
+2. A genuine change in severity, exposure, evidence, remediation state, or resolution status must remain visible.
+3. Deduplication must not overwrite the original evidence or erase the historical event trail.
+4. Resolved alerts must be distinguishable from active alerts.
+5. A condition that reappears after resolution should follow a documented reopening or new-incident policy.
+6. Grouping must not combine unrelated assets, tenants, or security boundaries.
+7. A suppression rule must never delete the underlying finding or prevent required audit records from being preserved.
+
+Make deduplication deterministic and test it under concurrent processing.
+
+## 6. Implement a notification policy engine
+
+Create or extend a policy layer that determines which events generate notifications, through which configured channels, and at what urgency.
+
+Support the concepts that fit the current architecture:
+
+- Severity thresholds.
+- Event-type filters.
+- Asset or environment criticality.
+- Approved routing rules.
+- Maintenance windows.
+- Rate limits and notification cooldowns.
+- Escalation after a configured acknowledgement deadline.
+- Per-channel delivery preferences.
+- Suppression of redundant notifications while retaining the event history.
+
+Defaults must be safe and conservative. A maintenance window may suppress noncritical notifications, but it must not silently discard critical alerts or security audit events.
+
+Use explicit, validated configuration. Do not allow untrusted event content to create or modify policies.
+
+Every suppression decision should have a reason and be auditable. Make policy evaluation explainable: an authorized operator should be able to determine why an event was notified, delayed, grouped, or suppressed.
+
+Avoid hardcoded credentials, arbitrary command execution, and unsafe dynamic code evaluation.
+
+## 7. Provide notification channels with safe defaults
+
+Inspect the existing integrations before implementing channels.
+
+At minimum, provide a reliable in-application notification channel if compatible with the current frontend and backend architecture.
+
+Add email or webhook delivery only if it fits the current system and can be implemented safely without introducing unnecessary dependencies.
+
+For outbound webhooks:
+
+- Require an explicit administrator-controlled destination.
+- Restrict allowed schemes and destinations according to a documented policy.
+- Block loopback, private, link-local, multicast, reserved, and cloud metadata destinations unless a narrowly defined and explicitly authorized deployment policy requires an exception.
+- Resolve and validate destinations safely and mitigate DNS rebinding and time-of-check/time-of-use risks.
+- Prevent redirects from bypassing destination validation.
+- Apply connection and read timeouts, bounded response sizes, and retry limits.
+- Never forward authentication credentials or unrestricted evidence by default.
+- Sign webhook requests when supported, with secret storage and rotation appropriate to the existing configuration system.
+- Redact sensitive response bodies and credentials from logs.
+- Treat all remote responses as untrusted input.
+
+Do not make external network calls during unit tests. Use mocked providers and deterministic test fixtures.
+
+If an integration cannot be safely implemented in this environment, provide a clearly documented disabled adapter rather than pretending it works.
+
+## 8. Add a secure alert-management API
+
+Expose endpoints consistent with existing API conventions for:
+
+- Listing alerts with pagination and filters.
+- Reading an individual alert.
+- Viewing related event history and authorized evidence references.
+- Acknowledging an alert.
+- Assigning an alert to an authorized operator.
+- Resolving an alert when resolution is supported by verified application state.
+- Reopening an alert according to policy.
+- Viewing delivery attempts and failures.
+- Retrying a failed notification through an authorized, rate-limited action.
+- Viewing policy configuration and notification-channel health, where authorized.
+
+Apply authentication and server-side RBAC to every endpoint. Do not rely on frontend visibility or client-supplied identity, severity, ownership, or tenant identifiers.
+
+Enforce object-level authorization for every referenced resource. A user must not be able to access another workspace's alerts by guessing an ID.
+
+Validate filter values, page sizes, payload sizes, and state transitions. Reject invalid transitions and record privileged actions in the audit trail.
+
+Use consistent error responses and update the API contract or OpenAPI documentation.
+
+## 9. Implement acknowledgement and escalation correctly
+
+Define explicit alert states and permitted transitions. Reuse existing incident or workflow models if available rather than duplicating them.
+
+Support, where appropriate:
+
+- New.
+- Active.
+- Acknowledged.
+- Assigned.
+- Resolved.
+- Reopened.
+- Delivery failed or partially delivered.
+
+Keep notification-delivery status separate from security-condition status. A failed email must not imply that the vulnerability is resolved, and a delivered email must not imply that an alert has been acknowledged.
+
+Implement escalation using durable timestamps and persisted state, not fragile in-memory timers.
+
+Escalation must be idempotent, restart-safe, bounded, and auditable. Avoid repeatedly escalating the same alert on every worker poll.
+
+Do not automatically execute remediation or change assessment scope in response to an alert. Notifications are informational; security-sensitive actions continue to require the platform's existing authorization and approval controls.
+
+## 10. Build an integrated frontend experience
+
+Extend the existing React/TypeScript application rather than introducing an unrelated UI.
+
+Create or improve an alert center that includes:
+
+- Active and unresolved alert counts.
+- Severity and priority indicators.
+- Search, filters, and pagination.
+- A clear alert summary and affected resource.
+- First-seen and last-updated timestamps.
+- Acknowledgement and assignment state.
+- Related finding, assessment, remediation, and retest links where authorized.
+- Delivery status and retry information for permitted operators.
+- A concise timeline of meaningful state transitions.
+- Clear empty, loading, error, and permission-denied states.
+
+Provide useful distinctions between a security incident, a repeated observation, and a delivery failure.
+
+Use accessible labels, keyboard navigation, and responsive layouts. Avoid excessive animations, color-only status indicators, and unbounded client-side loading.
+
+Ensure that the frontend does not claim an action succeeded until the server confirms it. Refresh or reconcile UI state after mutations and handle concurrent updates safely.
+
+## 11. Preserve auditability and evidence provenance
+
+Integrate alert lifecycle actions with the existing audit and evidence architecture.
+
+Preserve the existing cryptographic provenance or hash-chain conventions if present. Do not create a competing audit chain without a demonstrated need.
+
+Record relevant transitions, including:
+
+- Event creation and processing.
+- Deduplication and grouping decisions.
+- Policy decisions and suppression reasons.
+- Notification attempts, retries, and terminal failures.
+- Acknowledgements, assignments, resolutions, and reopenings.
+- Privileged policy or destination changes.
+- Manual replay and administrative intervention.
+
+Retain references to the source findings and evidence. Never silently rewrite historical event records to reflect a newer state.
+
+If integrity verification detects tampering or an inconsistency, report it and follow the existing safe incident-handling process. Do not automatically rewrite evidence or audit history to make verification pass.
+
+## 12. Test failure scenarios and concurrency
+
+Add automated tests covering at least the following scenarios:
+
+1. Valid event creation and schema validation.
+2. Rejection of malformed events and unsupported schema versions.
+3. Event persistence across process restart.
+4. Database mutation succeeds while event publication initially fails.
+5. Duplicate event delivery.
+6. Concurrent workers process the same event.
+7. Retry exhaustion and terminal failure handling.
+8. Recovery and authorized replay of failed events.
+9. Repeated unchanged findings do not flood the alert center.
+10. A material finding change generates an appropriate new event or update.
+11. Resolution followed by reappearance follows the documented policy.
+12. Critical alerts are not silently discarded during maintenance windows.
+13. Acknowledgement and escalation occur at most once per qualifying transition.
+14. A notification provider timeout does not block core assessment processing indefinitely.
+15. Webhook destination validation rejects prohibited targets and unsafe redirects.
+16. Unauthorized users cannot list, read, acknowledge, assign, resolve, replay, or reconfigure protected alerts.
+17. Cross-tenant or cross-workspace access is denied wherever those boundaries exist.
+18. Invalid state transitions are rejected.
+19. Audit history remains consistent after failure and retry.
+20. Frontend loading, empty, failure, filtering, and mutation states behave correctly.
+
+Use deterministic clocks, fake providers, isolated databases, and controlled concurrency tests where appropriate. Avoid real external notifications, uncontrolled network activity, and destructive operations.
+
+Run relevant backend tests, frontend tests, type checks, and production builds. Run the full regression suite when practical and report any pre-existing failures separately from new failures.
+
+## 13. Operational controls and documentation
+
+Document:
+
+- Event schema and versioning.
+- Event sources and lifecycle integration points.
+- Delivery guarantees and limitations.
+- Deduplication and reopening rules.
+- Retry, backoff, and dead-letter behavior.
+- Notification policy configuration.
+- Webhook security assumptions and deployment requirements.
+- Alert acknowledgement and escalation semantics.
+- Data retention and redaction.
+- Troubleshooting and recovery procedures.
+
+Provide a concise operational status view for event backlog, retry counts, terminal failures, provider health, and oldest pending event, using existing monitoring conventions where possible.
+
+Health endpoints must not expose credentials, full evidence payloads, internal secrets, or unnecessary infrastructure details.
+
+Do not report a provider as healthy merely because its configuration exists. Health status must reflect meaningful verification without generating uncontrolled outbound traffic.
+
+## 14. Acceptance criteria
+
+This work is complete only when the implemented system can demonstrate that:
+
+- Real committed application state transitions produce appropriate events.
+- Events survive process restarts and recover from transient publication failures.
+- Duplicate delivery does not create duplicate side effects.
+- Meaningful security changes remain visible despite deduplication.
+- Notification policy decisions are explainable and auditable.
+- Alert acknowledgement and escalation are persistent and idempotent.
+- API authorization is enforced on the server.
+- External delivery is safe by default and disabled when configuration is insufficient.
+- The frontend presents accurate, actionable alert state.
+- Notification failures do not silently erase security events or halt core assessment work.
+- Tests validate the critical success and failure paths.
+- Documentation accurately describes what is implemented and what remains limited.
+
+## 15. Final report
+
+When finished, provide a concise but evidence-based report containing:
+
+1. Actual files created or modified.
+2. Architectural decisions and how they fit the existing codebase.
+3. Database models and migrations added, if any.
+4. Implemented event sources, notification channels, policies, and API endpoints.
+5. Security controls and authorization boundaries added or verified.
+6. Tests and commands executed, with exact pass/fail/skip counts and exit codes.
+7. Frontend type-check and production-build results.
+8. Known limitations, incomplete work, and any pre-existing failures.
+9. Operational instructions and required configuration.
+10. Git status and commit information, if a commit was actually created.
+
+Never fabricate test results, integrations, successful deliveries, commits, or production readiness. If any requirement cannot be completed, state precisely what remains and why.
+
+**Start by inspecting the current repository and then implement the highest-value compatible solution end to end. Do not stop after writing a plan, do not rebuild the platform from scratch, and do not weaken existing security, authorization, scope, evidence-integrity, or human-approval controls.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:47:19+05:30.
+</ADDITIONAL_METADATA>

@@ -96,6 +96,10 @@ import type {
   EvidenceRedactionResult,
   UnifiedOpsDashboardResponse,
   PriorityQueueResponse,
+  AlertResponse,
+  AlertListResponse,
+  OutboxStatusResponse,
+  MaintenanceWindowResponse,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1621,6 +1625,95 @@ async listUsers(): Promise<User[]> {
   async dismissPriorityQueueItem(itemId: string): Promise<{ status: string; item_id: string }> {
     return this.request<{ status: string; item_id: string }>(`/system/operations/cockpit/priority-queue/${encodeURIComponent(itemId)}/dismiss`, {
       method: 'POST',
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 31: Reliable Security Alerting, Event Delivery & Escalation
+  // ---------------------------------------------------------------------------
+  async getAlerts(
+    projectId: string,
+    lifecycleStatus?: string,
+    severity?: string,
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<AlertListResponse> {
+    const params = new URLSearchParams({
+      project_id: projectId,
+      limit: String(limit),
+      offset: String(offset),
+    });
+    if (lifecycleStatus && lifecycleStatus !== 'ALL') {
+      params.append('lifecycle_status', lifecycleStatus);
+    }
+    if (severity && severity !== 'ALL') {
+      params.append('severity', severity);
+    }
+    return this.request<AlertListResponse>(`/alerts?${params.toString()}`);
+  }
+
+  async getAlert(alertId: string, projectId?: string): Promise<AlertResponse> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<AlertResponse>(`/alerts/${encodeURIComponent(alertId)}${q}`);
+  }
+
+  async acknowledgeAlert(alertId: string, notes?: string, projectId?: string): Promise<{ status: string; alert_id: string }> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<{ status: string; alert_id: string }>(`/alerts/${encodeURIComponent(alertId)}/acknowledge${q}`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async assignAlert(alertId: string, assignedToId: string, notes?: string, projectId?: string): Promise<{ status: string; alert_id: string }> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<{ status: string; alert_id: string }>(`/alerts/${encodeURIComponent(alertId)}/assign${q}`, {
+      method: 'POST',
+      body: JSON.stringify({ assigned_to_id: assignedToId, notes }),
+    });
+  }
+
+  async resolveAlert(alertId: string, notes?: string, projectId?: string): Promise<{ status: string; alert_id: string }> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<{ status: string; alert_id: string }>(`/alerts/${encodeURIComponent(alertId)}/resolve${q}`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async reopenAlert(alertId: string, notes?: string, projectId?: string): Promise<{ status: string; alert_id: string }> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<{ status: string; alert_id: string }>(`/alerts/${encodeURIComponent(alertId)}/reopen${q}`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async getOutboxStatus(projectId?: string): Promise<OutboxStatusResponse> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<OutboxStatusResponse>(`/alerts/outbox/status${q}`);
+  }
+
+  async processOutbox(batchSize: number = 50): Promise<{ processed: number; delivered: number; retried: number; dead_letter: number }> {
+    return this.request<{ processed: number; delivered: number; retried: number; dead_letter: number }>(`/alerts/outbox/process?batch_size=${batchSize}`, {
+      method: 'POST',
+    });
+  }
+
+  async replayDeadLetterEvent(eventId: string): Promise<{ status: string; event_id: string }> {
+    return this.request<{ status: string; event_id: string }>(`/alerts/outbox/${encodeURIComponent(eventId)}/replay`, {
+      method: 'POST',
+    });
+  }
+
+  async getMaintenanceWindows(projectId: string): Promise<MaintenanceWindowResponse[]> {
+    return this.request<MaintenanceWindowResponse[]>(`/alerts/maintenance-windows?project_id=${encodeURIComponent(projectId)}`);
+  }
+
+  async createMaintenanceWindow(projectId: string, data: { title: string; reason: string; start_time: string; end_time: string; suppress_critical?: boolean }): Promise<MaintenanceWindowResponse> {
+    return this.request<MaintenanceWindowResponse>(`/alerts/maintenance-windows?project_id=${encodeURIComponent(projectId)}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 }

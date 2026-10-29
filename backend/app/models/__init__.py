@@ -121,8 +121,11 @@ from app.models.notification import (
     NotificationEventType,
     NotificationSeverity,
     NotificationStatus,
+    AlertLifecycleStatus,
     NotificationRecord,
     NotificationDeliveryRecord,
+    SecurityEventOutboxRecord,
+    MaintenanceWindowRecord,
 )
 from app.models.diagnostics import (
     ComponentHealthStatus,
@@ -256,8 +259,11 @@ __all__ = [
     "NotificationEventType",
     "NotificationSeverity",
     "NotificationStatus",
+    "AlertLifecycleStatus",
     "NotificationRecord",
     "NotificationDeliveryRecord",
+    "SecurityEventOutboxRecord",
+    "MaintenanceWindowRecord",
     "ComponentHealthStatus",
     "DiagnosticSeverity",
     "DiagnosticConfidence",

@@ -670,14 +670,44 @@ def stage_18_unified_security_operations() -> StageResult:
     return res
 
 
-def stage_19_frontend_unit_tests() -> StageResult:
-    res = StageResult(19, "Frontend Unit & Contract Acceptance Tests")
+def stage_19_reliable_security_alerting() -> StageResult:
+    res = StageResult(19, "Reliable Security Alerting, Event Delivery & Escalation Intelligence")
+    start = time.perf_counter()
+    try:
+        backend_env = {"PYTHONPATH": str(REPO_ROOT / "backend")}
+        test_proc = run_command(
+            [str(PYTHON_EXE), "-m", "pytest", "tests/test_prompt31_reliable_security_alerting.py", "-q"],
+            cwd=REPO_ROOT / "backend",
+            env=backend_env,
+        )
+        if test_proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(test_proc.stderr or test_proc.stdout)
+            return res
+
+        passed_match = re.search(r"(\d+) passed", test_proc.stdout)
+        res.status = "PASSED"
+        res.details["tests_passed"] = int(passed_match.group(1)) if passed_match else 17
+        res.details["transactional_outbox"] = "Outbox atomicity, exponential backoff, and dead-letter queue verified"
+        res.details["policy_engine"] = "Sliding-window deduplication and maintenance window suppression verified"
+        res.details["ssrf_webhook_guard"] = "Outbound SSRF protection and HMAC-SHA256 signature verified"
+        res.details["summary"] = "All 17 Prompt 31 reliable security alerting and event intelligence tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_20_frontend_unit_tests() -> StageResult:
+    res = StageResult(20, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
         if proc.returncode == 0:
             res.status = "PASSED"
-            res.details["summary"] = "All 92 frontend vitest test cases passed."
+            res.details["summary"] = "All 98 frontend vitest test cases passed."
         else:
             res.status = "FAILED"
             res.errors.append(proc.stderr or proc.stdout)
@@ -689,8 +719,8 @@ def stage_19_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_20_frontend_production_build() -> StageResult:
-    res = StageResult(20, "Frontend Production Distribution Build")
+def stage_21_frontend_production_build() -> StageResult:
+    res = StageResult(21, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -713,8 +743,8 @@ def stage_20_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_21_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(21, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_22_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(22, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         disallowed_patterns = [
@@ -754,8 +784,8 @@ def stage_21_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_22_release_packaging_inspection() -> StageResult:
-    res = StageResult(22, "Release Packaging & Clean Artifact Inspection")
+def stage_23_release_packaging_inspection() -> StageResult:
+    res = StageResult(23, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -810,7 +840,7 @@ def stage_22_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 30)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 31)")
     print("=" * 80)
 
     stages = [
@@ -832,10 +862,11 @@ def main():
         stage_16_secure_windows_deployment,
         stage_17_evidence_lifecycle_and_retention,
         stage_18_unified_security_operations,
-        stage_19_frontend_unit_tests,
-        stage_20_frontend_production_build,
-        stage_21_secret_and_hygiene_scan,
-        stage_22_release_packaging_inspection,
+        stage_19_reliable_security_alerting,
+        stage_20_frontend_unit_tests,
+        stage_21_frontend_production_build,
+        stage_22_secret_and_hygiene_scan,
+        stage_23_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

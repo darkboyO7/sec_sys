@@ -2419,6 +2419,72 @@ export interface UnifiedOpsDashboardResponse {
   generated_at: string;
 }
 
+// Prompt 31: Reliable Security Alerting, Event Delivery & Escalation
+export type AlertLifecycleStatus = 'NEW' | 'ACTIVE' | 'ACKNOWLEDGED' | 'ASSIGNED' | 'RESOLVED' | 'REOPENED';
+
+export interface AlertResponse {
+  id: string;
+  project_id: string;
+  event_type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  title: string;
+  summary: string;
+  lifecycle_status: AlertLifecycleStatus;
+  delivery_status: string;
+  assigned_to_id?: string | null;
+  acknowledged_at?: string | null;
+  acknowledged_by_id?: string | null;
+  resolved_at?: string | null;
+  resolved_by_id?: string | null;
+  reopened_at?: string | null;
+  escalated_at?: string | null;
+  correlation_id?: string | null;
+  causation_id?: string | null;
+  idempotency_key?: string | null;
+  schema_version: string;
+  suppression_reason?: string | null;
+  retry_count: number;
+  max_retries: number;
+  last_attempt_at?: string | null;
+  error_message?: string | null;
+  delivery_attempts_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  active_count: number;
+  unresolved_count: number;
+  critical_count: number;
+  items: AlertResponse[];
+}
+
+export interface OutboxStatusResponse {
+  pending_count: number;
+  delivered_count: number;
+  dead_letter_count: number;
+  suppressed_count: number;
+  oldest_pending_age_seconds?: number | null;
+  healthy: boolean;
+  generated_at: string;
+}
+
+export interface MaintenanceWindowResponse {
+  id: string;
+  project_id: string;
+  title: string;
+  reason: string;
+  start_time: string;
+  end_time: string;
+  suppress_critical: boolean;
+  is_currently_active: boolean;
+  created_at: string;
+}
+
+
 
 
 

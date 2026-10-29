@@ -25,6 +25,7 @@ import {
   Database,
   Boxes,
   Gauge,
+  Bell,
 } from 'lucide-react';
 
 export type NavigationTab =
@@ -36,6 +37,7 @@ export type NavigationTab =
   | 'mutation-verification'
   | 'deployment'
   | 'evidence-lifecycle'
+  | 'alerts'
   | 'scopes'
   | 'orchestration'
   | 'assessments'
@@ -121,6 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'assessments', label: 'Assessment Jobs', icon: PlayCircle, badge: assessmentCount > 0 ? assessmentCount : undefined },
         { id: 'monitoring', label: 'Continuous Monitor', icon: Clock },
         { id: 'findings', label: 'Finding Lifecycle', icon: ShieldAlert, badge: findingCount > 0 ? findingCount : undefined },
+        { id: 'alerts', label: 'Alerting & Escalation', icon: Bell },
         { id: 'verification', label: 'Remediation & Verify', icon: CheckCircle },
       ],
     },
