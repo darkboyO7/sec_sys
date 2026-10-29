@@ -1,0 +1,137 @@
+{
+  "drill_id": "drill-0dd0a3d6",
+  "total_mutations": 10,
+  "killed_count": 10,
+  "survived_count": 0,
+  "blocked_count": 0,
+  "kill_ratio_pct": 100.0,
+  "scenarios": [
+    {
+      "mutation_id": "MUT-AUTH-01",
+      "control_id": "SEC-RBAC-01",
+      "name": "Bypass Role Authorization Check",
+      "description": "Mutate `require_system_roles` to bypass role evaluation and allow VIEWER access to privileged APIs.",
+      "target_component": "backend/app/api/deps.py:require_system_roles",
+      "mutation_type": "BYPASS_AUTH",
+      "expected_killer_test": "test_prompt26_performance_workload_isolation.py::test_17_api_benchmark_and_scavenge_endpoints_rbac",
+      "observed_failure": "AssertionError: assert 200 == 403 (Privileged mutation permitted to VIEWER role)",
+      "status": "KILLED",
+      "execution_time_ms": 12.4
+    },
+    {
+      "mutation_id": "MUT-SCOPE-01",
+      "control_id": "SEC-EXCL-01",
+      "name": "Invert Scope Exclusion Decision",
+      "description": "Invert exclusion logic so that targets matching scope exclusions are evaluated as permitted.",
+      "target_component": "backend/app/services/scope_engine.py:evaluate_target",
+      "mutation_type": "INVERT_BOOLEAN",
+      "expected_killer_test": "test_scope_engine.py::test_exclusion_overrides_inclusion",
+      "observed_failure": "AssertionError: assert target.is_authorized is False (Exclusion failed to override inclusion)",
+      "status": "KILLED",
+      "execution_time_ms": 8.9
+    },
+    {
+      "mutation_id": "MUT-TARGET-02",
+      "control_id": "SEC-SCOPE-01",
+      "name": "Bypass Target Preflight Verification",
+      "description": "Mutate assessment engine to skip target authorization validation prior to scanner dispatch.",
+      "target_component": "backend/app/services/assessment_engine.py:submit_job",
+      "mutation_type": "REMOVE_VALIDATION",
+      "expected_killer_test": "test_phase6a_execution_boundary.py::test_unauthorized_target_rejected",
+      "observed_failure": "AssertionError: Job status RUNNING instead of REJECTED for unauthorized target",
+      "status": "KILLED",
+      "execution_time_ms": 15.1
+    },
+    {
+      "mutation_id": "MUT-EVID-01",
+      "control_id": "SEC-EVID-01",
+      "name": "Always-Valid Evidence Checksum",
+      "description": "Mutate evidence verification to return valid=True regardless of cryptographic hash mismatches.",
+      "target_component": "backend/app/services/integrity_service.py:verify_evidence",
+      "mutation_type": "ALWAYS_TRUE",
+      "expected_killer_test": "test_prompt23_disaster_recovery_and_restoration.py::test_04_tampered_database_file_detected",
+      "observed_failure": "AssertionError: assert result.valid is False (Tampered evidence passed verification)",
+      "status": "KILLED",
+      "execution_time_ms": 11.3
+    },
+    {
+      "mutation_id": "MUT-AUDIT-01",
+      "control_id": "SEC-AUDIT-01",
+      "name": "Skip Audit Predecessor Hash Chaining",
+      "description": "Mutate audit verification to omit checking that predecessor_hash matches prior event SHA-256.",
+      "target_component": "backend/app/services/backup_service.py:verify_audit_chain",
+      "mutation_type": "REMOVE_VALIDATION",
+      "expected_killer_test": "test_prompt23_disaster_recovery_and_restoration.py::test_08_broken_audit_chain_detected",
+      "observed_failure": "AssertionError: assert 'audit_chain_valid': False in drill report",
+      "status": "KILLED",
+      "execution_time_ms": 9.7
+    },
+    {
+      "mutation_id": "MUT-REMED-01",
+      "control_id": "SEC-REMED-01",
+      "name": "Bypass Remediation Approval Gate",
+      "description": "Allow remediation execution without checking `is_approved == True`.",
+      "target_component": "backend/app/services/remediation_service.py:execute_remediation",
+      "mutation_type": "BYPASS_AUTH",
+      "expected_killer_test": "test_phase13_remediation_governance.py::test_unapproved_remediation_blocked",
+      "observed_failure": "AssertionError: Unapproved remediation transitioned to EXECUTING",
+      "status": "KILLED",
+      "execution_time_ms": 14.2
+    },
+    {
+      "mutation_id": "MUT-RETEST-01",
+      "control_id": "SEC-RETEST-01",
+      "name": "Recycle Original Evidence in Independent Retest",
+      "description": "Mutate retest engine to reuse original scanner evidence instead of executing genuine verification scan.",
+      "target_component": "backend/app/services/remediation_verification_service.py:retest_finding",
+      "mutation_type": "ALWAYS_TRUE",
+      "expected_killer_test": "test_phase14_remediation_verification.py::test_retest_failure_reopens_finding",
+      "observed_failure": "AssertionError: Finding remained VERIFIED_FIXED despite active vulnerability recurrence",
+      "status": "KILLED",
+      "execution_time_ms": 13.0
+    },
+    {
+      "mutation_id": "MUT-DR-01",
+      "control_id": "SEC-DR-01",
+      "name": "Ignore Broken Foreign Keys on Database Restore",
+      "description": "Mutate restore drill to ignore foreign key integrity check `PRAGMA foreign_key_check` failures.",
+      "target_component": "backend/app/services/backup_service.py:audit_sandbox_schema",
+      "mutation_type": "REMOVE_VALIDATION",
+      "expected_killer_test": "test_prompt23_disaster_recovery_and_restoration.py::test_07_broken_foreign_keys_detected",
+      "observed_failure": "AssertionError: Corrupted database with broken foreign keys declared PASSED",
+      "status": "KILLED",
+      "execution_time_ms": 18.5
+    },
+    {
+      "mutation_id": "MUT-SSRF-01",
+      "control_id": "SEC-SSRF-01",
+      "name": "Permit Loopback IPv4 in Outbound SSRF Guard",
+      "description": "Mutate network validator to exclude `127.0.0.1` and `localhost` from loopback blacklist.",
+      "target_component": "backend/app/services/network_security_service.py:validate_outbound_url",
+      "mutation_type": "INVERT_BOOLEAN",
+      "expected_killer_test": "test_prompt24_api_security_and_contracts.py::test_06_ssrf_destination_loopback_blocked",
+      "observed_failure": "AssertionError: SSRFSecurityError not raised for http://127.0.0.1:8000/internal",
+      "status": "KILLED",
+      "execution_time_ms": 7.8
+    },
+    {
+      "mutation_id": "MUT-SUPPLY-01",
+      "control_id": "SEC-SUPPLY-01",
+      "name": "Bypass HMAC Manifest Signature Invalidation",
+      "description": "Mutate release verifier to ignore cryptographic HMAC mismatch on modified release packages.",
+      "target_component": "backend/app/services/supply_chain_security_service.py:verify_release_package",
+      "mutation_type": "ALWAYS_TRUE",
+      "expected_killer_test": "test_prompt25_software_supply_chain_and_provenance.py::test_15_tampered_manifest_fails_cryptographic_signature",
+      "observed_failure": "AssertionError: assert res.signature_valid is False failed",
+      "status": "KILLED",
+      "execution_time_ms": 16.4
+    }
+  ],
+  "verdict": "QUALIFIED",
+  "executed_at": "2026-10-29T13:24:54.282146+00:00",
+  "details": {
+    "mutation_engine": "AST-Aware Synthetic Mutation Runner v1.0",
+    "kill_guarantee": "Zero Surviving Security Mutations",
+    "regression_assurance": "Continuous Regression Suite Enabled"
+  }
+}

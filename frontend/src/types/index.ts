@@ -2610,6 +2610,153 @@ export interface MaintenanceWindowResponse {
   created_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Prompt 33: Continuous Compliance Intelligence, Security Baselines & Drift
+// ---------------------------------------------------------------------------
+
+export type ComplianceEvaluationStatus =
+  | 'PASS'
+  | 'FAIL'
+  | 'PARTIAL'
+  | 'UNKNOWN'
+  | 'NOT_APPLICABLE'
+  | 'ERROR';
+
+export type ComplianceExceptionStatus =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'REVOKED';
+
+export type ComplianceDriftType =
+  | 'REGRESSION_FAIL'
+  | 'EVIDENCE_DISAPPEARED_UNKNOWN'
+  | 'NEW_CONTROL_UNSATISFIED'
+  | 'REMEDIATED_PASS'
+  | 'EXCEPTION_EXPIRED';
+
+export interface ComplianceControl {
+  id: string;
+  control_id: string;
+  version: string;
+  category: string;
+  title: string;
+  description: string;
+  requirement_statement: string;
+  framework: string;
+  framework_reference?: string | null;
+  applicability_criteria: Record<string, any>;
+  required_evidence_types: string[];
+  evaluation_rule: string;
+  severity: string;
+  remediation_guidance: string;
+  evaluation_limitations: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BaselineProfile {
+  id: string;
+  project_id: string;
+  profile_key: string;
+  version: string;
+  name: string;
+  description: string;
+  target_applicability: string;
+  is_active: boolean;
+  control_ids: string[];
+  parameters: Record<string, any>;
+  created_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComplianceControlResult {
+  id: string;
+  run_id: string;
+  control_id: string;
+  control_version: string;
+  status: ComplianceEvaluationStatus;
+  asset_id?: string | null;
+  evidence_refs: Array<Record<string, any>>;
+  evidence_digests: string[];
+  reasoning: string;
+  missing_evidence_types: string[];
+  confidence_score: number;
+  limitations?: string | null;
+  has_exception: boolean;
+  exception_id?: string | null;
+  created_at: string;
+}
+
+export interface ComplianceEvaluationRun {
+  id: string;
+  project_id: string;
+  baseline_profile_id: string;
+  baseline_profile_key?: string | null;
+  baseline_profile_version?: string | null;
+  assessment_id?: string | null;
+  run_status: string;
+  pass_count: number;
+  fail_count: number;
+  partial_count: number;
+  unknown_count: number;
+  not_applicable_count: number;
+  error_count: number;
+  total_controls_evaluated: number;
+  provenance_digest: string;
+  evaluated_at: string;
+  evaluated_by_id?: string | null;
+  control_results: ComplianceControlResult[];
+}
+
+export interface ComplianceDriftEvent {
+  id: string;
+  project_id: string;
+  control_id: string;
+  asset_id?: string | null;
+  drift_type: ComplianceDriftType;
+  previous_status: ComplianceEvaluationStatus;
+  new_status: ComplianceEvaluationStatus;
+  previous_run_id?: string | null;
+  current_run_id: string;
+  reason: string;
+  detected_at: string;
+  deduplication_hash: string;
+}
+
+export interface ComplianceException {
+  id: string;
+  project_id: string;
+  control_id: string;
+  asset_id?: string | null;
+  justification: string;
+  risk_assessment: string;
+  compensating_controls: string;
+  requester_id: string;
+  approver_id?: string | null;
+  status: ComplianceExceptionStatus;
+  expires_at: string;
+  approved_at?: string | null;
+  revoked_at?: string | null;
+  review_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComplianceComparison {
+  baseline_profile_id: string;
+  run_a: ComplianceEvaluationRun;
+  run_b: ComplianceEvaluationRun;
+  regressions: Array<Record<string, any>>;
+  improvements: Array<Record<string, any>>;
+  uncertainties: Array<Record<string, any>>;
+  unchanged_count: number;
+}
+
+
 
 
 

@@ -1,0 +1,352 @@
+<USER_REQUEST>
+# PROMPT 33 — Continuous Compliance Intelligence, Security Baselines & Configuration Drift Governance
+
+You are working on my existing VAPT System repository at `D:\alt`.
+
+The platform uses FastAPI/Python, React/TypeScript/Vite, SQLAlchemy/Alembic, and SQLite WAL for local development. It is intended to be a defensive, evidence-driven vulnerability assessment and continuous security intelligence platform.
+
+Your mission is to inspect the existing implementation and build an integrated compliance and security-baseline capability that evaluates authorized assessment evidence against versioned, configurable security requirements.
+
+Do not merely produce a plan or documentation. Inspect the code, implement the highest-value compatible solution, add tests, update documentation, and report exact results.
+
+## 1. Inspect the actual repository
+
+Before changing anything:
+
+1. Inspect Git status, branch, recent commits, project structure, database schema, migration head, authorization, assessment execution, asset inventory, findings, evidence, risk scoring, monitoring, reporting, and existing policy functionality.
+2. Search for existing compliance frameworks, security controls, baseline configurations, configuration-drift tracking, policy evaluation, and scheduled reassessment.
+3. Reuse existing services and data models where appropriate; do not introduce competing implementations.
+4. Run relevant existing tests and record the baseline.
+5. Identify the actual evidence sources available. Do not assume the platform can inspect operating-system configuration, cloud accounts, or third-party infrastructure unless a supported adapter exists.
+6. Preserve unrelated modifications and never reset or revert the user's work.
+7. Do not modify `C:\Users\Dark_Boy_\Downloads\VAPT_System`.
+
+Create an implementation checklist and proceed directly with implementation.
+
+## 2. Create a versioned security-control catalog
+
+Implement or extend a normalized catalog of security requirements.
+
+Each control should support appropriate fields such as:
+
+- Stable control ID.
+- Control title and description.
+- Control family or category.
+- Requirement statement.
+- Applicability criteria.
+- Required evidence types.
+- Evaluation method.
+- Severity or importance.
+- Control version.
+- Source framework and reference, where applicable.
+- Implementation guidance.
+- Remediation guidance.
+- Evaluation limitations.
+- Effective and retired status.
+
+Keep the control catalog separate from observed findings, evaluation results, and evidence records.
+
+Support versioning so changes to control definitions do not silently rewrite historical compliance results.
+
+Use a small, well-defined initial catalog grounded in verifiable requirements. Do not claim formal certification or complete framework coverage merely because a few controls have been implemented.
+
+If you add framework mappings, document the exact mapping rationale and identify approximate or partial mappings explicitly.
+
+## 3. Implement evidence-based control evaluation
+
+Build a deterministic evaluation engine that compares available authorized evidence with applicable controls.
+
+Use explicit result states such as:
+
+- `PASS`: sufficient valid evidence demonstrates that the defined requirement is satisfied.
+- `FAIL`: sufficient valid evidence demonstrates that the requirement is not satisfied.
+- `PARTIAL`: evidence supports only part of the requirement.
+- `UNKNOWN`: evidence is insufficient to decide.
+- `NOT_APPLICABLE`: documented applicability rules establish that the control does not apply.
+- `ERROR`: evaluation could not be completed reliably.
+
+Do not treat `UNKNOWN`, `PARTIAL`, or `ERROR` as a pass.
+
+Each result must preserve:
+
+- Control ID and control version.
+- Assessment or evaluation run ID.
+- Evaluation timestamp.
+- Applicable assets or resources.
+- Evidence references and integrity metadata.
+- Evaluation method and version.
+- Reasoning based on the actual evidence.
+- Missing evidence requirements.
+- Confidence or certainty, where supported by the existing architecture.
+- Any known evaluation limitations.
+
+Use deterministic, testable rules for compliance decisions. If AI assistance is available, it may help explain a result, but it must not override evidence requirements or independently promote an uncertain result to `PASS`.
+
+## 4. Connect controls to actual platform evidence
+
+Inspect available evidence producers and establish explicit mappings between controls and supported evidence types.
+
+Potential mappings may include:
+
+- Exposure or service-discovery observations.
+- Confirmed vulnerability findings.
+- Asset ownership and inventory completeness.
+- TLS observations, if a supported adapter collects them.
+- Authentication and authorization configuration, if verifiable evidence exists.
+- Remediation and independent retest outcomes.
+- Monitoring coverage and verified state changes.
+- Audit integrity verification results.
+- Backup or recovery verification records.
+- Explicitly supplied configuration evidence.
+
+Only implement mappings supported by real repository capabilities.
+
+Never infer that a control is satisfied merely because no finding exists. Missing coverage should normally produce `UNKNOWN`, not `PASS`.
+
+Clearly distinguish directly observed evidence from imported evidence, user-provided declarations, inferred relationships, and simulated test data.
+
+Do not invent operating-system or cloud-configuration visibility.
+
+## 5. Implement versioned baseline profiles
+
+Create or extend security-baseline profiles that select and configure relevant controls for a defined environment or asset category.
+
+A baseline profile should support:
+
+- Stable profile ID and version.
+- Description and intended applicability.
+- Included controls and required control versions.
+- Configurable parameters with strict schemas.
+- Approved exceptions.
+- Effective dates.
+- Owner and reviewer references, where supported.
+- Change history and approval state.
+- Baseline activation and retirement.
+
+Support practical initial profiles based on capabilities already present in the platform, such as a general external-exposure baseline or a defensive web-application assessment baseline.
+
+Do not silently apply a new baseline to historical assessments. Each evaluation must record the exact profile and control versions used.
+
+Treat baseline changes as controlled policy changes, not as ordinary finding updates.
+
+## 6. Build configuration-drift detection
+
+Compare new observations and compliance results against a recorded, trusted prior state.
+
+Detect meaningful changes such as:
+
+- A previously passing control becomes failing.
+- A control becomes unknown because required evidence disappears.
+- A new applicable control is introduced by a baseline revision.
+- An asset becomes newly exposed or materially changes state.
+- An approved exception expires or is revoked.
+- Evidence freshness exceeds an explicitly configured threshold.
+- A previously failed control passes after independently verified remediation.
+
+Preserve both the previous and new states, timestamps, source evidence, and reason for the change.
+
+Distinguish actual configuration drift from evidence drift. For example, a missing observation should not automatically be described as proof that a configuration changed.
+
+Make drift detection idempotent so repeated ingestion of identical evidence does not create unlimited duplicate events.
+
+Integrate with existing event and alerting services if present. Do not create a separate notification engine unnecessarily.
+
+## 7. Implement controlled exceptions and compensating controls
+
+Support documented, time-bounded exceptions where justified by the existing governance model.
+
+Each exception should include, where appropriate:
+
+- The affected control and asset scope.
+- Business or technical justification.
+- Risk assessment.
+- Compensating controls.
+- Requester and authorized reviewer.
+- Creation and expiry timestamps.
+- Approval and revocation history.
+- Review schedule.
+- Related evidence and audit references.
+
+Enforce server-side authorization. The requester must not automatically approve their own exception when the existing separation-of-duties policy prohibits it.
+
+Expired or revoked exceptions must stop influencing new evaluations. Historical evaluations must retain the exception state that was valid at their evaluation time.
+
+An exception must not erase a finding, falsify evidence, change an observed result, or automatically weaken assessment scope.
+
+If exception governance does not exist, implement the smallest safe version consistent with the current authorization model.
+
+## 8. Create compliance APIs
+
+Extend existing FastAPI conventions with suitable endpoints for:
+
+- Listing and inspecting controls.
+- Listing baseline profiles and versions.
+- Creating or updating profiles through authorized workflows.
+- Evaluating a selected assessment or asset against a baseline.
+- Retrieving historical evaluation results.
+- Comparing two evaluation runs.
+- Viewing control evidence references.
+- Inspecting configuration-drift events.
+- Requesting, approving, rejecting, expiring, or revoking exceptions where implemented.
+- Viewing evaluation-job status.
+
+Apply authentication, RBAC, object-level authorization, input validation, workspace isolation where applicable, bounded pagination, and consistent error responses.
+
+Never rely on frontend-only authorization.
+
+Validate control IDs, profile versions, parameters, asset references, and exception transitions on the server.
+
+Keep historical results immutable except for explicitly documented metadata operations. Do not silently recompute old results under new control definitions.
+
+Update OpenAPI documentation and API tests.
+
+## 9. Integrate compliance into the dashboard
+
+Extend the existing frontend rather than creating an unrelated application.
+
+Provide:
+
+- Overall evaluation summaries with transparent denominators.
+- Pass, fail, partial, unknown, not-applicable, and error counts.
+- Baseline profile and version selection.
+- Asset-level and control-level views.
+- Evidence-backed control details.
+- Missing-evidence indicators.
+- Drift history and change explanations.
+- Exception status and expiry.
+- Historical evaluation comparisons.
+- Links to related findings, remediation, and independent retests.
+- Clear coverage and evaluation-freshness indicators.
+
+Do not present a single percentage as proof of compliance. If a percentage is displayed, explain its denominator, treatment of unknown results, and applicability rules.
+
+Clearly separate security posture trends from formal certification status.
+
+Support accessible navigation, keyboard interaction, responsive layouts, and useful loading, empty, and failure states.
+
+Do not generate fake compliance data to populate charts or make the dashboard appear complete.
+
+## 10. Add controlled scheduling and reassessment
+
+If the existing platform supports durable background jobs or continuous monitoring, integrate baseline evaluations with those mechanisms.
+
+Requirements:
+
+- Persist evaluation requests and execution status.
+- Make repeated scheduling and event processing idempotent.
+- Prevent uncontrolled overlapping evaluations.
+- Bound workload, retries, and execution time.
+- Re-evaluate controls when relevant evidence changes.
+- Record the exact evidence snapshot and control versions used.
+- Recover pending work safely after restart.
+- Report failed evaluations explicitly.
+- Avoid generating a new alert for every unchanged evaluation.
+- Preserve existing scope authorization and approval requirements.
+
+Do not introduce fragile in-memory scheduling for work that must survive a process restart.
+
+Do not automatically trigger disruptive scans or remediation as a side effect of a compliance evaluation.
+
+## 11. Preserve audit integrity and report integration
+
+Integrate compliance results with the existing evidence, audit, and reporting architecture.
+
+Record significant actions such as:
+
+- Baseline creation and revision.
+- Profile activation and retirement.
+- Evaluation requests and results.
+- Drift detection.
+- Exception requests, approvals, and revocations.
+- Privileged changes to control applicability or evidence mappings.
+
+Reuse existing cryptographic audit and provenance mechanisms where present.
+
+Ensure that compliance reports include control versions, baseline versions, evidence references, evaluation timestamps, unknown results, exceptions, and limitations.
+
+Do not rewrite historical records to make current compliance appear better than it was at the time.
+
+## 12. Test security and correctness thoroughly
+
+Add tests covering at least:
+
+1. Valid and invalid control definitions.
+2. Baseline versioning and historical reproducibility.
+3. `PASS` only when the required evidence is sufficient.
+4. Missing evidence produces an appropriate unknown result.
+5. Partial evidence does not become a pass.
+6. Evaluation errors are preserved and visible.
+7. Not-applicable decisions require valid applicability rules.
+8. Evidence references cannot cross unauthorized boundaries.
+9. Conflicting evidence is preserved and handled consistently.
+10. Identical evaluation inputs produce deterministic results.
+11. Baseline changes do not silently rewrite historical evaluations.
+12. Drift detection distinguishes configuration changes from missing evidence.
+13. Repeated identical observations do not create duplicate drift events.
+14. Expired and revoked exceptions no longer affect new evaluations.
+15. Unauthorized or self-approved exceptions are rejected when policy prohibits them.
+16. Concurrent evaluations and profile updates preserve consistency.
+17. Evaluation jobs survive restart when the existing worker architecture supports it.
+18. API authorization and workspace isolation are enforced.
+19. Frontend counts and percentages accurately reflect their underlying data.
+20. Compliance reports expose coverage gaps and evaluation limitations.
+
+Use isolated test databases and deterministic fixtures. Do not perform real external scans or make uncontrolled network calls in tests.
+
+Run relevant backend tests, frontend tests, type checks, and production builds. Run the full regression suite where practical, and distinguish pre-existing failures from new regressions.
+
+## 13. Documentation and operational readiness
+
+Document:
+
+- Control schema and versioning.
+- Baseline profiles and their intended scope.
+- Evidence mappings and their limitations.
+- Evaluation states and decision rules.
+- Drift-detection semantics.
+- Exception approval and expiry rules.
+- API endpoints and permissions.
+- Historical reproducibility.
+- Scheduling and recovery behavior.
+- Framework coverage and known gaps.
+- Operational troubleshooting.
+
+Do not claim compliance with a framework, regulation, or certification unless the implemented coverage and evidence support that precise claim.
+
+## 14. Acceptance criteria
+
+This task is complete only when:
+
+- Controls and baselines are versioned.
+- Evaluations use real persisted evidence.
+- Insufficient evidence never silently becomes a pass.
+- Historical results can be interpreted using their original control and baseline versions.
+- Drift is detected without confusing missing evidence with proven configuration changes.
+- Exceptions are authorized, time-bounded, and auditable.
+- API and frontend access controls are enforced.
+- Compliance summaries accurately represent coverage and uncertainty.
+- Relevant tests and builds have been executed.
+- Documentation matches actual behavior.
+
+## 15. Final report
+
+Provide an evidence-based completion report containing:
+
+1. Actual files created and modified.
+2. Existing functionality reused.
+3. Implemented controls, profiles, evaluation rules, and drift logic.
+4. API endpoints and frontend changes.
+5. Database migrations, if any.
+6. Authorization and audit protections.
+7. Exact test commands, pass/fail/skip counts, and exit codes.
+8. Frontend type-check and production-build results.
+9. Known limitations and incomplete requirements.
+10. Git status and commit information, if a commit was actually created.
+
+Never fabricate framework coverage, compliance results, test outcomes, or implementation status.
+
+**Start by inspecting `D:\alt`. Implement the highest-value compatible solution end to end, preserve unrelated changes, and do not weaken existing authorization, assessment-scope, evidence-integrity, or human-approval controls.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:52:24+05:30.
+</ADDITIONAL_METADATA>

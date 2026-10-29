@@ -103,6 +103,12 @@ import type {
   AssessmentReportManifest,
   ReportCoverageSummary,
   BundleVerificationResult,
+  ComplianceControl,
+  BaselineProfile,
+  ComplianceEvaluationRun,
+  ComplianceDriftEvent,
+  ComplianceException,
+  ComplianceComparison,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1764,6 +1770,118 @@ async listUsers(): Promise<User[]> {
     return this.request<MaintenanceWindowResponse>(`/alerts/maintenance-windows?project_id=${encodeURIComponent(projectId)}`, {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 33: Continuous Compliance Intelligence, Security Baselines & Drift
+  // ---------------------------------------------------------------------------
+  async getComplianceControls(category?: string, framework?: string): Promise<ComplianceControl[]> {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (framework) params.append('framework', framework);
+    const q = params.toString() ? `?${params.toString()}` : '';
+    return this.request<ComplianceControl[]>(`/compliance/controls${q}`);
+  }
+
+  async getComplianceControl(controlId: string, version?: string): Promise<ComplianceControl> {
+    const q = version ? `?version=${encodeURIComponent(version)}` : '';
+    return this.request<ComplianceControl>(`/compliance/controls/${encodeURIComponent(controlId)}${q}`);
+  }
+
+  async createComplianceControl(payload: Partial<ComplianceControl>): Promise<ComplianceControl> {
+    return this.request<ComplianceControl>('/compliance/controls', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getProjectBaselineProfiles(projectId: string): Promise<BaselineProfile[]> {
+    return this.request<BaselineProfile[]>(`/projects/${encodeURIComponent(projectId)}/compliance/baselines`);
+  }
+
+  async getProjectBaselineProfile(projectId: string, profileId: string): Promise<BaselineProfile> {
+    return this.request<BaselineProfile>(`/projects/${encodeURIComponent(projectId)}/compliance/baselines/${encodeURIComponent(profileId)}`);
+  }
+
+  async createProjectBaselineProfile(projectId: string, payload: Partial<BaselineProfile>): Promise<BaselineProfile> {
+    return this.request<BaselineProfile>(`/projects/${encodeURIComponent(projectId)}/compliance/baselines`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateProjectBaselineProfile(projectId: string, profileId: string, payload: Partial<BaselineProfile>): Promise<BaselineProfile> {
+    return this.request<BaselineProfile>(`/projects/${encodeURIComponent(projectId)}/compliance/baselines/${encodeURIComponent(profileId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async evaluateComplianceBaseline(
+    projectId: string,
+    payload: { baseline_profile_id: string; assessment_id?: string; asset_ids?: string[] }
+  ): Promise<ComplianceEvaluationRun> {
+    return this.request<ComplianceEvaluationRun>(`/projects/${encodeURIComponent(projectId)}/compliance/evaluate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getComplianceEvaluations(projectId: string, baselineProfileId?: string, limit: number = 20): Promise<ComplianceEvaluationRun[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (baselineProfileId) params.append('baseline_profile_id', baselineProfileId);
+    return this.request<ComplianceEvaluationRun[]>(`/projects/${encodeURIComponent(projectId)}/compliance/evaluations?${params.toString()}`);
+  }
+
+  async getComplianceEvaluation(projectId: string, runId: string): Promise<ComplianceEvaluationRun> {
+    return this.request<ComplianceEvaluationRun>(`/projects/${encodeURIComponent(projectId)}/compliance/evaluations/${encodeURIComponent(runId)}`);
+  }
+
+  async compareComplianceEvaluations(projectId: string, runA: string, runB: string): Promise<ComplianceComparison> {
+    return this.request<ComplianceComparison>(`/projects/${encodeURIComponent(projectId)}/compliance/compare?run_a=${encodeURIComponent(runA)}&run_b=${encodeURIComponent(runB)}`);
+  }
+
+  async getComplianceDriftEvents(projectId: string, controlId?: string, driftType?: string, limit: number = 50): Promise<ComplianceDriftEvent[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (controlId) params.append('control_id', controlId);
+    if (driftType) params.append('drift_type', driftType);
+    return this.request<ComplianceDriftEvent[]>(`/projects/${encodeURIComponent(projectId)}/compliance/drift?${params.toString()}`);
+  }
+
+  async getComplianceExceptions(projectId: string, controlId?: string, status?: string): Promise<ComplianceException[]> {
+    const params = new URLSearchParams();
+    if (controlId) params.append('control_id', controlId);
+    if (status) params.append('status', status);
+    const q = params.toString() ? `?${params.toString()}` : '';
+    return this.request<ComplianceException[]>(`/projects/${encodeURIComponent(projectId)}/compliance/exceptions${q}`);
+  }
+
+  async requestComplianceException(
+    projectId: string,
+    payload: { control_id: string; justification: string; risk_assessment: string; compensating_controls: string; expires_at: string; asset_id?: string }
+  ): Promise<ComplianceException> {
+    return this.request<ComplianceException>(`/projects/${encodeURIComponent(projectId)}/compliance/exceptions`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async reviewComplianceException(
+    projectId: string,
+    exceptionId: string,
+    payload: { approved: boolean; review_notes?: string }
+  ): Promise<ComplianceException> {
+    return this.request<ComplianceException>(`/projects/${encodeURIComponent(projectId)}/compliance/exceptions/${encodeURIComponent(exceptionId)}/review`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async revokeComplianceException(projectId: string, exceptionId: string, notes?: string): Promise<ComplianceException> {
+    const q = notes ? `?notes=${encodeURIComponent(notes)}` : '';
+    return this.request<ComplianceException>(`/projects/${encodeURIComponent(projectId)}/compliance/exceptions/${encodeURIComponent(exceptionId)}/revoke${q}`, {
+      method: 'POST',
     });
   }
 }

@@ -30,6 +30,7 @@ import { SecurityControlVerificationView } from './views/SecurityControlVerifica
 import { DeploymentGovernanceView } from './views/DeploymentGovernanceView';
 import { EvidenceLifecycleGovernanceView } from './views/EvidenceLifecycleGovernanceView';
 import { AlertCenterView } from './views/AlertCenterView';
+import { ComplianceGovernanceView } from './views/ComplianceGovernanceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -428,6 +429,10 @@ export const App: React.FC = () => {
           )}
           {activeTab === 'alerts' && (
             <AlertCenterView projectId={activeProject?.id || 'default'} />
+          )}
+
+          {activeTab === 'compliance' && (
+            <ComplianceGovernanceView />
           )}
         </main>
       </div>

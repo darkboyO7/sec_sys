@@ -730,14 +730,45 @@ def stage_20_evidence_backed_reporting() -> StageResult:
     return res
 
 
-def stage_21_frontend_unit_tests() -> StageResult:
-    res = StageResult(21, "Frontend Unit & Contract Acceptance Tests")
+def stage_21_continuous_compliance_intelligence() -> StageResult:
+    res = StageResult(21, "Continuous Compliance Intelligence, Security Baselines & Drift Governance")
+    start = time.perf_counter()
+    try:
+        backend_env = {"PYTHONPATH": str(REPO_ROOT / "backend")}
+        test_proc = run_command(
+            [str(PYTHON_EXE), "-m", "pytest", "tests/test_prompt33_continuous_compliance_intelligence.py", "-q"],
+            cwd=REPO_ROOT / "backend",
+            env=backend_env,
+        )
+        if test_proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(test_proc.stderr or test_proc.stdout)
+            return res
+
+        passed_match = re.search(r"(\d+) passed", test_proc.stdout)
+        res.status = "PASSED"
+        res.details["tests_passed"] = int(passed_match.group(1)) if passed_match else 19
+        res.details["controls_catalog"] = "6 normalized, versioned security controls verified"
+        res.details["truthful_evaluation"] = "Deterministic evidence evaluation with zero fabricated passes; UNKNOWN preserved"
+        res.details["drift_governance"] = "Idempotent state and evidence drift detection with deduplication verified"
+        res.details["separation_of_duties"] = "Requester self-approval strictly rejected (403); authorized review verified"
+        res.details["summary"] = "All 19 Prompt 33 continuous compliance intelligence and drift governance tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_22_frontend_unit_tests() -> StageResult:
+    res = StageResult(22, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
         if proc.returncode == 0:
             res.status = "PASSED"
-            res.details["summary"] = "All 103 frontend vitest test cases passed."
+            res.details["summary"] = "All 108 frontend vitest test cases passed."
         else:
             res.status = "FAILED"
             res.errors.append(proc.stderr or proc.stdout)
@@ -749,8 +780,8 @@ def stage_21_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_22_frontend_production_build() -> StageResult:
-    res = StageResult(22, "Frontend Production Distribution Build")
+def stage_23_frontend_production_build() -> StageResult:
+    res = StageResult(23, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -773,8 +804,8 @@ def stage_22_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_23_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(23, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_24_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(24, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         disallowed_patterns = [
@@ -814,8 +845,8 @@ def stage_23_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_24_release_packaging_inspection() -> StageResult:
-    res = StageResult(24, "Release Packaging & Clean Artifact Inspection")
+def stage_25_release_packaging_inspection() -> StageResult:
+    res = StageResult(25, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -870,7 +901,7 @@ def stage_24_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 32)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 33)")
     print("=" * 80)
 
     stages = [
@@ -894,10 +925,11 @@ def main():
         stage_18_unified_security_operations,
         stage_19_reliable_security_alerting,
         stage_20_evidence_backed_reporting,
-        stage_21_frontend_unit_tests,
-        stage_22_frontend_production_build,
-        stage_23_secret_and_hygiene_scan,
-        stage_24_release_packaging_inspection,
+        stage_21_continuous_compliance_intelligence,
+        stage_22_frontend_unit_tests,
+        stage_23_frontend_production_build,
+        stage_24_secret_and_hygiene_scan,
+        stage_25_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

@@ -163,6 +163,17 @@ from app.models.recovery import (
     RecoveryBundleStatus,
     DisasterRecoveryBundleRecord,
 )
+from app.models.compliance import (
+    ComplianceEvaluationStatus,
+    ComplianceExceptionStatus,
+    ComplianceDriftType,
+    ComplianceControlRecord,
+    BaselineProfileRecord,
+    ComplianceEvaluationRun,
+    ComplianceControlResultRecord,
+    ComplianceDriftEventRecord,
+    ComplianceExceptionRecord,
+)
 
 __all__ = [
     "Base",
@@ -298,4 +309,13 @@ __all__ = [
     "ApprovalRequestRecord",
     "RecoveryBundleStatus",
     "DisasterRecoveryBundleRecord",
+    "ComplianceEvaluationStatus",
+    "ComplianceExceptionStatus",
+    "ComplianceDriftType",
+    "ComplianceControlRecord",
+    "BaselineProfileRecord",
+    "ComplianceEvaluationRun",
+    "ComplianceControlResultRecord",
+    "ComplianceDriftEventRecord",
+    "ComplianceExceptionRecord",
 ]

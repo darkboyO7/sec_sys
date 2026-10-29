@@ -30,6 +30,7 @@ import {
 
 export type NavigationTab =
   | 'overview'
+  | 'compliance'
   | 'governance'
   | 'recovery'
   | 'supply-chain'
@@ -141,6 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       category: 'COMPLIANCE & TELEMETRY',
       items: [
+        { id: 'compliance', label: 'Continuous Compliance', icon: ShieldCheck },
         { id: 'reports', label: 'Reports & Export', icon: FileSpreadsheet },
         { id: 'integrations', label: 'Integrations & Feeds', icon: Layers },
         { id: 'audit', label: 'Audit Ledger', icon: FileText, badge: auditCount > 0 ? auditCount : undefined },
