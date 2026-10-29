@@ -113,6 +113,86 @@ class AssessmentExecutionEngine:
             db.refresh(job)
 
         # ----------------------------------------------------------------------
+        # CHECK 0: Tenant & Creator Authorization Validity at Execution Boundary
+        # ----------------------------------------------------------------------
+        from app.models.project import Project, ProjectMember
+        from app.models.user import User, SystemRole
+
+        project = db.query(Project).filter(Project.id == job.project_id).first()
+        if not project or not project.is_active:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.REJECTED,
+                error_message="Preflight tenant failure: Project workspace is inactive, archived, or does not exist.",
+                failure_category="WORKSPACE_INACTIVE",
+                now=now,
+            )
+            db.commit()
+            AuditService.record_event(
+                db=db,
+                action="ASSESSMENT_PREFLIGHT_DENIED_WORKSPACE",
+                target_type="assessment_job",
+                target_id=job.id,
+                project_id=job.project_id,
+                actor_id=job.created_by_id,
+                outcome="DENIED",
+                ip_address=client_ip,
+                details={"failure_category": "WORKSPACE_INACTIVE"},
+            )
+            return job
+
+        creator = db.query(User).filter(User.id == job.created_by_id).first()
+        if not creator or not creator.is_active:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.REJECTED,
+                error_message="Preflight authorization failure: Job creator account is deactivated or deleted.",
+                failure_category="CREATOR_ACCOUNT_INACTIVE",
+                now=now,
+            )
+            db.commit()
+            AuditService.record_event(
+                db=db,
+                action="ASSESSMENT_PREFLIGHT_DENIED_CREATOR",
+                target_type="assessment_job",
+                target_id=job.id,
+                project_id=job.project_id,
+                actor_id=job.created_by_id,
+                outcome="DENIED",
+                ip_address=client_ip,
+                details={"failure_category": "CREATOR_ACCOUNT_INACTIVE"},
+            )
+            return job
+
+        if creator.system_role != SystemRole.ADMIN:
+            membership = (
+                db.query(ProjectMember)
+                .filter(ProjectMember.project_id == job.project_id, ProjectMember.user_id == job.created_by_id)
+                .first()
+            )
+            if not membership:
+                AssessmentStateMachine.transition(
+                    job=job,
+                    new_status=AssessmentStatus.REJECTED,
+                    error_message="Preflight authorization failure: Job creator project membership was revoked.",
+                    failure_category="CREATOR_MEMBERSHIP_REVOKED",
+                    now=now,
+                )
+                db.commit()
+                AuditService.record_event(
+                    db=db,
+                    action="ASSESSMENT_PREFLIGHT_DENIED_MEMBERSHIP_REVOKED",
+                    target_type="assessment_job",
+                    target_id=job.id,
+                    project_id=job.project_id,
+                    actor_id=job.created_by_id,
+                    outcome="DENIED",
+                    ip_address=client_ip,
+                    details={"failure_category": "CREATOR_MEMBERSHIP_REVOKED"},
+                )
+                return job
+
+        # ----------------------------------------------------------------------
         # CHECK 1: Scope & Authorization Re-validation at Execution Boundary
         # ----------------------------------------------------------------------
         scope_eval = ScopeEngine.validate_target_in_scope(

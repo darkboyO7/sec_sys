@@ -16,21 +16,31 @@ import {
   Bot,
   Scale,
   Shield,
+  ShieldCheck,
   Layers,
   Settings,
   Clock,
   ChevronLeft,
   ChevronRight,
+  Database,
+  Boxes,
+  Gauge,
 } from 'lucide-react';
 
 export type NavigationTab =
   | 'overview'
+  | 'governance'
+  | 'recovery'
+  | 'supply-chain'
+  | 'performance'
   | 'scopes'
   | 'orchestration'
   | 'assessments'
   | 'monitoring'
   | 'findings'
   | 'assets'
+  | 'drift'
+  | 'knowledge'
   | 'graph'
   | 'risk'
   | 'verification'
@@ -39,6 +49,7 @@ export type NavigationTab =
   | 'regression'
   | 'ai-analyst'
   | 'learning'
+  | 'quality'
   | 'adaptive-defense'
   | 'audit'
   | 'health'
@@ -85,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       category: 'CORE & GOVERNANCE',
       items: [
         { id: 'overview', label: 'Mission Overview', icon: LayoutDashboard },
+        { id: 'governance', label: 'Governance & SoD', icon: ShieldCheck },
         { id: 'scopes', label: 'Scope & Targets', icon: Target, badge: targetCount > 0 ? targetCount : undefined },
         { id: 'settings', label: 'Team & Settings', icon: Settings },
       ],
@@ -93,6 +105,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       category: 'DISCOVERY & GRAPH',
       items: [
         { id: 'assets', label: 'Asset Inventory', icon: Server, badge: assetCount > 0 ? assetCount : undefined },
+        { id: 'drift', label: 'Exposure Drift', icon: Activity },
+        { id: 'knowledge', label: 'Knowledge Integrity', icon: Shield },
         { id: 'graph', label: 'Knowledge Graph', icon: Network },
         { id: 'risk', label: 'Risk & Attack Paths', icon: Flame },
       ],
@@ -110,6 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       category: 'DEFENSIVE INTELLIGENCE',
       items: [
+        { id: 'quality', label: 'Detection Quality', icon: Activity },
         { id: 'ai-analyst', label: 'AI Security Analyst', icon: Bot },
         { id: 'learning', label: 'Model Governance', icon: Scale },
         { id: 'regression', label: 'Regression Alerts', icon: AlertTriangle },
@@ -124,6 +139,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'integrations', label: 'Integrations & Feeds', icon: Layers },
         { id: 'audit', label: 'Audit Ledger', icon: FileText, badge: auditCount > 0 ? auditCount : undefined },
         { id: 'health', label: 'Control Plane Health', icon: Activity },
+        { id: 'recovery', label: 'Disaster Recovery', icon: Database },
+        { id: 'supply-chain', label: 'Supply Chain & SBOM', icon: Boxes },
+        { id: 'performance', label: 'Performance & Scaling', icon: Gauge },
       ],
     },
   ];

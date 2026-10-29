@@ -1,5 +1,17 @@
 import enum
-from sqlalchemy import Column, String, Float, ForeignKey, Enum, DateTime, JSON, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    String,
+    Float,
+    Boolean,
+    ForeignKey,
+    Enum,
+    DateTime,
+    JSON,
+    Text,
+    UniqueConstraint,
+    Index,
+)
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -61,12 +73,33 @@ class RelationshipType(str, enum.Enum):
     VERIFIED_BY = "VERIFIED_BY"
 
 
+class EpistemicStatus(str, enum.Enum):
+    """
+    Formal epistemic status categorization for nodes, relationships, and derived security knowledge (Prompt 21).
+    Distinguishes observed facts from hypotheses, derived conclusions, stale records, and contradictions.
+    """
+    OBSERVED_FACT = "OBSERVED_FACT"          # Directly supported by a recorded empirical observation
+    CORROBORATED_FACT = "CORROBORATED_FACT"  # Supported by >= 2 independent, compatible sources
+    DERIVED_CONCLUSION = "DERIVED_CONCLUSION"# Computed from explicitly identified source records & rules
+    HYPOTHESIS = "HYPOTHESIS"                # Plausible but unverified (e.g. inferred service or CVE link)
+    UNKNOWN = "UNKNOWN"                      # Insufficient information to reach a conclusion
+    CONTRADICTED = "CONTRADICTED"            # Relevant evidence supports incompatible interpretations
+    STALE = "STALE"                          # Freshness requirements are no longer met
+    INVALIDATED = "INVALIDATED"              # Supporting assumptions or prerequisite evidence are no longer valid
+
+
 class RelationshipStatus(str, enum.Enum):
     VERIFIED = "VERIFIED"
     INFERRED = "INFERRED"
     HYPOTHETICAL = "HYPOTHETICAL"
     STALE = "STALE"
     SUPERSEDED = "SUPERSEDED"
+    OBSERVED_FACT = "OBSERVED_FACT"
+    CORROBORATED_FACT = "CORROBORATED_FACT"
+    DERIVED_CONCLUSION = "DERIVED_CONCLUSION"
+    CONTRADICTED = "CONTRADICTED"
+    INVALIDATED = "INVALIDATED"
+    UNKNOWN = "UNKNOWN"
 
 
 class GraphNode(Base, TimestampMixin):
@@ -88,7 +121,18 @@ class GraphNode(Base, TimestampMixin):
     entity_id = Column(String(36), nullable=True, index=True)
     entity_type = Column(String(100), nullable=True)
     properties = Column(JSON, default=dict, nullable=False)
-    epistemic_status = Column(String(20), default="VERIFIED", nullable=False)
+    epistemic_status = Column(String(30), default=EpistemicStatus.OBSERVED_FACT.value, nullable=False)
+
+    # Prompt 21 Knowledge Integrity & Provenance Fields
+    is_authoritative = Column(Boolean, default=True, nullable=False)
+    is_simulated = Column(Boolean, default=False, nullable=False)
+    provenance = Column(String(255), default="AUTOMATED_INGESTION", nullable=False)
+    evidence_reference = Column(String(255), nullable=True)
+    derivation_rule = Column(String(100), nullable=True)
+    input_sources = Column(JSON, default=list, nullable=False)
+    invalidated_at = Column(DateTime(timezone=True), nullable=True)
+    invalidation_reason = Column(Text, nullable=True)
+    contradiction_notes = Column(Text, nullable=True)
 
     # Relationships
     project = relationship("Project")
@@ -114,6 +158,7 @@ class GraphRelationship(Base, TimestampMixin):
     __tablename__ = "graph_relationships"
     __table_args__ = (
         UniqueConstraint("project_id", "source_node_id", "target_node_id", "relationship_type", name="uq_graph_rel_project_endpoints_type"),
+        Index("ix_graph_relationships_proj_src_tgt", "project_id", "source_node_id", "target_node_id"),
     )
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
@@ -131,6 +176,17 @@ class GraphRelationship(Base, TimestampMixin):
     properties = Column(JSON, default=dict, nullable=False)
     verification_history = Column(JSON, default=list, nullable=False)
     observed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Prompt 21 Knowledge Semantics, Freshness & Epistemic Tracking
+    epistemic_status = Column(String(30), default=EpistemicStatus.OBSERVED_FACT.value, nullable=False)
+    is_authoritative = Column(Boolean, default=True, nullable=False)
+    is_simulated = Column(Boolean, default=False, nullable=False)
+    derivation_rule = Column(String(100), nullable=True)
+    input_sources = Column(JSON, default=list, nullable=False)
+    invalidated_at = Column(DateTime(timezone=True), nullable=True)
+    invalidation_reason = Column(Text, nullable=True)
+    contradiction_notes = Column(Text, nullable=True)
+    freshness_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     project = relationship("Project")

@@ -16,6 +16,8 @@ from app.schemas.decision import (
 )
 from app.services.security_decision_service import SecurityDecisionService
 from app.services.change_detection_service import ChangeDetectionService
+from app.services.governance_service import ProjectGovernanceService
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["Autonomous Security Decisions & Closed Loop"])
 
@@ -33,7 +35,8 @@ def _verify_project_access(project_id: str, current_user: User, db: Session) -> 
 
     member = db.query(ProjectMember).filter(ProjectMember.project_id == project_id, ProjectMember.user_id == current_user.id).first()
     if not member:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: User is not a member of this project.")
+        # Fail closed: Do not leak existence of unauthorized projects (404 instead of 403)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found.")
     return member
 
 
@@ -78,6 +81,38 @@ def approve_security_decision(
     if not decision:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Decision not found.")
 
+    # Separation of Duties (SoD) enforcement: Proposer cannot approve their own decision
+    policy = ProjectGovernanceService.get_or_create_policy(db, project_id)
+    if decision.created_by_id == current_user.id:
+        if policy.enforce_separation_of_duties and not policy.allow_self_approval_override:
+            AuditService.record_event(
+                db=db,
+                action="SECURITY_DECISION_APPROVE_DENIED_SOD",
+                target_type="security_decision",
+                target_id=decision.id,
+                project_id=project_id,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                outcome="DENIED",
+                details={"title": decision.title, "reason": "Separation of Duties violation: Proposer attempted self-approval."},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Separation of Duties violation: The creator of a security decision cannot approve their own decision.",
+            )
+        elif policy.allow_self_approval_override:
+            AuditService.record_event(
+                db=db,
+                action="SECURITY_DECISION_SELF_APPROVAL_OVERRIDE",
+                target_type="security_decision",
+                target_id=decision.id,
+                project_id=project_id,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                outcome="SUCCESS",
+                details={"title": decision.title, "notes": "Single-operator mode exception."},
+            )
+
     decision.status = DecisionStatus.APPROVED
     decision.approved_by_id = current_user.id
     db.commit()
@@ -94,6 +129,13 @@ def execute_security_decision(
     current_user: User = Depends(deps.get_current_user),
 ):
     member = _verify_project_access(project_id, current_user, db)
+    # Role gate: Read-only members (VIEWER, AUDITOR) cannot execute decisions
+    if member.role not in (ProjectRole.LEAD, ProjectRole.TESTER) and current_user.system_role != SystemRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation requires LEAD or TESTER role in this project.",
+        )
+
     try:
         return SecurityDecisionService.execute_decision(
             db=db,

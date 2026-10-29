@@ -3,7 +3,21 @@ import hashlib
 from typing import List, Dict, Any, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.graph import GraphNode, GraphRelationship, RelationshipStatus, RelationshipType, GraphNodeCategory
+from app.models.graph import (
+    GraphNode,
+    GraphRelationship,
+    RelationshipStatus,
+    RelationshipType,
+    GraphNodeCategory,
+    EpistemicStatus,
+)
+from app.models.scope import ScopeExclusion
+from app.models.knowledge import (
+    ExplainableAttackPathRecord,
+    AttackPathStatus,
+    KnowledgeDependencyRecord,
+)
+from app.models.base import utc_now
 from app.models.finding import VulnerabilityFinding
 from app.models.asset import Asset
 
@@ -13,6 +27,8 @@ class PathVerificationStatus(str, enum.Enum):
     MIXED_EVIDENCE = "MIXED_EVIDENCE"
     HYPOTHETICAL = "HYPOTHETICAL"
     STALE = "STALE"
+    INVALIDATED = "INVALIDATED"
+    CONTRADICTED = "CONTRADICTED"
 
 
 class AttackPathAnalysisService:
@@ -165,7 +181,7 @@ class AttackPathAnalysisService:
         # Format and categorize candidate paths
         formatted_paths: List[Dict[str, Any]] = []
         for p in discovered_paths:
-            formatted = cls._format_path(p, node_map)
+            formatted = cls._format_path(p, node_map, project_id=project_id, db=db)
             formatted_paths.append(formatted)
 
         # Status rank weight for sorting
@@ -302,46 +318,140 @@ class AttackPathAnalysisService:
         cls,
         raw_path: Tuple[List[str], List[GraphRelationship]],
         node_map: Dict[str, GraphNode],
+        project_id: Optional[str] = None,
+        db: Optional[Session] = None,
     ) -> Dict[str, Any]:
         node_ids, edges = raw_path
 
-        # 1. Classify Path Verification Status
-        statuses = [e.status for e in edges]
-        has_stale_or_superseded = any(s in (RelationshipStatus.STALE, RelationshipStatus.SUPERSEDED) for s in statuses)
-        all_verified = all(s == RelationshipStatus.VERIFIED for s in statuses)
-        all_high_conf = all(e.confidence >= 0.7 for e in edges)
+        # 1. Scope Boundary Evaluation (Prompt 21)
+        is_scope_compliant = True
+        scope_violations: List[Dict[str, Any]] = []
 
-        if has_stale_or_superseded:
+        if db and project_id:
+            exclusions = db.query(ScopeExclusion).filter(ScopeExclusion.project_id == project_id).all()
+            for nid in node_ids:
+                node = node_map.get(nid)
+                if not node:
+                    continue
+                label_lower = (node.label or "").lower()
+                for exc in exclusions:
+                    exc_val = (exc.target_value or "").lower()
+                    if exc_val and (exc_val == label_lower or exc_val in label_lower):
+                        is_scope_compliant = False
+                        scope_violations.append({
+                            "node_id": nid,
+                            "node_label": node.label,
+                            "exclusion_id": exc.id,
+                            "exclusion_value": exc.target_value,
+                            "reason": exc.reason or "Target explicitly excluded from project scope.",
+                        })
+
+        # 2. Epistemic Edge Status & Explainability
+        statuses = [e.status for e in edges]
+        epistemic_statuses = [getattr(e, "epistemic_status", e.status.value) for e in edges]
+        has_invalidated = any(s == RelationshipStatus.INVALIDATED or es == EpistemicStatus.INVALIDATED.value for s, es in zip(statuses, epistemic_statuses))
+        has_contradicted = any(s == RelationshipStatus.CONTRADICTED or es == EpistemicStatus.CONTRADICTED.value for s, es in zip(statuses, epistemic_statuses))
+        has_stale_or_superseded = any(s in (RelationshipStatus.STALE, RelationshipStatus.SUPERSEDED) or es == EpistemicStatus.STALE.value for s, es in zip(statuses, epistemic_statuses))
+        all_observed_facts = all(
+            (s == RelationshipStatus.VERIFIED or es in (EpistemicStatus.OBSERVED_FACT.value, EpistemicStatus.CORROBORATED_FACT.value))
+            and getattr(e, "is_authoritative", True)
+            for s, es, e in zip(statuses, epistemic_statuses, edges)
+        )
+        all_high_conf = all(e.confidence >= 0.8 for e in edges)
+        has_hypothetical = any(s == RelationshipStatus.HYPOTHETICAL or es == EpistemicStatus.HYPOTHESIS.value or not getattr(e, "is_authoritative", True) for s, es, e in zip(statuses, epistemic_statuses, edges))
+
+        if not is_scope_compliant:
+            path_status = PathVerificationStatus.INVALIDATED
+        elif has_invalidated:
+            path_status = PathVerificationStatus.INVALIDATED
+        elif has_contradicted:
+            path_status = PathVerificationStatus.CONTRADICTED
+        elif has_stale_or_superseded:
             path_status = PathVerificationStatus.STALE
-        elif all_verified and all_high_conf:
+        elif has_hypothetical:
+            path_status = PathVerificationStatus.HYPOTHETICAL
+        elif all_observed_facts and all_high_conf:
             path_status = PathVerificationStatus.VERIFIED
         elif all(s in (RelationshipStatus.VERIFIED, RelationshipStatus.INFERRED) for s in statuses):
             path_status = PathVerificationStatus.MIXED_EVIDENCE
         else:
             path_status = PathVerificationStatus.HYPOTHETICAL
 
-        # 2. Cumulative Confidence
+        # 3. Cumulative Confidence
         confidence_product = 1.0
         for e in edges:
             confidence_product *= max(0.1, min(1.0, e.confidence))
         cumulative_confidence = round(confidence_product, 2)
 
-        # 3. Missing Evidence Extraction
+        # 4. Detailed Step-by-Step Explainability (Prompt 21)
+        steps_explanation: List[Dict[str, Any]] = []
         missing_evidence: List[str] = []
-        for e in edges:
+
+        for idx, e in enumerate(edges):
             src = node_map.get(e.source_node_id)
             tgt = node_map.get(e.target_node_id)
             src_label = src.label if src else e.source_node_id[:8]
             tgt_label = tgt.label if tgt else e.target_node_id[:8]
+            e_status = e.status.value
+            e_epistemic = getattr(e, "epistemic_status", e_status)
+            is_auth = getattr(e, "is_authoritative", True)
+            is_sim = getattr(e, "is_simulated", False)
 
-            if e.status in (RelationshipStatus.STALE, RelationshipStatus.SUPERSEDED):
+            # Assumptions required for this step
+            assumptions = [
+                f"Assumes reachability over '{e.relationship_type.value}' is unblocked by upstream firewall/WAF.",
+                f"Assumes service on '{src_label}' remains active and listening on designated ports.",
+            ]
+            if not is_auth:
+                assumptions.append("Non-authoritative link: requires independent scanner verification before considering proven.")
+
+            # Unverified conditions
+            unverified = []
+            if e.confidence < 0.8:
+                unverified.append(f"Confidence is below threshold ({e.confidence:.2f}); path reachability not confirmed.")
+            if e_epistemic in (EpistemicStatus.HYPOTHESIS.value, RelationshipStatus.HYPOTHETICAL.value):
+                unverified.append("Edge represents a heuristic hypothesis without empirical scanner observation.")
+            if not getattr(e, "evidence_reference", None):
+                unverified.append("No cryptographic evidence reference attached to this relationship.")
+
+            # Invalidation triggers
+            invalidation_triggers = [
+                f"Closing port/service on '{src_label}' will break this traversal step.",
+                f"Network segmentation isolating '{src_label}' from '{tgt_label}' will invalidate this step.",
+            ]
+
+            step_entry = {
+                "step": idx + 1,
+                "from_node": {"id": e.source_node_id, "label": src_label, "category": src.category.value if src else "UNKNOWN"},
+                "to_node": {"id": e.target_node_id, "label": tgt_label, "category": tgt.category.value if tgt else "UNKNOWN"},
+                "edge_id": e.id,
+                "relationship_type": e.relationship_type.value,
+                "status": e_status,
+                "epistemic_status": e_epistemic,
+                "confidence": e.confidence,
+                "is_authoritative": is_auth,
+                "is_simulated": is_sim,
+                "supporting_evidence": e.evidence_reference or "None recorded",
+                "required_assumptions": assumptions,
+                "unverified_conditions": unverified,
+                "invalidation_triggers": invalidation_triggers,
+            }
+            steps_explanation.append(step_entry)
+
+            # Missing evidence text
+            if e_status in (RelationshipStatus.STALE.value, RelationshipStatus.SUPERSEDED.value):
                 missing_evidence.append(
-                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' is {e.status.value}. "
+                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' is {e_status}. "
                     f"Evidence has expired or been superseded; fresh observation is required."
                 )
-            elif e.status != RelationshipStatus.VERIFIED:
+            elif not is_auth:
                 missing_evidence.append(
-                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' is {e.status.value}. "
+                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' derived from non-authoritative AI/prose. "
+                    f"Authoritative scanner observation required."
+                )
+            elif e_status != RelationshipStatus.VERIFIED.value:
+                missing_evidence.append(
+                    f"Relationship '{src_label}' --[{e.relationship_type.value}]--> '{tgt_label}' is {e_status}. "
                     f"Direct scanner observation or credential verification required."
                 )
             elif e.confidence < 0.7:
@@ -350,15 +460,15 @@ class AttackPathAnalysisService:
                     f"Additional corroboration required to confirm reachability."
                 )
 
-        # 4. Narrative / Rationale
+        # 5. Narrative / Rationale
         labels = [node_map[nid].label if nid in node_map else nid[:8] for nid in node_ids]
         narrative = " -> ".join(labels)
 
-        # 5. Deterministic Stable Path ID
+        # 6. Deterministic Stable Path ID
         raw_sig = f"{'->'.join(node_ids)}|{':'.join(e.relationship_type.value for e in edges)}"
         path_id = hashlib.sha256(raw_sig.encode('utf-8')).hexdigest()[:16]
 
-        # 6. Risk Impact Score Calculation
+        # 7. Risk Impact Score Calculation
         target_node = node_map.get(node_ids[-1])
         target_cat = target_node.category if target_node else None
         target_base = 50.0
@@ -372,7 +482,8 @@ class AttackPathAnalysisService:
 
         ranking_rationale = (
             f"Path status '{path_status.value}' with confidence {cumulative_confidence:.2f} "
-            f"terminating at '{labels[-1]}' ({target_cat.value if target_cat else 'UNKNOWN'}) across {len(edges)} hops."
+            f"terminating at '{labels[-1]}' ({target_cat.value if target_cat else 'UNKNOWN'}) across {len(edges)} hops. "
+            f"{'Scope compliant.' if is_scope_compliant else 'Violates scope exclusions.'}"
         )
 
         # Formatted Node List
@@ -395,11 +506,117 @@ class AttackPathAnalysisService:
                 "target_node_id": e.target_node_id,
                 "relationship_type": e.relationship_type.value,
                 "status": e.status.value,
+                "epistemic_status": getattr(e, "epistemic_status", e.status.value),
                 "confidence": e.confidence,
                 "provenance": e.provenance,
+                "is_authoritative": getattr(e, "is_authoritative", True),
+                "is_simulated": getattr(e, "is_simulated", False),
             }
             for e in edges
         ]
+
+        # 8. Persist ExplainableAttackPathRecord and Knowledge Dependencies
+        if db and project_id:
+            from app.services.dependency_invalidation_service import DependencyInvalidationService
+            now = utc_now()
+            existing_rec = db.query(ExplainableAttackPathRecord).filter(
+                ExplainableAttackPathRecord.id == path_id,
+                ExplainableAttackPathRecord.project_id == project_id,
+            ).first()
+
+            status_map = {
+                PathVerificationStatus.VERIFIED: AttackPathStatus.VERIFIED,
+                PathVerificationStatus.MIXED_EVIDENCE: AttackPathStatus.PLAUSIBLE,
+                PathVerificationStatus.HYPOTHETICAL: AttackPathStatus.HYPOTHETICAL,
+                PathVerificationStatus.STALE: AttackPathStatus.STALE,
+                PathVerificationStatus.CONTRADICTED: AttackPathStatus.CONTRADICTED,
+                PathVerificationStatus.INVALIDATED: AttackPathStatus.INVALIDATED,
+            }
+            db_path_status = status_map.get(path_status, AttackPathStatus.PLAUSIBLE)
+
+            if existing_rec:
+                existing_rec.path_status = db_path_status
+                existing_rec.cumulative_confidence = cumulative_confidence
+                existing_rec.risk_impact_score = risk_impact_score
+                existing_rec.step_count = len(edges)
+                existing_rec.is_scope_compliant = is_scope_compliant
+                existing_rec.scope_violations = scope_violations
+                existing_rec.steps_explanation = steps_explanation
+                existing_rec.is_invalidated = (path_status == PathVerificationStatus.INVALIDATED)
+                existing_rec.is_stale = (path_status == PathVerificationStatus.STALE)
+                db.flush()
+            else:
+                new_rec = ExplainableAttackPathRecord(
+                    id=path_id,
+                    project_id=project_id,
+                    name=f"Attack Path: {narrative[:200]}",
+                    start_node_id=node_ids[0],
+                    target_node_id=node_ids[-1],
+                    path_status=db_path_status,
+                    cumulative_confidence=cumulative_confidence,
+                    risk_impact_score=risk_impact_score,
+                    step_count=len(edges),
+                    is_scope_compliant=is_scope_compliant,
+                    scope_violations=scope_violations,
+                    steps_explanation=steps_explanation,
+                    chokepoints=[],
+                    calculation_version="v2.1.0",
+                    input_hashes={"signature": raw_sig},
+                    is_stale=(path_status == PathVerificationStatus.STALE),
+                    is_invalidated=(path_status == PathVerificationStatus.INVALIDATED),
+                    created_at=now,
+                    updated_at=now,
+                )
+                try:
+                    with db.begin_nested():
+                        db.add(new_rec)
+                        db.flush()
+                except Exception:
+                    pass
+
+            # Register dependencies for each edge and node in this path
+            for e in edges:
+                try:
+                    DependencyInvalidationService.register_knowledge_dependency(
+                        db=db,
+                        project_id=project_id,
+                        source_entity_type="GraphRelationship",
+                        source_entity_id=e.id,
+                        dependent_entity_type="ExplainableAttackPath",
+                        dependent_entity_id=path_id,
+                        dependency_type="ATTACK_PATH_STEP",
+                    )
+                except Exception:
+                    pass
+
+            for nid in node_ids:
+                node = node_map.get(nid)
+                if node and node.entity_id and node.category == GraphNodeCategory.ASSET:
+                    try:
+                        DependencyInvalidationService.register_knowledge_dependency(
+                            db=db,
+                            project_id=project_id,
+                            source_entity_type="Asset",
+                            source_entity_id=node.entity_id,
+                            dependent_entity_type="ExplainableAttackPath",
+                            dependent_entity_id=path_id,
+                            dependency_type="TOPOLOGY_LINK",
+                        )
+                    except Exception:
+                        pass
+                elif node and node.entity_id and node.category == GraphNodeCategory.FINDING:
+                    try:
+                        DependencyInvalidationService.register_knowledge_dependency(
+                            db=db,
+                            project_id=project_id,
+                            source_entity_type="Finding",
+                            source_entity_id=node.entity_id,
+                            dependent_entity_type="ExplainableAttackPath",
+                            dependent_entity_id=path_id,
+                            dependency_type="EVIDENCE_SUPPORT",
+                        )
+                    except Exception:
+                        pass
 
         return {
             "path_id": path_id,
@@ -408,10 +625,17 @@ class AttackPathAnalysisService:
             "risk_impact_score": risk_impact_score,
             "step_count": len(edges),
             "narrative": narrative,
+            "is_scope_compliant": is_scope_compliant,
+            "scope_violations": scope_violations,
+            "steps_explanation": steps_explanation,
             "nodes": nodes_detail,
             "relationships": edges_detail,
             "missing_evidence": missing_evidence,
             "ranking_rationale": ranking_rationale,
+            "methodology_disclaimer": (
+                "Attack path analysis represents relational topology and potential exposure chains. "
+                "Adjacency does not prove exploitability or successful breach without independent empirical verification."
+            ),
         }
 
 

@@ -19,6 +19,13 @@ import { DigitalTwinView } from './views/DigitalTwinView';
 import { RegressionAlertsView } from './views/RegressionAlertsView';
 import { AIAnalystView } from './views/AIAnalystView';
 import { ModelGovernanceView } from './views/ModelGovernanceView';
+import { DetectionQualityView } from './views/DetectionQualityView';
+import { AssetExposureDriftView } from './views/AssetExposureDriftView';
+import { KnowledgeIntegrityView } from './views/KnowledgeIntegrityView';
+import { GovernanceView } from './views/GovernanceView';
+import { RecoveryDashboardView } from './views/RecoveryDashboardView';
+import { SupplyChainSecurityView } from './views/SupplyChainSecurityView';
+import { PerformanceEngineeringView } from './views/PerformanceEngineeringView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -166,6 +173,7 @@ export const App: React.FC = () => {
   const authorizedTargets = targets.filter((t) => t.authorization_status === 'AUTHORIZED');
 
   const requiresProjectTab = [
+    'governance',
     'scopes',
     'orchestration',
     'assessments',
@@ -256,6 +264,10 @@ export const App: React.FC = () => {
 
           {activeProject && (
             <>
+              {activeTab === 'governance' && (
+                <GovernanceView projectId={activeProject.id} />
+              )}
+
               {activeTab === 'scopes' && (
                 <ScopeManagementView
                   project={activeProject}
@@ -303,6 +315,14 @@ export const App: React.FC = () => {
                 />
               )}
 
+              {activeTab === 'drift' && (
+                <AssetExposureDriftView currentProject={activeProject} />
+              )}
+
+              {activeTab === 'knowledge' && (
+                <KnowledgeIntegrityView projectId={activeProject.id} />
+              )}
+
               {activeTab === 'graph' && (
                 <KnowledgeGraphView
                   currentProject={activeProject}
@@ -339,6 +359,10 @@ export const App: React.FC = () => {
 
               {activeTab === 'learning' && (
                 <ModelGovernanceView projectId={activeProject.id} />
+              )}
+
+              {activeTab === 'quality' && (
+                <DetectionQualityView projectId={activeProject.id} />
               )}
 
               {activeTab === 'adaptive-defense' && (
@@ -378,6 +402,16 @@ export const App: React.FC = () => {
               onRefresh={loadSystemDiagnostics}
               loading={loading}
             />
+          )}
+
+          {activeTab === 'recovery' && (
+            <RecoveryDashboardView />
+          )}
+          {activeTab === 'supply-chain' && (
+            <SupplyChainSecurityView />
+          )}
+          {activeTab === 'performance' && (
+            <PerformanceEngineeringView />
           )}
         </main>
       </div>

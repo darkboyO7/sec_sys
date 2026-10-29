@@ -1,0 +1,298 @@
+<USER_REQUEST>
+# Prompt 26 — Performance Engineering, Workload Isolation, and Scalable Assessment Processing
+
+Act as a senior performance engineer, Python/FastAPI architect, database specialist, and frontend performance engineer working directly in the existing VAPT System repository.
+
+## Mission
+
+Inspect and improve the real performance characteristics of the VAPT System. Establish measurable baselines, identify bottlenecks, optimize expensive paths, protect interactive operations from background workload contention, and prove improvements with repeatable tests.
+
+Do not merely add caching, more workers, or a task queue because they sound scalable. First determine what the existing implementation actually needs.
+
+**Writable project repository:** `D:\alt`
+
+**Recovery mirror:** `C:\Users\Dark_Boy_\Downloads\VAPT_System` — read-only; do not modify it.
+
+The existing application is a Windows-first defensive security platform with a Python/FastAPI backend, React/TypeScript/Vite frontend, SQLAlchemy/Alembic, and SQLite with WAL mode. Verify this stack against the current repository before making assumptions.
+
+## 1. Inspect and establish a baseline
+
+Inspect the current implementation of:
+
+- Assessment scheduling and worker execution.
+- API request handling and long-running operations.
+- Database models, relationships, indexes, migrations, and transaction boundaries.
+- Evidence ingestion, finding normalization, graph construction, risk calculations, and attack-path analysis.
+- Background learning, monitoring, retesting, and recovery jobs.
+- API pagination, filtering, serialization, and dashboard queries.
+- Frontend data fetching, polling, rendering, and large tables or graphs.
+- Logging, metrics, timeouts, retry behavior, and shutdown handling.
+- Existing tests, benchmark scripts, and development commands.
+
+Identify the most expensive or failure-prone paths from code inspection and measured behavior. Do not claim a bottleneck has been measured if no measurement was performed.
+
+Create a baseline report containing the test environment, dataset sizes, request or operation timings, database query counts where practical, memory usage where measurable, and known measurement limitations.
+
+## 2. Establish explicit performance budgets
+
+Define practical, configurable performance targets for the application's critical operations.
+
+Include, where applicable:
+
+- Lightweight API health and metadata requests.
+- Asset and finding list endpoints.
+- Paginated evidence and assessment history.
+- Dashboard summary queries.
+- Assessment job submission and status retrieval.
+- Finding normalization and graph updates.
+- Risk calculation and attack-path generation.
+- Background job completion and shutdown.
+- Frontend initial rendering and large-result interaction.
+
+Choose targets based on the existing local application and measured baseline. Do not invent a benchmark result or adopt arbitrary targets without explaining their rationale.
+
+Distinguish interactive latency from background completion time. Record percentiles such as p50, p95, and p99 when the sample size and measurement method support them.
+
+Make performance regressions visible in automated testing without making the test suite unnecessarily flaky.
+
+## 3. Optimize database access and transaction behavior
+
+Review SQLAlchemy queries and database usage for actual inefficiencies.
+
+Investigate:
+
+- Missing indexes on frequently filtered, joined, or ordered columns.
+- N+1 query patterns.
+- Repeated retrieval of identical data within a single request or job.
+- Full-table scans and unnecessarily broad queries.
+- Loading entire evidence bodies or graph structures when summaries suffice.
+- Unbounded history retrieval and missing pagination.
+- Transactions held open during slow computation or external operations.
+- Excessive commits and unnecessary write amplification.
+- SQLite WAL behavior, busy timeouts, locking, and concurrent readers/writers.
+- Inefficient serialization of ORM relationships.
+- Duplicate work caused by concurrent updates.
+
+Implement only justified improvements. Add indexes through proper Alembic migrations where needed. Ensure new migrations are compatible with the current migration chain and do not destroy existing data.
+
+Use stable pagination, deterministic ordering, and bounded query limits. Consider cursor pagination for large or frequently changing datasets if it is compatible with the existing API.
+
+Do not change SQLite to another database simply to avoid investigating the actual bottleneck. If the architecture has a genuine scaling limit, document the evidence and provide a migration path without making an unnecessary infrastructure dependency mandatory.
+
+## 4. Protect interactive API responsiveness
+
+Prevent expensive background operations from consuming all application resources.
+
+Review whether the current application properly separates:
+
+- Fast request/response operations.
+- Long-running assessments.
+- Graph and attack-path recomputation.
+- Evidence processing.
+- Scheduled monitoring and independent retesting.
+- Learning and analytics.
+- Recovery and maintenance operations.
+
+Implement an appropriate bounded execution strategy that fits the existing architecture.
+
+Requirements:
+
+1. Bound concurrent work and queued work.
+2. Define what happens when capacity is exhausted.
+3. Provide truthful job states and meaningful status responses.
+4. Support safe cancellation where the current operation can be interrupted without corrupting state.
+5. Prevent duplicate execution of jobs that must be unique.
+6. Avoid blocking the FastAPI event loop with synchronous CPU-heavy or blocking operations.
+7. Avoid creating unbounded threads, processes, tasks, or database connections.
+8. Handle worker exceptions and unexpected termination without leaving jobs permanently marked as running.
+9. Make shutdown behavior predictable, including what happens to queued and in-progress work.
+10. Preserve job ownership, authorization, scope restrictions, and audit logging.
+
+Do not introduce distributed infrastructure unless actual requirements and evidence justify it. A reliable bounded local worker design is preferable to unnecessary complexity for the current Windows-first deployment.
+
+## 5. Add workload budgets and backpressure
+
+Establish safe limits for operations that can consume disproportionate resources.
+
+Where relevant, enforce configurable bounds for:
+
+- Concurrent assessments.
+- Pending jobs.
+- Assets processed per batch.
+- Findings and evidence processed per batch.
+- Graph nodes and edges processed per operation.
+- Maximum pagination sizes.
+- Request body and upload sizes.
+- Computation time and job execution duration.
+- Retry count and retry delay.
+- Cache size and lifetime, if caching is justified.
+
+Reject or defer work clearly when configured limits are exceeded. Return appropriate API errors and actionable user messages.
+
+Ensure limits are enforced server-side and cannot be bypassed by modifying frontend requests.
+
+These controls must protect the application's own resource usage; they must not enable disruptive scanning or broaden the platform's authorized assessment scope.
+
+## 6. Make background processing reliable and idempotent
+
+Inspect the lifecycle of queued and running jobs.
+
+Implement appropriate guarantees for:
+
+- Stable job identifiers.
+- Explicit queued, running, succeeded, failed, cancelled, and recovery-required states where supported.
+- Durable state transitions.
+- Duplicate-submission prevention where duplicate work would be harmful.
+- Safe retry behavior for transient failures.
+- Idempotent processing where feasible.
+- Recovery of abandoned jobs after application restart.
+- Clear distinction between retryable and permanent failures.
+- Bounded retry policies with backoff.
+- Job progress and timestamps that reflect actual execution.
+- Audit records for significant state transitions.
+
+Do not mark a job successful merely because it was submitted or accepted by a worker.
+
+Do not blindly retry non-idempotent operations. Reconcile persisted state before retrying operations that may have partially completed.
+
+Preserve existing transactional-integrity and recovery controls.
+
+## 7. Optimize graph and evidence workloads
+
+Review the actual cost of security knowledge graph updates, evidence processing, risk scoring, and attack-path calculations.
+
+Look for opportunities to:
+
+- Process records in bounded batches.
+- Avoid recomputing unchanged graph sections.
+- Use change-aware invalidation when the current data model supports it.
+- Avoid repeatedly parsing the same immutable evidence.
+- Separate compact evidence metadata from large evidence payloads.
+- Compute dashboard summaries without loading every underlying record.
+- Avoid quadratic algorithms on large collections when a correct more efficient alternative exists.
+- Track graph recomputation time and the number of nodes and edges processed.
+- Detect unusually expensive jobs and stop them safely when their budgets are exceeded.
+
+Any optimization must preserve evidence provenance, conflict handling, certainty labels, explainability, and auditability.
+
+If incremental computation could produce stale or incorrect security results, prefer a correct bounded full recomputation and document the trade-off.
+
+## 8. Frontend responsiveness
+
+Inspect the React application for unnecessary requests, repeated rendering, and large-result bottlenecks.
+
+Where justified:
+
+- Avoid duplicate API requests caused by component lifecycle or state-management issues.
+- Prevent stale asynchronous responses from overwriting newer results.
+- Use request cancellation when supported.
+- Debounce search inputs without delaying essential security actions.
+- Use pagination or bounded result sets for large tables.
+- Use virtualization only where it measurably improves large-list performance.
+- Avoid rendering entire evidence payloads or graphs when only summaries are needed.
+- Keep loading, empty, error, stale-data, and retry states distinguishable.
+- Avoid aggressive polling when no job state change is expected.
+- Prevent overlapping polling requests and clean up polling when views are no longer active.
+- Preserve keyboard navigation, accessibility, and useful error messages.
+
+Do not sacrifice clarity or hide findings merely to make the interface appear faster.
+
+## 9. Add observability without leaking sensitive data
+
+Introduce or improve lightweight measurements for:
+
+- API request duration and error rates.
+- Slow database operations.
+- Queue depth and job wait time.
+- Job execution duration and failure rate.
+- Retry counts and abandoned jobs.
+- Evidence and graph processing volumes.
+- Resource-budget rejections.
+- Recovery activity and failed recovery attempts.
+
+Use structured logging and bounded metric labels. Avoid labels that grow without limit, such as arbitrary asset IDs, request IDs, or user-controlled strings.
+
+Never log credentials, session tokens, private keys, raw evidence payloads, or unnecessary sensitive assessment data.
+
+If metrics endpoints exist, protect operationally sensitive information according to the existing authorization model.
+
+Provide a useful local diagnostic summary without making an external monitoring service mandatory.
+
+## 10. Build a repeatable performance test harness
+
+Create deterministic performance tests or benchmark scripts using synthetic data.
+
+Cover realistic small, medium, and larger datasets appropriate for the current machine and database architecture.
+
+Include tests for:
+
+- Paginated asset and finding queries.
+- Dashboard aggregation.
+- Evidence insertion and retrieval.
+- Graph updates and attack-path calculations.
+- Job queue saturation and backpressure.
+- Concurrent API reads while background work runs.
+- Database contention and lock handling.
+- Job restart recovery.
+- Duplicate job submissions.
+- Large frontend result sets where automated browser testing is available.
+- Graceful handling of configured resource limits.
+
+Use synthetic assets and findings. Do not run intrusive scans against real infrastructure or external targets.
+
+Record the environment, dataset sizes, warm-up policy, repetitions, and measurement method. Separate correctness tests from performance benchmarks so ordinary CI does not fail unpredictably because of machine load.
+
+Add deterministic regression tests for algorithmic complexity and bounded behavior wherever feasible.
+
+## 11. Validate improvements without compromising correctness
+
+After implementing changes:
+
+1. Run the focused unit and integration tests.
+2. Run the relevant backend regression suite.
+3. Run the frontend tests and production build.
+4. Run database migration checks and verify existing data remains readable.
+5. Exercise concurrent requests and background workloads.
+6. Test queue saturation, worker failure, restart, and shutdown behavior.
+7. Compare benchmark results with the original baseline using the same test conditions.
+8. Investigate any performance improvement that comes with missing results, stale state, weaker validation, or reduced audit coverage.
+9. Confirm that existing authentication, authorization, tenant isolation if implemented, assessment scope restrictions, evidence integrity, and approval gates still work.
+10. Verify that no unrelated source changes were overwritten.
+
+Report improvements with measured before-and-after values where reliable measurements exist. If a result is inconclusive, say so.
+
+## 12. Implementation and delivery rules
+
+- Work only inside `D:\alt`.
+- Never modify the recovery mirror.
+- Preserve user changes and unrelated work.
+- Do not reset Git, delete data, or run destructive cleanup.
+- Do not invent successful test results or benchmark measurements.
+- Do not weaken security controls to achieve performance targets.
+- Do not add caching without correct invalidation and freshness behavior.
+- Do not introduce mandatory cloud services or unnecessary infrastructure.
+- Keep the current Windows-first workflow usable.
+- Update documentation and configuration examples for any new limits or commands.
+
+Start by inspecting the actual repository, then implement the highest-impact verified improvements. Do not stop after presenting a plan.
+
+## 13. Final evidence report
+
+Provide:
+
+1. The baseline findings and measurement method.
+2. The major bottlenecks confirmed by evidence.
+3. The files changed and the reason for each significant change.
+4. Database indexes or query improvements implemented.
+5. Worker, queue, backpressure, and resource-budget changes.
+6. Before-and-after performance measurements, including dataset sizes and environment.
+7. Backend and frontend test results with exact pass, fail, and skipped counts.
+8. Migration and persistence validation results.
+9. Remaining bottlenecks, known limits, and unverified claims.
+10. Confirmation that `D:\alt` was the only project location modified and that the recovery mirror remained untouched.
+
+**Success means the application is measurably more responsive and predictable under realistic workloads without losing security findings, corrupting state, weakening controls, or claiming scalability that has not been demonstrated.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:38:03+05:30.
+</ADDITIONAL_METADATA>

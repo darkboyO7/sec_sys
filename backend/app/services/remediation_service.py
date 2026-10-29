@@ -515,6 +515,24 @@ class RemediationPrioritizationService:
         if not (is_lead or is_admin):
             raise PermissionError("Only Project LEAD or System ADMIN can authorize remediation changes.")
 
+        # Separation of Duties check: Authorizer must be distinct from the reviewer who initially approved the recommendation
+        from app.services.governance_service import ProjectGovernanceService
+        policy = ProjectGovernanceService.get_or_create_policy(db, project_id)
+        if policy.enforce_separation_of_duties and not policy.allow_self_approval_override:
+            if rec.reviewed_by_id and authorizer.id == rec.reviewed_by_id:
+                AuditService.record_event(
+                    db=db,
+                    action="REMEDIATION_AUTHORIZE_CHANGE_DENIED_SOD",
+                    target_type="remediation_recommendation",
+                    target_id=rec.id,
+                    project_id=project_id,
+                    actor_id=authorizer.id,
+                    actor_email=authorizer.email,
+                    outcome="DENIED",
+                    details={"reason": "Separation of Duties violation: The reviewer who approved the recommendation cannot unilaterally authorize the change."},
+                )
+                raise PermissionError("Separation of Duties violation: An independent Project LEAD or Administrator must authorize the change implementation.")
+
         ticket = (change_ticket_ref or "").strip()
         if len(ticket) < 3:
             raise ValueError("Valid change ticket reference is mandatory (minimum 3 characters).")

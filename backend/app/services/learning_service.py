@@ -5,7 +5,11 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
-from app.models.finding import VulnerabilityFinding, FindingLifecycleStatus
+from app.models.finding import (
+    VulnerabilityFinding,
+    FindingLifecycleStatus,
+    FindingValidationStatus,
+)
 from app.models.verification import RemediationVerification, VerificationOutcome
 from app.models.learning import (
     DatasetSplit,
@@ -81,14 +85,31 @@ class ModelGovernanceService:
         verifications = db.query(RemediationVerification).filter(RemediationVerification.project_id == project_id).all()
 
         candidate_records = []
+        seen_fingerprints = set()
+
         for f in findings:
-            # Unverified findings (DETECTED, NEEDS_VALIDATION, INCONCLUSIVE) cannot be used as confirmed learning labels
+            # Learning Governance Guardrail (Prompt 19):
+            # Only findings with confirmed epistemic proof can serve as ground truth labels.
+            # Strictly exclude UNABLE_TO_VERIFY, INCONCLUSIVE, EVIDENCE_PENDING, and unverified DETECTED findings.
+            if f.validation_status in (
+                FindingValidationStatus.INCONCLUSIVE,
+                FindingValidationStatus.UNABLE_TO_VERIFY,
+                FindingValidationStatus.EVIDENCE_PENDING,
+            ):
+                continue
+
+            # Unverified findings (DETECTED, NEEDS_VALIDATION) cannot be used as confirmed learning labels
             if f.status not in (
                 FindingLifecycleStatus.CONFIRMED,
                 FindingLifecycleStatus.FALSE_POSITIVE,
                 FindingLifecycleStatus.VERIFIED_CLOSED,
             ):
                 continue
+
+            # Deduplication guardrail: avoid duplicate observations inflating training sample count
+            if f.fingerprint in seen_fingerprints:
+                continue
+            seen_fingerprints.add(f.fingerprint)
 
             features = {
                 "title_token_count": len(f.title.split()),
@@ -423,6 +444,23 @@ class ModelGovernanceService:
         clean_notes = (approval_notes or "").strip()
         if len(clean_notes) < 3:
             raise ValueError("Approval justification is required (minimum 3 characters).")
+
+        from app.services.governance_service import ProjectGovernanceService
+        policy = ProjectGovernanceService.get_or_create_policy(db, project_id)
+        if approved and policy.enforce_separation_of_duties and not policy.allow_self_approval_override:
+            if model.dataset and model.dataset.created_by_id == reviewer.id:
+                AuditService.record_event(
+                    db=db,
+                    action="GOVERNED_MODEL_APPROVE_DENIED_SOD",
+                    target_type="governed_model",
+                    target_id=model.id,
+                    project_id=project_id,
+                    actor_id=reviewer.id,
+                    actor_email=reviewer.email,
+                    outcome="DENIED",
+                    details={"reason": "Separation of Duties violation: The dataset/model creator cannot approve their own model promotion."},
+                )
+                raise PermissionError("Separation of Duties violation: An independent Project LEAD or Administrator must approve model promotion.")
 
         if approved:
             # Quality gate enforcement

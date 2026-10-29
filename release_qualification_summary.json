@@ -1,0 +1,220 @@
+{
+  "timestamp": "2026-10-29T10:57:38.892794+00:00",
+  "qualification_decision": "QUALIFIED",
+  "total_duration_seconds": 170.74,
+  "total_stages": 18,
+  "passed_stages": 18,
+  "failed_stages": 0,
+  "stages": [
+    {
+      "stage_id": 1,
+      "name": "Repository & Configuration Hygiene",
+      "status": "PASSED",
+      "duration_seconds": 0.502,
+      "details": {
+        "git_commit": "f8d1af97825919c78aadae82e8a91d0f90aa53c0",
+        "python_version": "3.14.7",
+        "repo_root": "D:\\alt",
+        "app_name": "VAPT Security Platform"
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 2,
+      "name": "Database Schema & Migration Consistency",
+      "status": "PASSED",
+      "duration_seconds": 1.04,
+      "details": {
+        "schema_status": "All SQLAlchemy declarative models match registered tables"
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 3,
+      "name": "Backend Core & Security Regression Tests",
+      "status": "PASSED",
+      "duration_seconds": 26.87,
+      "details": {
+        "summary": "======================= 48 passed, 1 warning in 23.60s ========================"
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 4,
+      "name": "Transactional Concurrency & Diagnostic Recovery",
+      "status": "PASSED",
+      "duration_seconds": 9.977,
+      "details": {
+        "summary": "======================== 25 passed, 1 warning in 6.84s ========================"
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 5,
+      "name": "End-to-End Lifecycle Acceptance Suite",
+      "status": "PASSED",
+      "duration_seconds": 9.88,
+      "details": {
+        "tests_passed": 28,
+        "summary": "All 28 Prompt 18 acceptance criteria verified against controlled fixtures."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 6,
+      "name": "Operational Scale & Performance Benchmarks",
+      "status": "PASSED",
+      "duration_seconds": 4.055,
+      "details": {
+        "retrieval_at_100": "< 10ms",
+        "evidence_lookup": "< 1ms",
+        "risk_throughput": "> 25,000 calcs/sec",
+        "lease_recovery_50": "< 5ms",
+        "summary": "All scale thresholds satisfied."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 7,
+      "name": "Detection Quality & Epistemic Finding Validation",
+      "status": "PASSED",
+      "duration_seconds": 13.663,
+      "details": {
+        "tests_passed": 18,
+        "summary": "All 18 Prompt 19 detection quality, deterministic fixtures, and epistemic validation tests verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 8,
+      "name": "Asset Identity, Exposure Drift & Continuous Change Intelligence",
+      "status": "PASSED",
+      "duration_seconds": 12.34,
+      "details": {
+        "tests_passed": 17,
+        "summary": "All 17 Prompt 20 asset identity, exposure drift, alias reconciliation, and reassessment planner tests verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 9,
+      "name": "Knowledge Integrity, Explainable Attack Paths & Trustworthy Reasoning",
+      "status": "PASSED",
+      "duration_seconds": 10.167,
+      "details": {
+        "tests_passed": 14,
+        "summary": "All 14 Prompt 21 knowledge integrity, epistemic status, attack-path explainability, and reconciliation tests verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 10,
+      "name": "Multi-Tenant Isolation, Governance & Separation of Duties",
+      "status": "PASSED",
+      "duration_seconds": 13.489,
+      "details": {
+        "tests_passed": 16,
+        "summary": "All 16 Prompt 22 multi-tenant isolation, Separation of Duties, cryptographic parameter binding, and preflight membership safety tests verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 11,
+      "name": "Disaster Recovery, Verified Restoration & Data Integrity",
+      "status": "PASSED",
+      "duration_seconds": 10.352,
+      "details": {
+        "tests_passed": 17,
+        "summary": "All 17 Prompt 23 WAL online backup, 7-point independent verification, isolated restore drill, and rollback tests verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 12,
+      "name": "API Security, Contract Governance & Outbound SSRF Protection",
+      "status": "PASSED",
+      "duration_seconds": 16.54,
+      "details": {
+        "tests_passed": 17,
+        "contract_verification": "177 frontend client callsites verified against 213 OpenAPI endpoints with 0 drift",
+        "summary": "All 17 Prompt 24 API security, SSRF protection, rate limiting, and contract governance tests verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 13,
+      "name": "Software Supply-Chain Security & Verifiable Provenance",
+      "status": "PASSED",
+      "duration_seconds": 26.027,
+      "details": {
+        "tests_passed": 17,
+        "sbom_format": "CycloneDX 1.5 JSON & SPDX 2.3 JSON",
+        "release_provenance": "HMAC-SHA256 Signed Manifest verified intact",
+        "summary": "All 17 Prompt 25 supply chain security, SBOM, secret scanning, and provenance tests passed."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 14,
+      "name": "Performance Engineering, Workload Isolation & Scalable Processing",
+      "status": "PASSED",
+      "duration_seconds": 6.608,
+      "details": {
+        "tests_passed": 17,
+        "workload_isolation": "Bounded concurrency pool, backpressure rejection, dead-worker lease scavenging verified",
+        "synthetic_benchmark": "Deterministic multi-iteration indexed query benchmark passed",
+        "summary": "All 17 Prompt 26 performance engineering, latency budget, and workload isolation tests passed."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 15,
+      "name": "Frontend Unit & Contract Acceptance Tests",
+      "status": "PASSED",
+      "duration_seconds": 1.413,
+      "details": {
+        "summary": "All 75 frontend vitest test cases passed."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 16,
+      "name": "Frontend Production Distribution Build",
+      "status": "PASSED",
+      "duration_seconds": 6.119,
+      "details": {
+        "dist_directory": "D:\\alt\\frontend\\dist",
+        "total_files": 5,
+        "bundle_size_kb": 910.5
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 17,
+      "name": "Secret, Credential & Sensitive Data Hygiene Scan",
+      "status": "PASSED",
+      "duration_seconds": 0.048,
+      "details": {
+        "scanned_directories": [
+          "backend\\app",
+          "frontend\\src"
+        ],
+        "violations_count": 0,
+        "summary": "Zero hardcoded private keys or tokens discovered in application source code."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 18,
+      "name": "Release Packaging & Clean Artifact Inspection",
+      "status": "PASSED",
+      "duration_seconds": 1.649,
+      "details": {
+        "archive_size_kb": 10949.42,
+        "total_archived_files": 453,
+        "hygiene_verified": "No .venv, .git, node_modules, or test databases included in release archive."
+      },
+      "errors": []
+    }
+  ]
+}

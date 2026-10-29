@@ -47,6 +47,38 @@ import type {
   DiagnosticRun,
   RecoveryActionHistoryRecord,
   FailurePattern,
+  QualityOverviewResponse,
+  FixtureBenchmarksResponse,
+  FindingValidationTransitionRequest,
+  FindingProvenanceResponse,
+  AssetIdentifierAlias,
+  AssetIdentityMergeRecord,
+  ExposureDriftRecord,
+  ReassessmentProposal,
+  ProjectDriftOverview,
+  KnowledgeDependencyRecord,
+  ExplainableAttackPath,
+  KnowledgeReconciliationAudit,
+  FindingEpistemicExplanation,
+  ProjectGovernancePolicy,
+  ProjectGovernancePolicyUpdate,
+  ApprovalRequestRecord,
+  ApprovalDecisionRequest,
+  PermissionMatrixResponse,
+  DisasterRecoveryBundle,
+  BackupVerificationResult,
+  RestoreDrillResult,
+  LiveRestoreResult,
+  RotationResult,
+  RecoveryStatusSummary,
+  DependencyInventoryResponse,
+  DependencyAuditResponse,
+  SecretScanResponse,
+  ReleaseVerificationResult,
+  WorkloadQueueStatus,
+  PerformanceBudgetsResponse,
+  BenchmarkSuiteResponse,
+  StaleJobReconciliationResult,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1147,6 +1179,326 @@ async listUsers(): Promise<User[]> {
 
   async getDependencyInvalidations(projectId: string, limit: number = 20): Promise<any> {
     return this.request<any>(`/orchestration/${projectId}/invalidations?limit=${limit}`);
+  }
+
+  // Prompt 19: Detection Quality & Evidence-Driven Intelligence
+  async getQualityOverview(projectId: string): Promise<QualityOverviewResponse> {
+    return this.request<QualityOverviewResponse>(`/projects/${projectId}/quality/overview`);
+  }
+
+  async getFixtureBenchmarks(projectId: string): Promise<FixtureBenchmarksResponse> {
+    return this.request<FixtureBenchmarksResponse>(`/projects/${projectId}/quality/fixtures`);
+  }
+
+  async getFindingProvenance(projectId: string, findingId: string): Promise<FindingProvenanceResponse> {
+    return this.request<FindingProvenanceResponse>(`/projects/${projectId}/quality/findings/${findingId}/provenance`);
+  }
+
+  async transitionFindingValidation(
+    projectId: string,
+    findingId: string,
+    data: FindingValidationTransitionRequest
+  ): Promise<VulnerabilityFindingDetail> {
+    return this.request<VulnerabilityFindingDetail>(`/projects/${projectId}/findings/${findingId}/validation`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Prompt 20: Asset Identity, Exposure Drift & Continuous Change Intelligence
+  async getDriftOverview(projectId: string): Promise<ProjectDriftOverview> {
+    return this.request<ProjectDriftOverview>(`/projects/${projectId}/drift/overview`);
+  }
+
+  async listDriftRecords(
+    projectId: string,
+    params?: { materiality?: string; driftType?: string; limit?: number }
+  ): Promise<ExposureDriftRecord[]> {
+    const query = new URLSearchParams();
+    if (params?.materiality) query.append('materiality', params.materiality);
+    if (params?.driftType) query.append('drift_type', params.driftType);
+    if (params?.limit) query.append('limit', params.limit.toString());
+    const qs = query.toString();
+    return this.request<ExposureDriftRecord[]>(`/projects/${projectId}/drift/records${qs ? `?${qs}` : ''}`);
+  }
+
+  async listReassessmentProposals(projectId: string, status?: string): Promise<ReassessmentProposal[]> {
+    const qs = status ? `?status=${status}` : '';
+    return this.request<ReassessmentProposal[]>(`/projects/${projectId}/drift/proposals${qs}`);
+  }
+
+  async approveReassessmentProposal(projectId: string, proposalId: string): Promise<AssessmentJob> {
+    return this.request<AssessmentJob>(`/projects/${projectId}/drift/proposals/${proposalId}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectReassessmentProposal(
+    projectId: string,
+    proposalId: string,
+    rejectionReason: string
+  ): Promise<ReassessmentProposal> {
+    return this.request<ReassessmentProposal>(`/projects/${projectId}/drift/proposals/${proposalId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ rejection_reason: rejectionReason }),
+    });
+  }
+
+  async listAssetAliases(projectId: string, assetId: string): Promise<AssetIdentifierAlias[]> {
+    return this.request<AssetIdentifierAlias[]>(`/projects/${projectId}/assets/${assetId}/aliases`);
+  }
+
+  async createAssetAlias(
+    projectId: string,
+    assetId: string,
+    data: { identifier_type: string; identifier_value: string; is_primary?: boolean }
+  ): Promise<AssetIdentifierAlias> {
+    return this.request<AssetIdentifierAlias>(`/projects/${projectId}/assets/${assetId}/aliases`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async mergeAssets(
+    projectId: string,
+    targetAssetId: string,
+    sourceAssetId: string,
+    rationale: string
+  ): Promise<AssetIdentityMergeRecord> {
+    return this.request<AssetIdentityMergeRecord>(`/projects/${projectId}/assets/${targetAssetId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ source_asset_id: sourceAssetId, merge_rationale: rationale }),
+    });
+  }
+
+  async reverseAssetMerge(
+    projectId: string,
+    mergeId: string,
+    reversalNotes: string
+  ): Promise<AssetIdentityMergeRecord> {
+    return this.request<AssetIdentityMergeRecord>(`/projects/${projectId}/assets/merges/${mergeId}/reverse`, {
+      method: 'POST',
+      body: JSON.stringify({ reversal_notes: reversalNotes }),
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Prompt 21: Knowledge Integrity, Explainable Attack Paths & Reconciliation
+  // -------------------------------------------------------------------------
+
+  async listKnowledgeDependencies(
+    projectId: string,
+    params?: { source_type?: string; source_id?: string; dependent_type?: string; is_valid?: boolean }
+  ): Promise<KnowledgeDependencyRecord[]> {
+    const query = new URLSearchParams();
+    if (params?.source_type) query.append('source_type', params.source_type);
+    if (params?.source_id) query.append('source_id', params.source_id);
+    if (params?.dependent_type) query.append('dependent_type', params.dependent_type);
+    if (params?.is_valid !== undefined) query.append('is_valid', String(params.is_valid));
+    const qs = query.toString();
+    return this.request<KnowledgeDependencyRecord[]>(`/projects/${projectId}/knowledge/dependencies${qs ? `?${qs}` : ''}`);
+  }
+
+  async listExplainableAttackPaths(
+    projectId: string,
+    params?: { compute_fresh?: boolean; max_depth?: number }
+  ): Promise<ExplainableAttackPath[]> {
+    const query = new URLSearchParams();
+    if (params?.compute_fresh !== undefined) query.append('compute_fresh', String(params.compute_fresh));
+    if (params?.max_depth) query.append('max_depth', String(params.max_depth));
+    const qs = query.toString();
+    return this.request<ExplainableAttackPath[]>(`/projects/${projectId}/knowledge/attack-paths${qs ? `?${qs}` : ''}`);
+  }
+
+  async getExplainableAttackPath(projectId: string, pathId: string): Promise<ExplainableAttackPath> {
+    return this.request<ExplainableAttackPath>(`/projects/${projectId}/knowledge/attack-paths/${pathId}`);
+  }
+
+  async triggerKnowledgeReconciliation(
+    projectId: string,
+    autoRepair: boolean = true
+  ): Promise<KnowledgeReconciliationAudit> {
+    return this.request<KnowledgeReconciliationAudit>(`/projects/${projectId}/knowledge/reconcile`, {
+      method: 'POST',
+      body: JSON.stringify({ auto_repair: autoRepair }),
+    });
+  }
+
+  async listReconciliationAudits(projectId: string): Promise<KnowledgeReconciliationAudit[]> {
+    return this.request<KnowledgeReconciliationAudit[]>(`/projects/${projectId}/knowledge/reconcile/audits`);
+  }
+
+  async getReconciliationAudit(projectId: string, auditId: string): Promise<KnowledgeReconciliationAudit> {
+    return this.request<KnowledgeReconciliationAudit>(`/projects/${projectId}/knowledge/reconcile/audits/${auditId}`);
+  }
+
+  async explainFinding(projectId: string, findingId: string): Promise<FindingEpistemicExplanation> {
+    return this.request<FindingEpistemicExplanation>(`/projects/${projectId}/knowledge/explain/finding/${findingId}`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Prompt 22: Governance, Separation of Duties & Approvals
+  // -------------------------------------------------------------------------
+
+  async getGovernancePolicy(projectId: string): Promise<ProjectGovernancePolicy> {
+    return this.request<ProjectGovernancePolicy>(`/projects/${projectId}/governance/policy`);
+  }
+
+  async updateGovernancePolicy(
+    projectId: string,
+    payload: ProjectGovernancePolicyUpdate
+  ): Promise<ProjectGovernancePolicy> {
+    return this.request<ProjectGovernancePolicy>(`/projects/${projectId}/governance/policy`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async listApprovals(
+    projectId: string,
+    params?: { status?: string; workflow?: string; limit?: number; offset?: number }
+  ): Promise<ApprovalRequestRecord[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.workflow) query.append('workflow', params.workflow);
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.offset) query.append('offset', String(params.offset));
+    const qs = query.toString();
+    return this.request<ApprovalRequestRecord[]>(`/projects/${projectId}/governance/approvals${qs ? `?${qs}` : ''}`);
+  }
+
+  async requestApproval(
+    projectId: string,
+    payload: {
+      workflow_type: string;
+      resource_type: string;
+      resource_id: string;
+      title: string;
+      description?: string;
+      parameters?: Record<string, any>;
+    }
+  ): Promise<ApprovalRequestRecord> {
+    return this.request<ApprovalRequestRecord>(`/projects/${projectId}/governance/approvals`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getApproval(projectId: string, approvalId: string): Promise<ApprovalRequestRecord> {
+    return this.request<ApprovalRequestRecord>(`/projects/${projectId}/governance/approvals/${approvalId}`);
+  }
+
+  async decideApproval(
+    projectId: string,
+    approvalId: string,
+    payload: ApprovalDecisionRequest
+  ): Promise<ApprovalRequestRecord> {
+    return this.request<ApprovalRequestRecord>(`/projects/${projectId}/governance/approvals/${approvalId}/decide`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getPermissionMatrix(projectId: string): Promise<PermissionMatrixResponse> {
+    return this.request<PermissionMatrixResponse>(`/projects/${projectId}/governance/matrix`);
+  }
+
+  // Prompt 23: Disaster Recovery, Verified Restoration & Data Integrity
+  async createRecoveryBundle(): Promise<DisasterRecoveryBundle> {
+    return this.request<DisasterRecoveryBundle>('/recovery/bundles', {
+      method: 'POST',
+    });
+  }
+
+  async listRecoveryBundles(): Promise<DisasterRecoveryBundle[]> {
+    return this.request<DisasterRecoveryBundle[]>('/recovery/bundles');
+  }
+
+  async getRecoveryBundle(bundleId: string): Promise<DisasterRecoveryBundle> {
+    return this.request<DisasterRecoveryBundle>(`/recovery/bundles/${bundleId}`);
+  }
+
+  async verifyRecoveryBundle(bundleId: string): Promise<BackupVerificationResult> {
+    return this.request<BackupVerificationResult>(`/recovery/bundles/${bundleId}/verify`, {
+      method: 'POST',
+    });
+  }
+
+  async runIsolatedRestoreDrill(bundleId: string): Promise<RestoreDrillResult> {
+    return this.request<RestoreDrillResult>(`/recovery/bundles/${bundleId}/restore-drill`, {
+      method: 'POST',
+    });
+  }
+
+  async liveRestoreBundle(bundleId: string, confirmationPhrase: string): Promise<LiveRestoreResult> {
+    return this.request<LiveRestoreResult>(`/recovery/bundles/${bundleId}/live-restore`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmation_phrase: confirmationPhrase }),
+    });
+  }
+
+  async rotateRecoveryBundles(maxRetained: number = 5, preserveLastKnownGood: boolean = true): Promise<RotationResult> {
+    return this.request<RotationResult>('/recovery/rotate', {
+      method: 'POST',
+      body: JSON.stringify({ max_retained: maxRetained, preserve_last_known_good: preserveLastKnownGood }),
+    });
+  }
+
+  async getRecoveryStatus(): Promise<RecoveryStatusSummary> {
+    return this.request<RecoveryStatusSummary>('/recovery/status');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 25: Software Supply-Chain Security & Verifiable Release Provenance
+  // ---------------------------------------------------------------------------
+  async getDependencyInventory(): Promise<DependencyInventoryResponse> {
+    return this.request<DependencyInventoryResponse>('/system/supply-chain/inventory');
+  }
+
+  async runDependencyAudit(allowNetwork: boolean = true): Promise<DependencyAuditResponse> {
+    return this.request<DependencyAuditResponse>(`/system/supply-chain/audit?allow_network=${allowNetwork}`, {
+      method: 'POST',
+    });
+  }
+
+  async getSbom(format: string = 'cyclonedx'): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>(`/system/supply-chain/sbom?format=${format}`);
+  }
+
+  async scanSecrets(): Promise<SecretScanResponse> {
+    return this.request<SecretScanResponse>('/system/supply-chain/secrets/scan', {
+      method: 'POST',
+    });
+  }
+
+  async verifyRelease(archivePath?: string, manifestPath?: string): Promise<ReleaseVerificationResult> {
+    return this.request<ReleaseVerificationResult>('/system/supply-chain/release/verify', {
+      method: 'POST',
+      body: JSON.stringify({ archive_path: archivePath, manifest_path: manifestPath }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 26: Performance Engineering, Workload Isolation & Scalable Processing
+  // ---------------------------------------------------------------------------
+  async getWorkloadQueueStatus(): Promise<WorkloadQueueStatus> {
+    return this.request<WorkloadQueueStatus>('/system/performance/workload');
+  }
+
+  async getPerformanceBudgets(): Promise<PerformanceBudgetsResponse> {
+    return this.request<PerformanceBudgetsResponse>('/system/performance/budgets');
+  }
+
+  async runPerformanceBenchmark(datasetSize: string = 'SMALL'): Promise<BenchmarkSuiteResponse> {
+    return this.request<BenchmarkSuiteResponse>(`/system/performance/benchmark?dataset_size=${encodeURIComponent(datasetSize)}`, {
+      method: 'POST',
+    });
+  }
+
+  async reconcileStaleJobs(timeoutSeconds: number = 300): Promise<StaleJobReconciliationResult> {
+    return this.request<StaleJobReconciliationResult>(`/system/performance/reconcile-stale-jobs?timeout_seconds=${timeoutSeconds}`, {
+      method: 'POST',
+    });
   }
 }
 

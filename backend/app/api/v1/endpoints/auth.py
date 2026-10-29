@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.models.user import User, SystemRole
 from app.schemas.auth import UserCreate, UserResponse, LoginRequest, TokenResponse
 from app.services.audit_service import AuditService
+from app.services.rate_limit_service import rate_limiter
 from app.api.deps import get_current_user, get_client_ip
 
 router = APIRouter()
@@ -81,6 +82,19 @@ def login(
     Records audit entry for both successful and denied attempts.
     """
     client_ip = get_client_ip(request)
+
+    # Defend against brute force login storms
+    allowed, remaining, retry_after = rate_limiter.is_allowed(
+        key=client_ip or "unknown",
+        bucket="AUTH_LOGIN",
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many authentication attempts. Please retry after {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     user = db.query(User).filter(User.email == login_in.email.lower()).first()
 
     if not user or not verify_password(login_in.password, user.hashed_password):

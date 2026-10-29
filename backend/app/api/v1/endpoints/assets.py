@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
 from app.core.database import get_db
-from app.models.user import User
+from app.models.user import User, SystemRole
 from app.models.project import ProjectRole
 from app.models.asset import (
     Asset,
@@ -12,6 +12,8 @@ from app.models.asset import (
     AssetType,
     AssetCriticality,
     AssetStatus,
+    AssetIdentifierAlias,
+    AssetIdentityMergeRecord,
 )
 from app.models.finding import VulnerabilityFinding
 from app.models.graph import GraphNode, GraphNodeCategory
@@ -19,10 +21,16 @@ from app.schemas.asset import (
     AssetRead,
     AssetDetail,
     AssetObservationRead,
+    AssetIdentifierAliasRead,
+    AssetIdentifierAliasCreate,
+    AssetIdentityMergeRecordRead,
+    AssetMergeRequest,
+    AssetMergeReversalRequest,
     AssetCreateFixtureRequest,
     ResolveAmbiguityRequest,
 )
 from app.schemas.finding import VulnerabilityFindingRead
+from app.services.asset_identity_service import AssetIdentityService
 from app.services.asset_reconciliation_service import AssetReconciliationService
 from app.services.knowledge_graph_service import KnowledgeGraphService
 from app.services.audit_service import AuditService
@@ -32,7 +40,7 @@ router = APIRouter()
 
 
 def _format_asset_detail(asset: Asset, db: Session) -> AssetDetail:
-    """Helper to attach observation history, finding count, and graph node reference to an AssetDetail."""
+    """Helper to attach observation history, aliases, finding count, and graph node reference to an AssetDetail."""
     obs_list = (
         db.query(AssetObservation)
         .filter(
@@ -41,6 +49,16 @@ def _format_asset_detail(asset: Asset, db: Session) -> AssetDetail:
         )
         .order_by(AssetObservation.observed_at.desc())
         .limit(50)
+        .all()
+    )
+
+    alias_list = (
+        db.query(AssetIdentifierAlias)
+        .filter(
+            AssetIdentifierAlias.asset_id == asset.id,
+            AssetIdentifierAlias.project_id == asset.project_id,
+        )
+        .order_by(AssetIdentifierAlias.last_observed_at.desc())
         .all()
     )
 
@@ -75,6 +93,7 @@ def _format_asset_detail(asset: Asset, db: Session) -> AssetDetail:
 
     detail_data = AssetRead.model_validate(asset).model_dump()
     detail_data["observations"] = [AssetObservationRead.model_validate(o) for o in obs_list]
+    detail_data["aliases"] = [AssetIdentifierAliasRead.model_validate(a) for a in alias_list]
     detail_data["finding_count"] = finding_count
     detail_data["graph_node_id"] = graph_node.id if graph_node else None
     detail_data["related_nodes_count"] = related_nodes_count
@@ -87,6 +106,7 @@ def list_project_assets(
     asset_type: Optional[AssetType] = Query(None),
     criticality: Optional[AssetCriticality] = Query(None),
     status_filter: Optional[AssetStatus] = Query(None, alias="status"),
+    freshness_status: Optional[str] = Query(None),
     is_ambiguous: Optional[bool] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
@@ -108,6 +128,8 @@ def list_project_assets(
         query = query.filter(Asset.criticality == criticality)
     if status_filter:
         query = query.filter(Asset.status == status_filter)
+    if freshness_status:
+        query = query.filter(Asset.freshness_status == freshness_status)
     if is_ambiguous is not None:
         query = query.filter(Asset.is_ambiguous == is_ambiguous)
     if search:
@@ -135,7 +157,7 @@ def get_asset_detail(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve comprehensive asset details, historical observations, and graph linkage.
+    Retrieve comprehensive asset details, historical observations, aliases, and graph linkage.
     """
     verify_project_access(project_id, current_user, db)
 
@@ -153,6 +175,122 @@ def get_asset_detail(
     return _format_asset_detail(asset, db)
 
 
+@router.get("/projects/{project_id}/assets/{asset_id}/aliases", response_model=List[AssetIdentifierAliasRead])
+def list_asset_aliases(
+    project_id: str,
+    asset_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    List all historical and alternate identifier aliases for an asset (Prompt 20).
+    """
+    verify_project_access(project_id, current_user, db)
+
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.project_id == project_id).first()
+    if not asset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    return (
+        db.query(AssetIdentifierAlias)
+        .filter(AssetIdentifierAlias.asset_id == asset_id, AssetIdentifierAlias.project_id == project_id)
+        .order_by(AssetIdentifierAlias.last_observed_at.desc())
+        .all()
+    )
+
+
+@router.post("/projects/{project_id}/assets/{asset_id}/aliases", response_model=AssetIdentifierAliasRead, status_code=status.HTTP_201_CREATED)
+def create_asset_alias(
+    project_id: str,
+    asset_id: str,
+    alias_in: AssetIdentifierAliasCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Associate an alternate identifier (IP address, hostname, DNS CNAME) with an asset.
+    Requires Project LEAD or System ADMIN.
+    """
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
+
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.project_id == project_id).first()
+    if not asset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    alias = AssetIdentityService.record_alias(
+        asset=asset,
+        identifier_type=alias_in.identifier_type,
+        identifier_value=alias_in.identifier_value,
+        is_primary=alias_in.is_primary,
+        confidence=alias_in.confidence,
+        evidence_ref=alias_in.evidence_ref,
+        db=db,
+    )
+    db.commit()
+    db.refresh(alias)
+    return alias
+
+
+@router.post("/projects/{project_id}/assets/{asset_id}/merge", response_model=AssetIdentityMergeRecordRead)
+def merge_asset_identities(
+    project_id: str,
+    asset_id: str,
+    merge_in: AssetMergeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Perform a controlled, reversible asset merge (Prompt 20 / Section 1).
+    Requires Project LEAD or System ADMIN. Preserves complete snapshot for auditability and reversal.
+    """
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
+
+    try:
+        record = AssetIdentityService.merge_asset_identities(
+            project_id=project_id,
+            target_asset_id=asset_id,
+            source_asset_id=merge_in.source_asset_id,
+            rationale=merge_in.merge_rationale,
+            actor_id=current_user.id,
+            confidence=merge_in.confidence,
+            db=db,
+        )
+        db.commit()
+        db.refresh(record)
+        return record
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/projects/{project_id}/assets/merges/{merge_id}/reverse", response_model=AssetIdentityMergeRecordRead)
+def reverse_asset_merge(
+    project_id: str,
+    merge_id: str,
+    reversal_in: AssetMergeReversalRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Reverses an earlier asset merge, restoring the source asset to active status (Prompt 20 / Section 1).
+    Requires Project LEAD or System ADMIN.
+    """
+    verify_project_access(project_id, current_user, db, required_project_roles=[ProjectRole.LEAD])
+
+    try:
+        record = AssetIdentityService.reverse_asset_merge(
+            project_id=project_id,
+            merge_record_id=merge_id,
+            actor_id=current_user.id,
+            reversal_notes=reversal_in.reversal_notes,
+            db=db,
+        )
+        db.commit()
+        db.refresh(record)
+        return record
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.get("/projects/{project_id}/assets/{asset_id}/observations", response_model=List[AssetObservationRead])
 def list_asset_observations(
     project_id: str,
@@ -167,7 +305,6 @@ def list_asset_observations(
     """
     verify_project_access(project_id, current_user, db)
 
-    # Verify asset exists in project
     asset = (
         db.query(Asset)
         .filter(Asset.id == asset_id, Asset.project_id == project_id)
@@ -246,10 +383,9 @@ def create_fixture_asset(
         required_project_roles=[ProjectRole.LEAD],
     )
 
-    # Classify & Normalize identifier
-    _, norm_canonical, norm_name = AssetReconciliationService.classify_and_normalize(asset_in.canonical_identifier)
+    _, norm_canonical, norm_name = AssetIdentityService.classify_and_normalize(asset_in.canonical_identifier)
 
-    asset = AssetReconciliationService.reconcile_or_create_asset(
+    asset = AssetIdentityService.reconcile_or_create_asset(
         project_id=project_id,
         organization_id=project.organization_id,
         asset_type=asset_in.asset_type,
@@ -265,17 +401,16 @@ def create_fixture_asset(
         db=db,
     )
 
-    # Record initial observation
-    AssetReconciliationService.record_observation(
+    AssetIdentityService.record_observation(
         asset=asset,
         project_id=project_id,
         observation_source=asset_in.source,
         observed_attributes=asset_in.attributes,
         confidence=asset_in.confidence,
+        is_simulated=True,
         db=db,
     )
 
-    # Create corresponding graph node
     KnowledgeGraphService.get_or_create_node(
         project_id=project_id,
         category=GraphNodeCategory.ASSET,

@@ -14,12 +14,15 @@ from app.schemas.integrations import (
     WebhookTestRequest,
     WebhookDeliveryRead,
     SiemExportResponse,
+    DestinationValidationRequest,
+    DestinationValidationResponse,
 )
 from app.services.integrations import (
     CisaKevFeedAdapter,
     WebhookNotifierAdapter,
     SiemExporterAdapter,
 )
+from app.services.network_security_service import OutboundNetworkSecurityService
 
 router = APIRouter()
 
@@ -127,6 +130,11 @@ def test_webhook_dispatch(
         required_project_roles=[ProjectRole.LEAD],
     )
 
+    # Validate destination against SSRF and network security policies
+    target_url = payload.target_url or _webhook_notifier.webhook_url
+    if target_url:
+        OutboundNetworkSecurityService.validate_destination_url(target_url)
+
     data = payload.custom_payload or {
         "finding_id": "test-finding-001",
         "title": "Critical Authentication Bypass (Simulated)",
@@ -142,6 +150,34 @@ def test_webhook_dispatch(
         simulate_success=True,
     )
     return delivery
+
+
+@router.post(
+    "/projects/{project_id}/integrations/destinations/validate",
+    response_model=DestinationValidationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Validate an outbound integration destination against SSRF and network security policies",
+)
+def validate_integration_destination(
+    project_id: str,
+    payload: DestinationValidationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(project_id, current_user, db)
+    validation = OutboundNetworkSecurityService.validate_destination_url(
+        url=payload.url,
+        allow_private_networks=payload.allow_private,
+    )
+    return DestinationValidationResponse(
+        valid=validation["valid"],
+        url=validation["url"],
+        scheme=validation["scheme"],
+        hostname=validation["hostname"],
+        port=validation["port"],
+        resolved_ips=validation["resolved_ips"],
+        allow_private=validation["allow_private"],
+    )
 
 
 @router.get(

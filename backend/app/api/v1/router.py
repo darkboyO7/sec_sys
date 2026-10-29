@@ -27,6 +27,13 @@ from app.api.v1.endpoints import (
     diagnostics,
     orchestration,
     metrics,
+    quality,
+    drift,
+    knowledge,
+    governance,
+    recovery,
+    supply_chain,
+    performance,
 )
 
 api_router = APIRouter()
@@ -58,3 +65,10 @@ api_router.include_router(intelligence.router, tags=["Security Intelligence & Ad
 api_router.include_router(operations.router, prefix="/operations", tags=["Unified Autonomous Security Operations"])
 api_router.include_router(diagnostics.router, prefix="/diagnostics", tags=["Self-Diagnostics & Controlled Recovery"])
 api_router.include_router(orchestration.router, prefix="/orchestration", tags=["Autonomous Security Orchestration & Closed-Loop Optimization"])
+api_router.include_router(quality.router, tags=["Detection Quality & Intelligence Validation"])
+api_router.include_router(drift.router, tags=["Asset Identity, Exposure Drift & Change Intelligence"])
+api_router.include_router(knowledge.router, tags=["Knowledge Integrity, Epistemic Explainability & Reconciliation"])
+api_router.include_router(governance.router, tags=["Governance & Separation of Duties"])
+api_router.include_router(recovery.router, tags=["Disaster Recovery & Data Integrity"])
+api_router.include_router(supply_chain.router, prefix="/system/supply-chain", tags=["Software Supply-Chain Security & Verifiable Provenance"])
+api_router.include_router(performance.router, prefix="/system/performance", tags=["Performance Engineering & Workload Isolation"])

@@ -10,6 +10,7 @@ from app.models.graph import (
     GraphNodeCategory,
     RelationshipType,
     RelationshipStatus,
+    EpistemicStatus,
 )
 from app.models.base import utc_now
 
@@ -93,6 +94,15 @@ class KnowledgeGraphService:
         ),
     }
 
+    AI_PROSE_PROVENANCES: Set[str] = {
+        "AI_ANALYST",
+        "LLM_PROSE",
+        "AI_ASSISTANT",
+        "LLM_INFERENCE",
+        "GENERATED_SUMMARY",
+        "AI_AGENT",
+    }
+
     @classmethod
     def get_or_create_node(
         cls,
@@ -102,16 +112,31 @@ class KnowledgeGraphService:
         entity_id: Optional[str] = None,
         entity_type: Optional[str] = None,
         properties: Optional[Dict[str, Any]] = None,
-        epistemic_status: str = "VERIFIED",
+        epistemic_status: str = "OBSERVED_FACT",
+        provenance: str = "AUTOMATED_INGESTION",
+        evidence_reference: Optional[str] = None,
+        is_authoritative: bool = True,
+        is_simulated: bool = False,
+        derivation_rule: Optional[str] = None,
+        input_sources: Optional[List[Dict[str, Any]]] = None,
         db: Optional[Session] = None,
     ) -> GraphNode:
         """
         Retrieves or creates a graph node within a project context.
         Enforces unique constraint on (project_id, category, entity_id).
+        Guarantees epistemic semantics and provenance tracking (Prompt 21).
         """
         assert db is not None, "Database session required"
         clean_label = (label or "Unknown").strip()[:255]
         props = properties or {}
+        now = utc_now()
+
+        # Epistemic & Authority Guardrail: AI-generated prose must never be stored as authoritative fact
+        effective_authoritative = is_authoritative
+        effective_epistemic = epistemic_status
+        if provenance.upper() in cls.AI_PROSE_PROVENANCES:
+            effective_authoritative = False
+            effective_epistemic = EpistemicStatus.HYPOTHESIS.value
 
         existing_query = db.query(GraphNode).filter(
             GraphNode.project_id == project_id,
@@ -128,13 +153,29 @@ class KnowledgeGraphService:
         if existing:
             # Update label or merge properties
             existing.label = clean_label
-            existing.epistemic_status = epistemic_status
+            # Only update epistemic status if not downgraded by non-authoritative source
+            if effective_authoritative or existing.epistemic_status == EpistemicStatus.UNKNOWN.value:
+                existing.epistemic_status = effective_epistemic
+            existing.provenance = provenance
+            existing.is_authoritative = effective_authoritative
+            existing.is_simulated = is_simulated or existing.is_simulated
+            if evidence_reference:
+                existing.evidence_reference = evidence_reference
+            if derivation_rule:
+                existing.derivation_rule = derivation_rule
+            if input_sources:
+                curr_sources = list(existing.input_sources or [])
+                existing.input_sources = curr_sources + input_sources
             if props:
                 merged = dict(existing.properties or {})
                 merged.update(props)
                 existing.properties = merged
             db.flush()
             return existing
+
+        initial_sources = input_sources or []
+        if not initial_sources and provenance:
+            initial_sources = [{"provenance": provenance, "timestamp": now.isoformat(), "evidence_ref": evidence_reference}]
 
         # Create new GraphNode
         new_node = GraphNode(
@@ -144,7 +185,13 @@ class KnowledgeGraphService:
             entity_id=entity_id,
             entity_type=entity_type,
             properties=props,
-            epistemic_status=epistemic_status,
+            epistemic_status=effective_epistemic,
+            is_authoritative=effective_authoritative,
+            is_simulated=is_simulated,
+            provenance=provenance,
+            evidence_reference=evidence_reference,
+            derivation_rule=derivation_rule,
+            input_sources=initial_sources,
         )
 
         try:
@@ -171,12 +218,18 @@ class KnowledgeGraphService:
         provenance: str = "AUTOMATED_INGESTION",
         evidence_reference: Optional[str] = None,
         properties: Optional[Dict[str, Any]] = None,
+        epistemic_status: Optional[str] = None,
+        is_authoritative: bool = True,
+        is_simulated: bool = False,
+        derivation_rule: Optional[str] = None,
+        input_sources: Optional[List[Dict[str, Any]]] = None,
+        freshness_expires_at: Optional[datetime] = None,
         db: Optional[Session] = None,
     ) -> GraphRelationship:
         """
         Creates or updates a typed directed edge between two graph nodes.
-        Enforces strict project isolation: both source and target must belong to project_id.
-        Fails closed on cross-project edge creation attempts.
+        Enforces strict project isolation, category constraints, corroboration logic,
+        and AI-generated prose ungrounded prevention (Prompt 21).
         """
         assert db is not None, "Database session required"
 
@@ -217,10 +270,36 @@ class KnowledgeGraphService:
                 f"target node '{target_node.label}' with category '{target_node.category.value}'."
             )
 
-        # Grounding check: prevent ungrounded claims of VERIFIED status without evidence or verified observation
+        # Determine effective status and authority
         effective_status = status
+        effective_authoritative = is_authoritative
+        effective_confidence = max(0.0, min(1.0, confidence))
+
+        # Determine epistemic status default
+        if epistemic_status is not None:
+            eff_epistemic = epistemic_status
+        elif status == RelationshipStatus.VERIFIED:
+            eff_epistemic = EpistemicStatus.OBSERVED_FACT.value
+        elif status == RelationshipStatus.INFERRED:
+            eff_epistemic = EpistemicStatus.DERIVED_CONCLUSION.value
+        elif status == RelationshipStatus.HYPOTHETICAL:
+            eff_epistemic = EpistemicStatus.HYPOTHESIS.value
+        elif status == RelationshipStatus.STALE:
+            eff_epistemic = EpistemicStatus.STALE.value
+        else:
+            eff_epistemic = EpistemicStatus.OBSERVED_FACT.value
+
+        # AI-prose guardrail: AI summaries must never be treated as authoritative evidence
+        if provenance.upper() in cls.AI_PROSE_PROVENANCES:
+            effective_authoritative = False
+            eff_epistemic = EpistemicStatus.HYPOTHESIS.value
+            effective_status = RelationshipStatus.HYPOTHETICAL
+            effective_confidence = min(0.6, effective_confidence)
+
+        # Grounding check: prevent ungrounded claims of VERIFIED status without evidence or verified observation
         if status == RelationshipStatus.VERIFIED and not evidence_reference and provenance in ("MANUAL_ANALYST", "INFERRED_ENGINE"):
             effective_status = RelationshipStatus.INFERRED
+            eff_epistemic = EpistemicStatus.HYPOTHESIS.value
 
         now = utc_now()
         existing_rel = (
@@ -234,22 +313,56 @@ class KnowledgeGraphService:
             .first()
         )
 
-        if existing_rel:
-            if existing_rel.status != effective_status or existing_rel.confidence != confidence:
-                hist_entry = {
-                    "from_status": existing_rel.status.value,
-                    "to_status": effective_status.value,
-                    "confidence": confidence,
-                    "provenance": provenance,
-                    "evidence_reference": evidence_reference,
-                    "timestamp": now.isoformat(),
-                }
-                existing_rel.verification_history = list(existing_rel.verification_history or []) + [hist_entry]
+        incoming_source_entry = {
+            "provenance": provenance,
+            "evidence_reference": evidence_reference,
+            "confidence": effective_confidence,
+            "timestamp": now.isoformat(),
+            "derivation_rule": derivation_rule,
+        }
 
+        if existing_rel:
+            existing_sources = list(existing_rel.input_sources or [])
+            
+            # Check for Corroboration: >= 2 independent compatible sources
+            unique_provenances = {s.get("provenance") for s in existing_sources if s.get("provenance")}
+            unique_provenances.add(provenance)
+            if len(unique_provenances) >= 2 and effective_confidence >= 0.7:
+                eff_epistemic = EpistemicStatus.CORROBORATED_FACT.value
+
+            # Check for Contradiction: conflicting properties without legitimate lifecycle update
+            if properties and existing_rel.properties:
+                for k, v in properties.items():
+                    if k in existing_rel.properties and existing_rel.properties[k] != v:
+                        # Conflicting value detected
+                        existing_rel.contradiction_notes = (
+                            f"Contradiction detected on property '{k}': existing='{existing_rel.properties[k]}' "
+                            f"vs incoming='{v}' from '{provenance}'."
+                        )
+                        eff_epistemic = EpistemicStatus.CONTRADICTED.value
+
+            hist_entry = {
+                "from_status": existing_rel.status.value,
+                "to_status": effective_status.value,
+                "from_epistemic": existing_rel.epistemic_status,
+                "to_epistemic": eff_epistemic,
+                "confidence": effective_confidence,
+                "provenance": provenance,
+                "evidence_reference": evidence_reference,
+                "timestamp": now.isoformat(),
+            }
+            existing_rel.verification_history = list(existing_rel.verification_history or []) + [hist_entry]
             existing_rel.status = effective_status
-            existing_rel.confidence = max(0.0, min(1.0, confidence))
+            existing_rel.epistemic_status = eff_epistemic
+            existing_rel.confidence = effective_confidence
+            existing_rel.is_authoritative = effective_authoritative
+            existing_rel.is_simulated = is_simulated or existing_rel.is_simulated
             existing_rel.provenance = provenance
             existing_rel.evidence_reference = evidence_reference
+            existing_rel.derivation_rule = derivation_rule or existing_rel.derivation_rule
+            existing_rel.input_sources = existing_sources + [incoming_source_entry]
+            if freshness_expires_at:
+                existing_rel.freshness_expires_at = freshness_expires_at
             existing_rel.observed_at = now
             if properties:
                 merged = dict(existing_rel.properties or {})
@@ -261,7 +374,9 @@ class KnowledgeGraphService:
         initial_history = [{
             "from_status": None,
             "to_status": effective_status.value,
-            "confidence": confidence,
+            "from_epistemic": None,
+            "to_epistemic": eff_epistemic,
+            "confidence": effective_confidence,
             "provenance": provenance,
             "evidence_reference": evidence_reference,
             "timestamp": now.isoformat(),
@@ -273,12 +388,18 @@ class KnowledgeGraphService:
             target_node_id=target_node_id,
             relationship_type=relationship_type,
             status=effective_status,
-            confidence=max(0.0, min(1.0, confidence)),
+            confidence=effective_confidence,
             provenance=provenance,
             evidence_reference=evidence_reference,
             properties=properties or {},
             verification_history=initial_history,
             observed_at=now,
+            epistemic_status=eff_epistemic,
+            is_authoritative=effective_authoritative,
+            is_simulated=is_simulated,
+            derivation_rule=derivation_rule,
+            input_sources=input_sources or [incoming_source_entry],
+            freshness_expires_at=freshness_expires_at,
         )
 
         try:
@@ -301,6 +422,49 @@ class KnowledgeGraphService:
             raise
 
         return new_rel
+
+    @classmethod
+    def invalidate_relationship(
+        cls,
+        db: Session,
+        relationship_id: str,
+        reason: str,
+    ) -> Optional[GraphRelationship]:
+        """
+        Marks a relationship as INVALIDATED, preserving its audit trail (Prompt 21).
+        """
+        rel = db.query(GraphRelationship).filter(GraphRelationship.id == relationship_id).first()
+        if not rel:
+            return None
+        now = utc_now()
+        rel.status = RelationshipStatus.INVALIDATED
+        rel.epistemic_status = EpistemicStatus.INVALIDATED.value
+        rel.is_authoritative = False
+        rel.invalidated_at = now
+        rel.invalidation_reason = reason
+        db.flush()
+        return rel
+
+    @classmethod
+    def invalidate_node(
+        cls,
+        db: Session,
+        node_id: str,
+        reason: str,
+    ) -> Optional[GraphNode]:
+        """
+        Marks a graph node as INVALIDATED.
+        """
+        node = db.query(GraphNode).filter(GraphNode.id == node_id).first()
+        if not node:
+            return None
+        now = utc_now()
+        node.epistemic_status = EpistemicStatus.INVALIDATED.value
+        node.is_authoritative = False
+        node.invalidated_at = now
+        node.invalidation_reason = reason
+        db.flush()
+        return node
 
     @classmethod
     def get_bounded_neighborhood(

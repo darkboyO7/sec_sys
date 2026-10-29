@@ -14,8 +14,10 @@ from app.models.assessment import (
 )
 from app.models.finding import (
     FindingLifecycleStatus,
+    FindingValidationStatus,
     VulnerabilityFinding,
     FindingTransition,
+    ValidationTransition,
 )
 from app.models.asset import (
     Asset,
@@ -23,6 +25,16 @@ from app.models.asset import (
     AssetType,
     AssetCriticality,
     AssetStatus,
+    AssetIdentifierAlias,
+    AssetIdentityMergeRecord,
+)
+from app.models.drift import (
+    DriftType,
+    DriftMateriality,
+    ReassessmentPriority,
+    ReassessmentStatus,
+    ExposureDriftRecord,
+    ReassessmentProposal,
 )
 from app.models.graph import (
     GraphNode,
@@ -30,6 +42,15 @@ from app.models.graph import (
     GraphNodeCategory,
     RelationshipType,
     RelationshipStatus,
+    EpistemicStatus,
+)
+from app.models.knowledge import (
+    KnowledgeDependencyType,
+    KnowledgeDependencyRecord,
+    AttackPathStatus,
+    ExplainableAttackPathRecord,
+    ReconciliationStatus,
+    KnowledgeReconciliationAudit,
 )
 from app.models.risk import (
     RiskPriority,
@@ -129,6 +150,17 @@ from app.models.orchestration import (
     AdaptiveOptimizationRecord,
 )
 
+from app.models.governance import (
+    ApprovalWorkflowType,
+    GovernanceApprovalStatus,
+    ProjectGovernancePolicy,
+    ApprovalRequestRecord,
+)
+from app.models.recovery import (
+    RecoveryBundleStatus,
+    DisasterRecoveryBundleRecord,
+)
+
 __all__ = [
     "Base",
     "TimestampMixin",
@@ -152,13 +184,23 @@ __all__ = [
     "FindingSeverity",
     "FindingConfidence",
     "FindingLifecycleStatus",
+    "FindingValidationStatus",
     "VulnerabilityFinding",
     "FindingTransition",
+    "ValidationTransition",
     "Asset",
     "AssetObservation",
     "AssetType",
     "AssetCriticality",
     "AssetStatus",
+    "AssetIdentifierAlias",
+    "AssetIdentityMergeRecord",
+    "DriftType",
+    "DriftMateriality",
+    "ReassessmentPriority",
+    "ReassessmentStatus",
+    "ExposureDriftRecord",
+    "ReassessmentProposal",
     "GraphNode",
     "GraphRelationship",
     "GraphNodeCategory",
@@ -237,4 +279,17 @@ __all__ = [
     "InvalidationStatus",
     "DependencyInvalidationRecord",
     "AdaptiveOptimizationRecord",
+    "EpistemicStatus",
+    "KnowledgeDependencyType",
+    "KnowledgeDependencyRecord",
+    "AttackPathStatus",
+    "ExplainableAttackPathRecord",
+    "ReconciliationStatus",
+    "KnowledgeReconciliationAudit",
+    "ApprovalWorkflowType",
+    "GovernanceApprovalStatus",
+    "ProjectGovernancePolicy",
+    "ApprovalRequestRecord",
+    "RecoveryBundleStatus",
+    "DisasterRecoveryBundleRecord",
 ]

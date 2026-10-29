@@ -18,6 +18,7 @@ from app.schemas.scope import (
 )
 from app.services.scope_engine import ScopeEngine, ScopeTargetParseException
 from app.services.audit_service import AuditService
+from app.services.governance_service import ProjectGovernanceService
 from app.api.deps import get_current_user, verify_project_access, get_client_ip
 
 router = APIRouter()
@@ -131,6 +132,46 @@ def authorize_scope_target(
     if not scope_target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scope target not found")
 
+    # Separation of Duties (SoD) verification: Target creator cannot authorize their own target
+    policy = ProjectGovernanceService.get_or_create_policy(db, project_id)
+    if scope_target.created_by_id == current_user.id:
+        if policy.enforce_separation_of_duties and not policy.allow_self_approval_override:
+            AuditService.record_event(
+                db=db,
+                action="SCOPE_TARGET_AUTHORIZE_DENIED_SOD",
+                target_type="scope_target",
+                target_id=scope_target.id,
+                project_id=project_id,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                outcome="DENIED",
+                ip_address=client_ip,
+                details={
+                    "target_value": scope_target.target_value,
+                    "reason": "Separation of Duties violation: Requester attempted self-authorization.",
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Separation of Duties violation: The creator of a scope target cannot authorize their own target. An independent Project LEAD or Administrator must authorize it.",
+            )
+        elif policy.allow_self_approval_override:
+            AuditService.record_event(
+                db=db,
+                action="SCOPE_TARGET_SELF_AUTHORIZATION_OVERRIDE",
+                target_type="scope_target",
+                target_id=scope_target.id,
+                project_id=project_id,
+                actor_id=current_user.id,
+                actor_email=current_user.email,
+                outcome="SUCCESS",
+                ip_address=client_ip,
+                details={
+                    "target_value": scope_target.target_value,
+                    "notes": "Single-operator mode exception: Scope target creator self-authorized.",
+                },
+            )
+
     now = datetime.now(timezone.utc)
     if auth_in.expires_at:
         exp = auth_in.expires_at
@@ -194,6 +235,15 @@ def revoke_scope_target(
     )
     if not scope_target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scope target not found")
+
+    # Invalidate any active approvals for this revoked target
+    ProjectGovernanceService.invalidate_approvals_for_resource(
+        db=db,
+        project_id=project_id,
+        resource_type="ScopeTarget",
+        resource_id=target_id,
+        reason=f"Scope target revoked: {revoke_in.reason.strip()}",
+    )
 
     now = datetime.now(timezone.utc)
     scope_target.authorization_status = AuthorizationStatus.REVOKED

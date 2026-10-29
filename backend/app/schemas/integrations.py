@@ -45,3 +45,18 @@ class SiemExportResponse(BaseModel):
     total_events: int
     stream: List[str]
     exported_at: datetime
+
+
+class DestinationValidationRequest(BaseModel):
+    url: str = Field(..., description="Destination URL to pre-flight validate against SSRF and network security policy")
+    allow_private: bool = Field(False, description="Whether private/internal RFC 1918 addresses are permitted")
+
+
+class DestinationValidationResponse(BaseModel):
+    valid: bool
+    url: str
+    scheme: str
+    hostname: str
+    port: int
+    resolved_ips: List[str]
+    allow_private: bool

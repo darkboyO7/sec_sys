@@ -204,10 +204,9 @@ class SecurityDecisionService:
         if not decision:
             raise ValueError(f"Security decision '{decision_id}' not found in project '{project_id}'.")
 
-        # Governance Check: Gated decisions require Lead approval
+        # Governance Check: Gated decisions require explicit Lead/Admin approval prior to execution
         if decision.required_approval_role and decision.status != DecisionStatus.APPROVED and not force:
-            if actor_role != ProjectRole.LEAD:
-                raise PermissionError(f"Decision '{decision.title}' requires explicit {decision.required_approval_role} approval.")
+            raise PermissionError(f"Decision '{decision.title}' requires explicit {decision.required_approval_role} approval prior to execution.")
 
         # Baseline risk measurement before execution
         initial_risk = ContextualRiskService.assess_and_persist_finding_risk(

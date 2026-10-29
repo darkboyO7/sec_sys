@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Enum, DateTime, Text, JSON, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Enum, DateTime, Text, JSON, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
@@ -30,6 +30,31 @@ class ValidationOutcome(str, enum.Enum):
     STALE_EVIDENCE = "STALE_EVIDENCE"
 
 
+class FindingValidationStatus(str, enum.Enum):
+    """
+    Controlled Evidence-Driven Validation Lifecycle (Prompt 19).
+    Explicitly distinguishes a finding's validation & proof state from its operational lifecycle status:
+    - DETECTED: Observation ingested, preliminary state.
+    - EVIDENCE_PENDING: Observation recorded but raw cryptographic evidence payload is pending.
+    - EVIDENCE_SUPPORTED: Cryptographically hashed raw evidence payload is verified and linked.
+    - INDEPENDENTLY_REPRODUCED: Observed across multiple independent scanner adapters or assessment jobs.
+    - CONFIRMED_TRUE_POSITIVE: Formally confirmed by reviewer/analyst with verifiable target evidence.
+    - CONFIRMED_FALSE_POSITIVE: Formally reviewed with documented rationale confirming no target vulnerability.
+    - INCONCLUSIVE: Contradictory evidence, conflicting adapter observations, or ambiguous target behavior.
+    - UNABLE_TO_VERIFY: Target unreachable, timed out, or test environment unavailable; NOT a false positive.
+    - RESOLVED_AFTER_RETEST: Verified resolved on target by independent retest with distinct evidence hash.
+    """
+    DETECTED = "DETECTED"
+    EVIDENCE_PENDING = "EVIDENCE_PENDING"
+    EVIDENCE_SUPPORTED = "EVIDENCE_SUPPORTED"
+    INDEPENDENTLY_REPRODUCED = "INDEPENDENTLY_REPRODUCED"
+    CONFIRMED_TRUE_POSITIVE = "CONFIRMED_TRUE_POSITIVE"
+    CONFIRMED_FALSE_POSITIVE = "CONFIRMED_FALSE_POSITIVE"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    UNABLE_TO_VERIFY = "UNABLE_TO_VERIFY"
+    RESOLVED_AFTER_RETEST = "RESOLVED_AFTER_RETEST"
+
+
 class VulnerabilityFinding(Base, TimestampMixin):
     """
     Canonical, deduplicated project vulnerability tracked through the 13-state lifecycle.
@@ -38,6 +63,8 @@ class VulnerabilityFinding(Base, TimestampMixin):
     __tablename__ = "vulnerability_findings"
     __table_args__ = (
         UniqueConstraint("project_id", "fingerprint", name="uq_vulnerability_finding_project_fingerprint"),
+        Index("ix_vulnerability_findings_proj_sev_status", "project_id", "severity", "status"),
+        Index("ix_vulnerability_findings_proj_created", "project_id", "created_at"),
     )
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
@@ -99,6 +126,13 @@ class VulnerabilityFinding(Base, TimestampMixin):
     recurrence_detected = Column(Boolean, default=False, nullable=False)
     recurrence_count = Column(Integer, default=0, nullable=False)
 
+    # Phase 19: Controlled Validation Lifecycle & Evidence Intelligence
+    validation_status = Column(Enum(FindingValidationStatus), default=FindingValidationStatus.DETECTED, nullable=False, index=True)
+    validation_method = Column(String(50), nullable=True)
+    validation_evidence_ref = Column(String(64), nullable=True)
+    validation_notes = Column(Text, nullable=True)
+    validation_updated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
     # Relationships
     project = relationship("Project")
     asset = relationship("Asset", back_populates="findings")
@@ -111,6 +145,7 @@ class VulnerabilityFinding(Base, TimestampMixin):
 
     observations = relationship("AssessmentFinding", back_populates="canonical_finding", order_by="AssessmentFinding.created_at.desc()")
     transitions = relationship("FindingTransition", back_populates="finding", cascade="all, delete-orphan", order_by="FindingTransition.created_at.desc()")
+    validation_transitions = relationship("ValidationTransition", back_populates="finding", cascade="all, delete-orphan", order_by="ValidationTransition.created_at.desc()")
 
 
 class FindingTransition(Base):
@@ -133,4 +168,29 @@ class FindingTransition(Base):
 
     # Relationships
     finding = relationship("VulnerabilityFinding", back_populates="transitions")
+    actor = relationship("User")
+
+
+class ValidationTransition(Base):
+    """
+    Immutable audit history record of each validation state transition in a finding's verification lifecycle.
+    Captures actor, previous validation state, new validation state, validation method, rationale, evidence ref, and timestamp.
+    """
+    __tablename__ = "finding_validation_transitions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    finding_id = Column(String(36), ForeignKey("vulnerability_findings.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    from_status = Column(Enum(FindingValidationStatus), nullable=False)
+    to_status = Column(Enum(FindingValidationStatus), nullable=False)
+    validation_method = Column(String(50), nullable=False)
+
+    actor_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reason = Column(Text, nullable=False)
+    evidence_ref = Column(String(64), nullable=True)
+    metadata_snapshot = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    finding = relationship("VulnerabilityFinding", back_populates="validation_transitions")
     actor = relationship("User")

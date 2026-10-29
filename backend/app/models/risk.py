@@ -59,6 +59,15 @@ class RiskAssessment(Base, TimestampMixin):
     evidence_references = Column(JSON, nullable=False, default=list)
     input_snapshot = Column(JSON, nullable=False, default=dict)
 
+    # Prompt 21 Explainability & Historical Delta Tracking
+    prior_score = Column(Float, nullable=True)
+    score_delta = Column(Float, nullable=True)
+    delta_reasons = Column(JSON, nullable=False, default=list)
+    is_invalidated = Column(Boolean, default=False, nullable=False, index=True)
+    invalidation_reason = Column(Text, nullable=True)
+    qualitative_label = Column(String(50), default="CALCULATED", nullable=False)
+    unverified_penalty = Column(Float, default=0.0, nullable=False)
+
     calculated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     is_superseded = Column(Boolean, default=False, nullable=False, index=True)
     superseded_at = Column(DateTime(timezone=True), nullable=True)

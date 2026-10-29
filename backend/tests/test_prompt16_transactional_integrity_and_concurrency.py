@@ -139,6 +139,7 @@ def test_scenario_02_concurrency_conflict_on_remediation_transition(
     db: Session,
     test_project: Project,
     lead_user: User,
+    admin_user: User,
 ):
     """
     Ensures that concurrent reviews on a remediation recommendation detect the state conflict
@@ -197,7 +198,7 @@ def test_scenario_02_concurrency_conflict_on_remediation_transition(
         project_id=test_project.id,
         recommendation_id=rec.id,
         change_ticket_ref="SEC-2026-CHG-01",
-        authorizer=lead_user,
+        authorizer=admin_user,
         authorizer_role=ProjectRole.LEAD,
         db=db,
     )
@@ -209,7 +210,7 @@ def test_scenario_02_concurrency_conflict_on_remediation_transition(
             project_id=test_project.id,
             recommendation_id=rec.id,
             change_ticket_ref="SEC-2026-CHG-02",
-            authorizer=lead_user,
+            authorizer=admin_user,
             authorizer_role=ProjectRole.LEAD,
             db=db,
         )

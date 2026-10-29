@@ -612,17 +612,55 @@ class ContextualRiskService:
                     # Inputs identical; return active assessment without duplicating
                     return active_assessment
 
-        # Supersede existing active assessment
+        # Supersede existing active assessment and compute score delta
+        prior_score = None
+        score_delta = None
+        delta_reasons = []
         if active_assessment:
+            prior_score = active_assessment.score
+            score_delta = round(calc["score"] - active_assessment.score, 2)
             active_assessment.is_superseded = True
             active_assessment.superseded_at = now
+            
+            # Determine reasons for score change
+            prev_snap = active_assessment.input_snapshot or {}
+            curr_snap = calc["input_snapshot"]
+            if prev_snap.get("finding_status") != curr_snap.get("finding_status"):
+                delta_reasons.append(f"Finding lifecycle status changed from '{prev_snap.get('finding_status')}' to '{curr_snap.get('finding_status')}'.")
+            if prev_snap.get("cvss_score") != curr_snap.get("cvss_score"):
+                delta_reasons.append(f"CVSS score shifted from '{prev_snap.get('cvss_score')}' to '{curr_snap.get('cvss_score')}'.")
+            if prev_snap.get("asset_criticality") != curr_snap.get("asset_criticality"):
+                delta_reasons.append(f"Asset criticality updated from '{prev_snap.get('asset_criticality')}' to '{curr_snap.get('asset_criticality')}'.")
+            if prev_snap.get("has_exposure_edge") != curr_snap.get("has_exposure_edge"):
+                delta_reasons.append(f"Network exposure changed (now exposed: {curr_snap.get('has_exposure_edge')}).")
+            if prev_snap.get("has_verified_attack_path") != curr_snap.get("has_verified_attack_path"):
+                delta_reasons.append(f"Verified attack path presence changed to {curr_snap.get('has_verified_attack_path')}.")
+            if not delta_reasons and score_delta != 0.0:
+                delta_reasons.append(f"Recalculation delta of {score_delta:+.1f} points applied based on temporal decay or mitigating controls.")
+
+        qualitative_label = "WELL_SUPPORTED"
+        if calc.get("missing_factors") or (calc.get("uncertainty_range") and (calc["uncertainty_range"].get("max", 0) - calc["uncertainty_range"].get("min", 0) > 20)):
+            qualitative_label = "HIGH_UNCERTAINTY"
+
+        # Check for unverified exposure penalty: if any exposure edge was unverified, discount it
+        unverified_penalty = 0.0
+        if exposing_rels:
+            for r in exposing_rels:
+                if getattr(r, "epistemic_status", None) in ("HYPOTHESIS", "UNKNOWN", "CONTRADICTED") or getattr(r, "confidence", 1.0) < 0.7:
+                    unverified_penalty = 5.0
+                    calc["contributing_factors"].append(
+                        f"Unverified graph relationship '{r.relationship_type.value}' discounted by {unverified_penalty:.1f} penalty to prevent artificial inflation."
+                    )
+                    break
+
+        final_score = max(0.0, min(100.0, calc["score"] - unverified_penalty))
 
         # Create new assessment
         new_assessment = RiskAssessment(
             project_id=project_id,
             finding_id=finding.id,
             asset_id=asset.id if asset else None,
-            score=calc["score"],
+            score=final_score,
             inherent_score=calc["inherent_score"],
             residual_score=calc["residual_score"],
             priority=calc["priority"],
@@ -633,11 +671,42 @@ class ContextualRiskService:
             uncertainty_range=calc["uncertainty_range"],
             evidence_references=[f.id for f in (finding.raw_findings or [])] if hasattr(finding, "raw_findings") else [],
             input_snapshot=calc["input_snapshot"],
+            prior_score=prior_score,
+            score_delta=score_delta,
+            delta_reasons=delta_reasons,
+            is_invalidated=False,
+            qualitative_label=qualitative_label,
+            unverified_penalty=unverified_penalty,
             calculated_at=now,
             is_superseded=False,
         )
         db.add(new_assessment)
         db.flush()
+
+        # Register knowledge dependencies
+        try:
+            from app.services.dependency_invalidation_service import DependencyInvalidationService
+            DependencyInvalidationService.register_knowledge_dependency(
+                db=db,
+                project_id=project_id,
+                source_entity_type="Finding",
+                source_entity_id=finding.id,
+                dependent_entity_type="RiskAssessment",
+                dependent_entity_id=new_assessment.id,
+                dependency_type="INPUT_SCORE",
+            )
+            if asset:
+                DependencyInvalidationService.register_knowledge_dependency(
+                    db=db,
+                    project_id=project_id,
+                    source_entity_type="Asset",
+                    source_entity_id=asset.id,
+                    dependent_entity_type="RiskAssessment",
+                    dependent_entity_id=new_assessment.id,
+                    dependency_type="INPUT_SCORE",
+                )
+        except Exception:
+            pass
 
         # Audit event
         AuditService.log(

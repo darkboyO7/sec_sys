@@ -1,4 +1,5 @@
 from typing import List, Optional
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Response
 from sqlalchemy.orm import Session
 
@@ -128,7 +129,7 @@ def export_executive_report(
     return Response(
         content=content,
         media_type=mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{Path(filename).name}"'},
     )
 
 
@@ -156,7 +157,7 @@ def export_technical_report(
     return Response(
         content=content,
         media_type=mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{Path(filename).name}"'},
     )
 
 
@@ -184,5 +185,5 @@ def export_governance_report(
     return Response(
         content=content,
         media_type=mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{Path(filename).name}"'},
     )

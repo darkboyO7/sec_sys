@@ -497,3 +497,42 @@ def get_assessment_finding_detail(
     if not finding:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
     return finding
+
+
+@router.get("/projects/{project_id}/assessments/{job_id}/findings/{finding_id}/evidence/{evidence_id}", response_model=FindingEvidenceResponse)
+def get_assessment_evidence_detail(
+    project_id: str,
+    job_id: str,
+    finding_id: str,
+    evidence_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Fetch a specific cryptographic evidence item with strict multi-tenant parent-child boundary checks.
+    Fails closed with 404 if project_id, job_id, finding_id, or evidence_id do not match.
+    """
+    verify_project_access(project_id, current_user, db)
+    finding = (
+        db.query(AssessmentFinding)
+        .filter(
+            AssessmentFinding.project_id == project_id,
+            AssessmentFinding.job_id == job_id,
+            AssessmentFinding.id == finding_id,
+        )
+        .first()
+    )
+    if not finding:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+
+    evidence = (
+        db.query(FindingEvidence)
+        .filter(
+            FindingEvidence.id == evidence_id,
+            FindingEvidence.finding_id == finding.id,
+        )
+        .first()
+    )
+    if not evidence:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evidence item not found")
+    return evidence

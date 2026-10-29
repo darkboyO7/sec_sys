@@ -72,6 +72,13 @@ class VulnerabilityFindingRead(BaseModel):
     recurrence_detected: bool = False
     recurrence_count: int = 0
 
+    # Prompt 19: Epistemic Validation Status
+    validation_status: Optional[str] = None
+    validation_method: Optional[str] = None
+    validation_evidence_ref: Optional[str] = None
+    validation_notes: Optional[str] = None
+    validation_updated_at: Optional[datetime] = None
+
     created_at: datetime
     updated_at: datetime
 
@@ -113,6 +120,35 @@ class ValidateFindingRequest(BaseModel):
     validation_outcome: str = Field(..., description="CONFIRMED, FALSE_POSITIVE, INCONCLUSIVE, NEEDS_MANUAL_REVIEW, STALE_EVIDENCE")
     analyst_review_notes: str = Field(..., min_length=5, max_length=3000)
     evidence_quality_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+
+
+class FindingValidationTransitionRequest(BaseModel):
+    to_status: str = Field(
+        ...,
+        description="Target epistemic validation status: DETECTED, EVIDENCE_PENDING, EVIDENCE_SUPPORTED, INDEPENDENTLY_REPRODUCED, CONFIRMED_TRUE_POSITIVE, CONFIRMED_FALSE_POSITIVE, INCONCLUSIVE, UNABLE_TO_VERIFY, RESOLVED_AFTER_RETEST",
+    )
+    validation_method: str = Field(
+        default="MANUAL_ANALYSIS",
+        description="Method used for validation (e.g. MANUAL_ANALYSIS, INDEPENDENT_SCAN, CONTROLLED_FIXTURE, CORROBORATION)",
+    )
+    reason: str = Field(..., min_length=5, max_length=3000, description="Detailed technical justification for validation transition")
+    evidence_ref: Optional[str] = Field(default=None, description="Optional URI, job ID, or evidence digest reference")
+    is_ai_generated: bool = Field(default=False, description="Flag indicating if the transition proposal originated from an AI model")
+
+
+class ValidationTransitionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    finding_id: str
+    from_status: str
+    to_status: str
+    validation_method: str
+    actor_id: str
+    reason: str
+    evidence_ref: Optional[str] = None
+    created_at: datetime
+    metadata_snapshot: Optional[Dict[str, Any]] = None
 
 
 class FindingStatsResponse(BaseModel):

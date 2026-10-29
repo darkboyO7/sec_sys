@@ -1,0 +1,3109 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "vapt-platform-sbom",
+  "documentNamespace": "https://vapt.internal/spdx/doc-ad5128c6-f151-46d0-a4f0-77fa02691b5d",
+  "creationInfo": {
+    "created": "2026-10-29T10:56:57.719765+00:00",
+    "creators": [
+      "Tool: vapt-sbom-generator-1.0.0"
+    ]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-pypi-alembic-1-20-1-0",
+      "name": "alembic",
+      "versionInfo": "1.20.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/alembic@1.20.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-annotated-doc-0-0-5-1",
+      "name": "annotated-doc",
+      "versionInfo": "0.0.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/annotated-doc@0.0.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-annotated-types-0-8-0-2",
+      "name": "annotated-types",
+      "versionInfo": "0.8.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/annotated-types@0.8.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-anyio-4-15-1-3",
+      "name": "anyio",
+      "versionInfo": "4.15.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/anyio@4.15.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-bcrypt-5-0-0-4",
+      "name": "bcrypt",
+      "versionInfo": "5.0.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/bcrypt@5.0.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-certifi-2026-10-23-5",
+      "name": "certifi",
+      "versionInfo": "2026.10.23",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/certifi@2026.10.23"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-cffi-2-1-1-6",
+      "name": "cffi",
+      "versionInfo": "2.1.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT-0",
+      "licenseDeclared": "MIT-0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/cffi@2.1.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-click-8-5-0-7",
+      "name": "click",
+      "versionInfo": "8.5.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/click@8.5.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-colorama-0-4-6-8",
+      "name": "colorama",
+      "versionInfo": "0.4.6",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Proprietary/OSI",
+      "licenseDeclared": "Proprietary/OSI",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/colorama@0.4.6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-cryptography-50-0-2-9",
+      "name": "cryptography",
+      "versionInfo": "50.0.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0 OR BSD-3-Clause",
+      "licenseDeclared": "Apache-2.0 OR BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/cryptography@50.0.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-dnspython-2-9-0-10",
+      "name": "dnspython",
+      "versionInfo": "2.9.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/dnspython@2.9.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-email-validator-2-3-0-11",
+      "name": "email-validator",
+      "versionInfo": "2.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Unlicense",
+      "licenseDeclared": "Unlicense",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/email-validator@2.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-fastapi-0-162-0-12",
+      "name": "fastapi",
+      "versionInfo": "0.162.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/fastapi@0.162.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-h11-0-16-0-13",
+      "name": "h11",
+      "versionInfo": "0.16.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/h11@0.16.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-httpcore-1-0-9-14",
+      "name": "httpcore",
+      "versionInfo": "1.0.9",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/httpcore@1.0.9"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-httptools-0-9-0-15",
+      "name": "httptools",
+      "versionInfo": "0.9.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/httptools@0.9.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-httpx-0-28-1-16",
+      "name": "httpx",
+      "versionInfo": "0.28.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/httpx@0.28.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-idna-3-20-17",
+      "name": "idna",
+      "versionInfo": "3.20",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/idna@3.20"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-iniconfig-2-3-1-18",
+      "name": "iniconfig",
+      "versionInfo": "2.3.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/iniconfig@2.3.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-Mako-1-4-3-19",
+      "name": "Mako",
+      "versionInfo": "1.4.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/mako@1.4.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-MarkupSafe-3-0-4-20",
+      "name": "MarkupSafe",
+      "versionInfo": "3.0.4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/markupsafe@3.0.4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-opentelemetry-api-1-45-1-21",
+      "name": "opentelemetry-api",
+      "versionInfo": "1.45.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/opentelemetry-api@1.45.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-packaging-26-3-22",
+      "name": "packaging",
+      "versionInfo": "26.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0 OR BSD-2-Clause",
+      "licenseDeclared": "Apache-2.0 OR BSD-2-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/packaging@26.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pip-26-2-2-23",
+      "name": "pip",
+      "versionInfo": "26.2.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pip@26.2.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pluggy-1-7-0-24",
+      "name": "pluggy",
+      "versionInfo": "1.7.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pluggy@1.7.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-psycopg-3-3-6-25",
+      "name": "psycopg",
+      "versionInfo": "3.3.6",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/psycopg@3.3.6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-psycopg-binary-3-3-6-26",
+      "name": "psycopg-binary",
+      "versionInfo": "3.3.6",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-3.0-only",
+      "licenseDeclared": "LGPL-3.0-only",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/psycopg-binary@3.3.6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pycparser-3-12-27",
+      "name": "pycparser",
+      "versionInfo": "3.12",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pycparser@3.12"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pydantic-2-14-1-28",
+      "name": "pydantic",
+      "versionInfo": "2.14.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pydantic@2.14.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pydantic-core-2-50-1-29",
+      "name": "pydantic_core",
+      "versionInfo": "2.50.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pydantic_core@2.50.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pydantic-settings-2-16-1-30",
+      "name": "pydantic-settings",
+      "versionInfo": "2.16.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pydantic-settings@2.16.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-Pygments-2-21-0-31",
+      "name": "Pygments",
+      "versionInfo": "2.21.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-2-Clause",
+      "licenseDeclared": "BSD-2-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pygments@2.21.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-PyJWT-2-15-1-32",
+      "name": "PyJWT",
+      "versionInfo": "2.15.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pyjwt@2.15.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pytest-9-1-1-33",
+      "name": "pytest",
+      "versionInfo": "9.1.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pytest@9.1.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-pytest-asyncio-1-4-0-34",
+      "name": "pytest-asyncio",
+      "versionInfo": "1.4.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pytest-asyncio@1.4.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-python-dotenv-1-2-4-35",
+      "name": "python-dotenv",
+      "versionInfo": "1.2.4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/python-dotenv@1.2.4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-PyYAML-6-0-3-36",
+      "name": "PyYAML",
+      "versionInfo": "6.0.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/pyyaml@6.0.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-SQLAlchemy-2-1-6-37",
+      "name": "SQLAlchemy",
+      "versionInfo": "2.1.6",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/sqlalchemy@2.1.6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-starlette-1-10-0-38",
+      "name": "starlette",
+      "versionInfo": "1.10.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/starlette@1.10.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-typing-extensions-4-16-0-39",
+      "name": "typing_extensions",
+      "versionInfo": "4.16.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "PSF-2.0",
+      "licenseDeclared": "PSF-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/typing_extensions@4.16.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-typing-inspection-0-4-4-40",
+      "name": "typing-inspection",
+      "versionInfo": "0.4.4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/typing-inspection@0.4.4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-tzdata-2026-5-41",
+      "name": "tzdata",
+      "versionInfo": "2026.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/tzdata@2026.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-uvicorn-0-54-0-42",
+      "name": "uvicorn",
+      "versionInfo": "0.54.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/uvicorn@0.54.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-watchfiles-1-3-0-43",
+      "name": "watchfiles",
+      "versionInfo": "1.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/watchfiles@1.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypi-websockets-17-3-44",
+      "name": "websockets",
+      "versionInfo": "17.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/websockets@17.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--alloc-quick-lru-5-3-0-45",
+      "name": "@alloc/quick-lru",
+      "versionInfo": "5.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@alloc/quick-lru@5.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--jridgewell-gen-mapping-0-3-13-46",
+      "name": "@jridgewell/gen-mapping",
+      "versionInfo": "0.3.13",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@jridgewell/gen-mapping@0.3.13"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--jridgewell-remapping-2-3-5-47",
+      "name": "@jridgewell/remapping",
+      "versionInfo": "2.3.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@jridgewell/remapping@2.3.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--jridgewell-resolve-uri-3-1-2-48",
+      "name": "@jridgewell/resolve-uri",
+      "versionInfo": "3.1.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@jridgewell/resolve-uri@3.1.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--jridgewell-sourcemap-codec-1-6-0-49",
+      "name": "@jridgewell/sourcemap-codec",
+      "versionInfo": "1.6.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@jridgewell/sourcemap-codec@1.6.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--jridgewell-trace-mapping-0-3-31-50",
+      "name": "@jridgewell/trace-mapping",
+      "versionInfo": "0.3.31",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@jridgewell/trace-mapping@0.3.31"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxc-project-types-0-155-0-51",
+      "name": "@oxc-project/types",
+      "versionInfo": "0.155.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxc-project/types@0.155.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-android-arm-eabi-1-89-0-52",
+      "name": "@oxlint/binding-android-arm-eabi",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-android-arm-eabi@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-android-arm64-1-89-0-53",
+      "name": "@oxlint/binding-android-arm64",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-android-arm64@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-darwin-arm64-1-89-0-54",
+      "name": "@oxlint/binding-darwin-arm64",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-darwin-arm64@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-darwin-x64-1-89-0-55",
+      "name": "@oxlint/binding-darwin-x64",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-darwin-x64@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-freebsd-x64-1-89-0-56",
+      "name": "@oxlint/binding-freebsd-x64",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-freebsd-x64@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-arm-gnueabihf-1-89-0-57",
+      "name": "@oxlint/binding-linux-arm-gnueabihf",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-arm-gnueabihf@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-arm-musleabihf-1-89-0-58",
+      "name": "@oxlint/binding-linux-arm-musleabihf",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-arm-musleabihf@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-arm64-gnu-1-89-0-59",
+      "name": "@oxlint/binding-linux-arm64-gnu",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-arm64-gnu@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-arm64-musl-1-89-0-60",
+      "name": "@oxlint/binding-linux-arm64-musl",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-arm64-musl@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-ppc64-gnu-1-89-0-61",
+      "name": "@oxlint/binding-linux-ppc64-gnu",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-ppc64-gnu@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-riscv64-gnu-1-89-0-62",
+      "name": "@oxlint/binding-linux-riscv64-gnu",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-riscv64-gnu@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-riscv64-musl-1-89-0-63",
+      "name": "@oxlint/binding-linux-riscv64-musl",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-riscv64-musl@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-s390x-gnu-1-89-0-64",
+      "name": "@oxlint/binding-linux-s390x-gnu",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-s390x-gnu@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-x64-gnu-1-89-0-65",
+      "name": "@oxlint/binding-linux-x64-gnu",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-x64-gnu@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-linux-x64-musl-1-89-0-66",
+      "name": "@oxlint/binding-linux-x64-musl",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-linux-x64-musl@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-openharmony-arm64-1-89-0-67",
+      "name": "@oxlint/binding-openharmony-arm64",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-openharmony-arm64@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-win32-arm64-msvc-1-89-0-68",
+      "name": "@oxlint/binding-win32-arm64-msvc",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-win32-arm64-msvc@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-win32-ia32-msvc-1-89-0-69",
+      "name": "@oxlint/binding-win32-ia32-msvc",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-win32-ia32-msvc@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--oxlint-binding-win32-x64-msvc-1-89-0-70",
+      "name": "@oxlint/binding-win32-x64-msvc",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@oxlint/binding-win32-x64-msvc@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-android-arm-eabi-1-2-15-71",
+      "name": "@rolldown/binding-android-arm-eabi",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-android-arm-eabi@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-android-arm64-1-2-15-72",
+      "name": "@rolldown/binding-android-arm64",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-android-arm64@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-darwin-arm64-1-2-15-73",
+      "name": "@rolldown/binding-darwin-arm64",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-darwin-arm64@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-darwin-x64-1-2-15-74",
+      "name": "@rolldown/binding-darwin-x64",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-darwin-x64@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-freebsd-x64-1-2-15-75",
+      "name": "@rolldown/binding-freebsd-x64",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-freebsd-x64@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-arm-gnueabihf-1-2-15-76",
+      "name": "@rolldown/binding-linux-arm-gnueabihf",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-arm-gnueabihf@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-arm64-gnu-1-2-15-77",
+      "name": "@rolldown/binding-linux-arm64-gnu",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-arm64-gnu@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-arm64-musl-1-2-15-78",
+      "name": "@rolldown/binding-linux-arm64-musl",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-arm64-musl@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-ppc64-gnu-1-2-15-79",
+      "name": "@rolldown/binding-linux-ppc64-gnu",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-ppc64-gnu@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-s390x-gnu-1-2-15-80",
+      "name": "@rolldown/binding-linux-s390x-gnu",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-s390x-gnu@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-x64-gnu-1-2-15-81",
+      "name": "@rolldown/binding-linux-x64-gnu",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-x64-gnu@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-linux-x64-musl-1-2-15-82",
+      "name": "@rolldown/binding-linux-x64-musl",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-linux-x64-musl@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-openharmony-arm64-1-2-15-83",
+      "name": "@rolldown/binding-openharmony-arm64",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-openharmony-arm64@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-win32-arm64-msvc-1-2-15-84",
+      "name": "@rolldown/binding-win32-arm64-msvc",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-win32-arm64-msvc@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-binding-win32-x64-msvc-1-2-15-85",
+      "name": "@rolldown/binding-win32-x64-msvc",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/binding-win32-x64-msvc@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--rolldown-pluginutils-1-0-1-86",
+      "name": "@rolldown/pluginutils",
+      "versionInfo": "1.0.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@rolldown/pluginutils@1.0.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-node-4-3-3-87",
+      "name": "@tailwindcss/node",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/node@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-1-32-0-88",
+      "name": "lightningcss",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-android-arm64-1-32-0-89",
+      "name": "lightningcss-android-arm64",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-android-arm64@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-darwin-arm64-1-32-0-90",
+      "name": "lightningcss-darwin-arm64",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-darwin-arm64@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-darwin-x64-1-32-0-91",
+      "name": "lightningcss-darwin-x64",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-darwin-x64@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-freebsd-x64-1-32-0-92",
+      "name": "lightningcss-freebsd-x64",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-freebsd-x64@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-arm-gnueabihf-1-32-0-93",
+      "name": "lightningcss-linux-arm-gnueabihf",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-arm-gnueabihf@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-arm64-gnu-1-32-0-94",
+      "name": "lightningcss-linux-arm64-gnu",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-arm64-gnu@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-arm64-musl-1-32-0-95",
+      "name": "lightningcss-linux-arm64-musl",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-arm64-musl@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-x64-gnu-1-32-0-96",
+      "name": "lightningcss-linux-x64-gnu",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-x64-gnu@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-x64-musl-1-32-0-97",
+      "name": "lightningcss-linux-x64-musl",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-x64-musl@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-win32-arm64-msvc-1-32-0-98",
+      "name": "lightningcss-win32-arm64-msvc",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-win32-arm64-msvc@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-win32-x64-msvc-1-32-0-99",
+      "name": "lightningcss-win32-x64-msvc",
+      "versionInfo": "1.32.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-win32-x64-msvc@1.32.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-magic-string-0-30-21-100",
+      "name": "magic-string",
+      "versionInfo": "0.30.21",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/magic-string@0.30.21"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-4-3-3-101",
+      "name": "@tailwindcss/oxide",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-android-arm64-4-3-3-102",
+      "name": "@tailwindcss/oxide-android-arm64",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-android-arm64@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-darwin-arm64-4-3-3-103",
+      "name": "@tailwindcss/oxide-darwin-arm64",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-darwin-arm64@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-darwin-x64-4-3-3-104",
+      "name": "@tailwindcss/oxide-darwin-x64",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-darwin-x64@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-freebsd-x64-4-3-3-105",
+      "name": "@tailwindcss/oxide-freebsd-x64",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-freebsd-x64@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-linux-arm-gnueabihf-4-3-3-106",
+      "name": "@tailwindcss/oxide-linux-arm-gnueabihf",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-linux-arm-gnueabihf@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-linux-arm64-gnu-4-3-3-107",
+      "name": "@tailwindcss/oxide-linux-arm64-gnu",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-linux-arm64-gnu@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-linux-arm64-musl-4-3-3-108",
+      "name": "@tailwindcss/oxide-linux-arm64-musl",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-linux-arm64-musl@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-linux-x64-gnu-4-3-3-109",
+      "name": "@tailwindcss/oxide-linux-x64-gnu",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-linux-x64-gnu@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-linux-x64-musl-4-3-3-110",
+      "name": "@tailwindcss/oxide-linux-x64-musl",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-linux-x64-musl@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-wasm32-wasi-4-3-3-111",
+      "name": "@tailwindcss/oxide-wasm32-wasi",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-wasm32-wasi@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-win32-arm64-msvc-4-3-3-112",
+      "name": "@tailwindcss/oxide-win32-arm64-msvc",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-win32-arm64-msvc@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-oxide-win32-x64-msvc-4-3-3-113",
+      "name": "@tailwindcss/oxide-win32-x64-msvc",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/oxide-win32-x64-msvc@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--tailwindcss-postcss-4-3-3-114",
+      "name": "@tailwindcss/postcss",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@tailwindcss/postcss@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--types-chai-5-2-3-115",
+      "name": "@types/chai",
+      "versionInfo": "5.2.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@types/chai@5.2.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--types-deep-eql-4-0-2-116",
+      "name": "@types/deep-eql",
+      "versionInfo": "4.0.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@types/deep-eql@4.0.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--types-estree-1-0-9-117",
+      "name": "@types/estree",
+      "versionInfo": "1.0.9",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@types/estree@1.0.9"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--types-node-24-19-2-118",
+      "name": "@types/node",
+      "versionInfo": "24.19.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@types/node@24.19.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--types-react-19-3-0-119",
+      "name": "@types/react",
+      "versionInfo": "19.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@types/react@19.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--types-react-dom-19-3-0-120",
+      "name": "@types/react-dom",
+      "versionInfo": "19.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@types/react-dom@19.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--vitejs-plugin-react-6-1-2-121",
+      "name": "@vitejs/plugin-react",
+      "versionInfo": "6.1.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@vitejs/plugin-react@6.1.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--vitest-mocker-5-0-5-122",
+      "name": "@vitest/mocker",
+      "versionInfo": "5.0.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@vitest/mocker@5.0.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm--vitest-spy-5-0-5-123",
+      "name": "@vitest/spy",
+      "versionInfo": "5.0.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/@vitest/spy@5.0.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-assertion-error-2-0-1-124",
+      "name": "assertion-error",
+      "versionInfo": "2.0.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/assertion-error@2.0.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-autoprefixer-10-6-1-125",
+      "name": "autoprefixer",
+      "versionInfo": "10.6.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/autoprefixer@10.6.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-baseline-browser-mapping-2-11-32-126",
+      "name": "baseline-browser-mapping",
+      "versionInfo": "2.11.32",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/baseline-browser-mapping@2.11.32"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-browserslist-4-29-4-127",
+      "name": "browserslist",
+      "versionInfo": "4.29.4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/browserslist@4.29.4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-caniuse-lite-1-0-30001819-128",
+      "name": "caniuse-lite",
+      "versionInfo": "1.0.30001819",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "CC-BY-4.0",
+      "licenseDeclared": "CC-BY-4.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/caniuse-lite@1.0.30001819"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-chai-6-3-0-129",
+      "name": "chai",
+      "versionInfo": "6.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/chai@6.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-csstype-3-2-3-130",
+      "name": "csstype",
+      "versionInfo": "3.2.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/csstype@3.2.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-detect-libc-2-1-2-131",
+      "name": "detect-libc",
+      "versionInfo": "2.1.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/detect-libc@2.1.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-electron-to-chromium-1-5-464-132",
+      "name": "electron-to-chromium",
+      "versionInfo": "1.5.464",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/electron-to-chromium@1.5.464"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-enhanced-resolve-5-26-0-133",
+      "name": "enhanced-resolve",
+      "versionInfo": "5.26.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/enhanced-resolve@5.26.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-es-module-lexer-2-3-2-134",
+      "name": "es-module-lexer",
+      "versionInfo": "2.3.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/es-module-lexer@2.3.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-escalade-3-2-0-135",
+      "name": "escalade",
+      "versionInfo": "3.2.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/escalade@3.2.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-estree-walker-3-0-3-136",
+      "name": "estree-walker",
+      "versionInfo": "3.0.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/estree-walker@3.0.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-expect-type-1-4-0-137",
+      "name": "expect-type",
+      "versionInfo": "1.4.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/expect-type@1.4.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-fdir-6-5-0-138",
+      "name": "fdir",
+      "versionInfo": "6.5.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/fdir@6.5.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-fraction-js-5-3-4-139",
+      "name": "fraction.js",
+      "versionInfo": "5.3.4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/fraction.js@5.3.4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-fsevents-2-3-3-140",
+      "name": "fsevents",
+      "versionInfo": "2.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/fsevents@2.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-graceful-fs-4-2-11-141",
+      "name": "graceful-fs",
+      "versionInfo": "4.2.11",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/graceful-fs@4.2.11"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-jiti-2-7-0-142",
+      "name": "jiti",
+      "versionInfo": "2.7.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/jiti@2.7.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-1-33-0-143",
+      "name": "lightningcss",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-android-arm64-1-33-0-144",
+      "name": "lightningcss-android-arm64",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-android-arm64@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-darwin-arm64-1-33-0-145",
+      "name": "lightningcss-darwin-arm64",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-darwin-arm64@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-darwin-x64-1-33-0-146",
+      "name": "lightningcss-darwin-x64",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-darwin-x64@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-freebsd-x64-1-33-0-147",
+      "name": "lightningcss-freebsd-x64",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-freebsd-x64@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-arm-gnueabihf-1-33-0-148",
+      "name": "lightningcss-linux-arm-gnueabihf",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-arm-gnueabihf@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-arm64-gnu-1-33-0-149",
+      "name": "lightningcss-linux-arm64-gnu",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-arm64-gnu@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-arm64-musl-1-33-0-150",
+      "name": "lightningcss-linux-arm64-musl",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-arm64-musl@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-x64-gnu-1-33-0-151",
+      "name": "lightningcss-linux-x64-gnu",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-x64-gnu@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-linux-x64-musl-1-33-0-152",
+      "name": "lightningcss-linux-x64-musl",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-linux-x64-musl@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-win32-arm64-msvc-1-33-0-153",
+      "name": "lightningcss-win32-arm64-msvc",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-win32-arm64-msvc@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lightningcss-win32-x64-msvc-1-33-0-154",
+      "name": "lightningcss-win32-x64-msvc",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MPL-2.0",
+      "licenseDeclared": "MPL-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lightningcss-win32-x64-msvc@1.33.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-lucide-react-1-61-0-155",
+      "name": "lucide-react",
+      "versionInfo": "1.61.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lucide-react@1.61.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-magic-string-1-4-3-156",
+      "name": "magic-string",
+      "versionInfo": "1.4.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/magic-string@1.4.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-nanoid-3-3-20-157",
+      "name": "nanoid",
+      "versionInfo": "3.3.20",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/nanoid@3.3.20"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-node-releases-2-0-60-158",
+      "name": "node-releases",
+      "versionInfo": "2.0.60",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/node-releases@2.0.60"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-obug-3-0-0-159",
+      "name": "obug",
+      "versionInfo": "3.0.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/obug@3.0.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-oxlint-1-89-0-160",
+      "name": "oxlint",
+      "versionInfo": "1.89.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/oxlint@1.89.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-picocolors-1-1-1-161",
+      "name": "picocolors",
+      "versionInfo": "1.1.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "ISC",
+      "licenseDeclared": "ISC",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/picocolors@1.1.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-picomatch-4-0-7-162",
+      "name": "picomatch",
+      "versionInfo": "4.0.7",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/picomatch@4.0.7"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-postcss-8-5-31-163",
+      "name": "postcss",
+      "versionInfo": "8.5.31",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/postcss@8.5.31"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-postcss-value-parser-4-2-0-164",
+      "name": "postcss-value-parser",
+      "versionInfo": "4.2.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/postcss-value-parser@4.2.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-react-19-3-1-165",
+      "name": "react",
+      "versionInfo": "19.3.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/react@19.3.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-react-dom-19-3-1-166",
+      "name": "react-dom",
+      "versionInfo": "19.3.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/react-dom@19.3.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-rolldown-1-2-15-167",
+      "name": "rolldown",
+      "versionInfo": "1.2.15",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/rolldown@1.2.15"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-scheduler-0-28-0-168",
+      "name": "scheduler",
+      "versionInfo": "0.28.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/scheduler@0.28.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-source-map-js-1-2-2-169",
+      "name": "source-map-js",
+      "versionInfo": "1.2.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/source-map-js@1.2.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-std-env-4-3-0-170",
+      "name": "std-env",
+      "versionInfo": "4.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/std-env@4.3.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-tailwindcss-4-3-3-171",
+      "name": "tailwindcss",
+      "versionInfo": "4.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/tailwindcss@4.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-tapable-2-3-3-172",
+      "name": "tapable",
+      "versionInfo": "2.3.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/tapable@2.3.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-tinybench-6-2-2-173",
+      "name": "tinybench",
+      "versionInfo": "6.2.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/tinybench@6.2.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-tinyexec-1-3-1-174",
+      "name": "tinyexec",
+      "versionInfo": "1.3.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/tinyexec@1.3.1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-tinyglobby-0-2-17-175",
+      "name": "tinyglobby",
+      "versionInfo": "0.2.17",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/tinyglobby@0.2.17"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-typescript-6-0-3-176",
+      "name": "typescript",
+      "versionInfo": "6.0.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/typescript@6.0.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-undici-types-7-24-6-177",
+      "name": "undici-types",
+      "versionInfo": "7.24.6",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/undici-types@7.24.6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-update-browserslist-db-1-3-4-178",
+      "name": "update-browserslist-db",
+      "versionInfo": "1.3.4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/update-browserslist-db@1.3.4"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-vite-8-3-5-179",
+      "name": "vite",
+      "versionInfo": "8.3.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/vite@8.3.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-vitest-5-0-5-180",
+      "name": "vitest",
+      "versionInfo": "5.0.5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/vitest@5.0.5"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-npm-why-is-node-running-3-2-1-181",
+      "name": "why-is-node-running",
+      "versionInfo": "3.2.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/why-is-node-running@3.2.1"
+        }
+      ]
+    }
+  ]
+}

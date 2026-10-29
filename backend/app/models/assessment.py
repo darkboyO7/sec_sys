@@ -92,6 +92,7 @@ class AssessmentJob(Base, TimestampMixin):
     __table_args__ = (
         Index("uq_assessment_jobs_project_idempotency_key", "project_id", "idempotency_key", unique=True),
         Index("ix_assessment_jobs_project_status_created", "project_id", "status", "created_at"),
+        Index("ix_assessment_jobs_status_heartbeat", "status", "heartbeat_at"),
     )
 
 

@@ -178,6 +178,8 @@ export interface AuditEvent {
   ip_address?: string | null;
   outcome: 'SUCCESS' | 'DENIED' | 'FAILURE';
   details: Record<string, any>;
+  event_hash?: string | null;
+  prev_event_hash?: string | null;
 }
 
 export interface ReadinessResponse {
@@ -272,6 +274,13 @@ export interface VulnerabilityFinding {
   verified_by_id?: string | null;
   verification_job_id?: string | null;
   verification_notes?: string | null;
+  validation_status?: FindingValidationStatus | null;
+  validation_method?: string | null;
+  validation_evidence_ref?: string | null;
+  validation_notes?: string | null;
+  validation_updated_at?: string | null;
+  recurrence_detected?: boolean;
+  recurrence_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -343,6 +352,7 @@ export interface AssetObservation {
   asset_id: string;
   project_id: string;
   assessment_job_id?: string | null;
+  monitoring_run_id?: string | null;
   observation_source: string;
   adapter_version: string;
   observed_at: string;
@@ -350,6 +360,47 @@ export interface AssetObservation {
   evidence_hash?: string | null;
   confidence: number;
   validation_status: string;
+  authorization_context?: Record<string, any>;
+  is_simulated?: boolean;
+  completeness?: number;
+  collection_errors?: Record<string, any>[];
+  observation_schema_version?: string;
+  is_successful_absence?: boolean;
+  dedup_hash?: string | null;
+  created_at: string;
+}
+
+export interface AssetIdentifierAlias {
+  id: string;
+  asset_id: string;
+  project_id: string;
+  identifier_type: string;
+  identifier_value: string;
+  is_primary: boolean;
+  confidence: number;
+  evidence_ref?: string | null;
+  first_observed_at: string;
+  last_observed_at: string;
+  is_active: boolean;
+  disassociation_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetIdentityMergeRecord {
+  id: string;
+  project_id: string;
+  target_asset_id: string;
+  merged_asset_id: string;
+  merged_canonical_identifier: string;
+  merged_asset_type: string;
+  merge_rationale: string;
+  confidence: number;
+  actor_id?: string | null;
+  is_reversed: boolean;
+  reversed_at?: string | null;
+  reversed_by_id?: string | null;
+  reversal_notes?: string | null;
   created_at: string;
 }
 
@@ -368,6 +419,11 @@ export interface Asset {
   confidence: number;
   first_seen_at: string;
   last_seen_at: string;
+  last_successful_observation_at?: string | null;
+  completeness_score?: number;
+  freshness_status?: string;
+  consecutive_absences?: number;
+  confirmed_absent?: boolean;
   is_ambiguous: boolean;
   ambiguity_reason?: string | null;
   created_at: string;
@@ -376,9 +432,99 @@ export interface Asset {
 
 export interface AssetDetail extends Asset {
   observations: AssetObservation[];
+  aliases?: AssetIdentifierAlias[];
   finding_count: number;
   graph_node_id?: string | null;
   related_nodes_count: number;
+}
+
+export type DriftType =
+  | 'NEW_AUTHORIZED_ASSET'
+  | 'ASSET_UNOBSERVED_WARNING'
+  | 'ASSET_CONFIRMED_ABSENT'
+  | 'IP_ASSOCIATION_CHANGED'
+  | 'HOSTNAME_ASSOCIATION_CHANGED'
+  | 'SERVICE_ADDED'
+  | 'SERVICE_REMOVED'
+  | 'SERVICE_METADATA_CHANGED'
+  | 'VERSION_CHANGED'
+  | 'SECURITY_CONFIG_CHANGED'
+  | 'FINDING_APPEARED'
+  | 'FINDING_DISAPPEARED'
+  | 'EVIDENCE_CONFIDENCE_CHANGED';
+
+export type DriftMateriality = 'MATERIAL' | 'IMMATERIAL' | 'INCONCLUSIVE';
+
+export type ReassessmentPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type ReassessmentStatus =
+  | 'PROPOSED'
+  | 'DEFERRED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'QUEUED'
+  | 'COMPLETED'
+  | 'FAILED';
+
+export interface ExposureDriftRecord {
+  id: string;
+  project_id: string;
+  asset_id?: string | null;
+  drift_type: DriftType;
+  materiality: DriftMateriality;
+  materiality_reason: string;
+  target_resource: string;
+  title: string;
+  previous_observation_id?: string | null;
+  current_observation_id?: string | null;
+  previous_state: Record<string, any>;
+  new_state: Record<string, any>;
+  evidence_references: string[];
+  confidence: number;
+  is_resolved: boolean;
+  security_impact_summary?: string | null;
+  reassessment_recommended: boolean;
+  dedup_key?: string | null;
+  detected_at: string;
+  evaluated_at: string;
+  acted_upon_at?: string | null;
+  created_at: string;
+}
+
+export interface ReassessmentProposal {
+  id: string;
+  project_id: string;
+  asset_id?: string | null;
+  drift_record_id?: string | null;
+  target_input: string;
+  adapter_name: string;
+  fixture_profile: string;
+  priority: ReassessmentPriority;
+  status: ReassessmentStatus;
+  rationale: string;
+  scope_authorized: boolean;
+  scope_validation_details: Record<string, any>;
+  requires_human_approval: boolean;
+  approved_by_id?: string | null;
+  approved_at?: string | null;
+  rejection_reason?: string | null;
+  scheduled_job_id?: string | null;
+  attempt_count: number;
+  max_attempts: number;
+  last_error?: string | null;
+  created_at: string;
+}
+
+export interface ProjectDriftOverview {
+  total_assets: number;
+  freshness_distribution: Record<string, number>;
+  drift_materiality_distribution: Record<string, number>;
+  drift_type_distribution: Record<string, number>;
+  reassessment_proposals_distribution: Record<string, number>;
+  average_collection_completeness: number;
+  total_drift_records: number;
+  total_reassessment_proposals: number;
+  governance_warnings: string[];
 }
 
 export interface AssetCreateFixtureRequest {
@@ -1403,4 +1549,583 @@ export interface DependencyInvalidation {
   recalculated_at?: string | null;
   created_at: string;
 }
+
+// Prompt 19: Detection Quality & Evidence-Driven Intelligence
+export type FindingValidationStatus =
+  | 'DETECTED'
+  | 'EVIDENCE_PENDING'
+  | 'EVIDENCE_SUPPORTED'
+  | 'INDEPENDENTLY_REPRODUCED'
+  | 'CONFIRMED_TRUE_POSITIVE'
+  | 'CONFIRMED_FALSE_POSITIVE'
+  | 'INCONCLUSIVE'
+  | 'UNABLE_TO_VERIFY'
+  | 'RESOLVED_AFTER_RETEST';
+
+export interface QualityOverviewResponse {
+  project_id: string;
+  project_name: string;
+  generated_at: string;
+  sample_sizes: {
+    total_canonical_findings: number;
+    total_raw_observations: number;
+    reviewed_findings: number;
+    remediated_findings: number;
+    evidence_supported_findings: number;
+    independently_reproduced_findings: number;
+  };
+  disclosed_denominators: {
+    evidence_completeness: string;
+    reproduction_rate: string;
+    confirmed_false_positive_rate: string;
+    retest_recurrence_rate: string;
+    duplicate_observation_rate: string;
+  };
+  metrics: {
+    evidence_completeness_rate: number;
+    independent_reproduction_rate: number;
+    confirmed_false_positive_rate: number;
+    inconclusive_finding_rate: number;
+    retest_recurrence_rate: number;
+    duplicate_observation_rate: number;
+  };
+  validation_status_distribution: Record<string, number>;
+  evaluation_period: {
+    earliest_observed_at: string | null;
+    latest_observed_at: string | null;
+  };
+  quality_warnings: string[];
+}
+
+export interface FixtureBenchmarkScenarioResult {
+  fixture_type: string;
+  fixture_version: string;
+  is_synthetic: boolean;
+  sample_size?: number;
+  true_positives?: number;
+  false_positives?: number;
+  true_negatives?: number;
+  false_negatives?: number;
+  precision?: number;
+  recall?: number;
+  false_positive_rate?: number;
+  false_negative_rate?: number;
+  ground_truth_status: string;
+  reported_validation_status?: string;
+  valid_failure_handling?: boolean;
+  valid_ambiguity_handling?: boolean;
+  notes?: string;
+}
+
+export interface FixtureBenchmarksResponse {
+  project_id: string;
+  framework_version: string;
+  benchmark_scenarios: Record<string, FixtureBenchmarkScenarioResult>;
+}
+
+export interface FindingValidationTransitionRequest {
+  to_status: FindingValidationStatus;
+  validation_method?: string;
+  reason: string;
+  evidence_ref?: string | null;
+  is_ai_generated?: boolean;
+}
+
+export interface FindingProvenanceResponse {
+  finding_id: string;
+  fingerprint: string;
+  title: string;
+  severity: string;
+  confidence: string;
+  operational_status: string;
+  validation_status: string | null;
+  is_simulated: boolean;
+  evidence_quality_score: number;
+  cryptographic_integrity_verified: boolean;
+  first_observed_at: string | null;
+  last_observed_at: string | null;
+  observations_count: number;
+  observations: Array<{
+    observation_id: string;
+    job_id: string;
+    adapter_name: string;
+    adapter_version: string;
+    created_at: string | null;
+    is_simulated: boolean;
+    evidence_items: Array<{
+      evidence_id: string;
+      evidence_type: string;
+      recorded_sha256: string;
+      computed_sha256: string;
+      is_cryptographically_valid: boolean;
+      is_simulated: boolean;
+      payload_preview: string;
+    }>;
+  }>;
+  validation_history: Array<{
+    from_status: string;
+    to_status: string;
+    validation_method: string;
+    actor_id: string;
+    reason: string;
+    evidence_ref: string | null;
+    created_at: string | null;
+    metadata_snapshot: Record<string, any> | null;
+  }>;
+}
+
+// ---------------------------------------------------------------------------
+// Prompt 21: Knowledge Integrity, Explainable Attack Paths & Reconciliation
+// ---------------------------------------------------------------------------
+
+export type EpistemicStatus =
+  | 'OBSERVED_FACT'
+  | 'CORROBORATED_FACT'
+  | 'DERIVED_CONCLUSION'
+  | 'HYPOTHESIS'
+  | 'UNKNOWN'
+  | 'CONTRADICTED'
+  | 'STALE'
+  | 'INVALIDATED';
+
+export type AttackPathStatus =
+  | 'VERIFIED'
+  | 'PLAUSIBLE'
+  | 'HYPOTHETICAL'
+  | 'STALE'
+  | 'CONTRADICTED'
+  | 'INVALIDATED';
+
+export interface KnowledgeDependencyRecord {
+  id: string;
+  project_id: string;
+  source_entity_type: string;
+  source_entity_id: string;
+  source_version?: string | null;
+  dependent_entity_type: string;
+  dependent_entity_id: string;
+  dependency_type: string;
+  is_valid: boolean;
+  invalidated_at?: string | null;
+  invalidation_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttackPathStepExplanation {
+  step: number;
+  from_node: { id: string; label: string; category: string };
+  to_node: { id: string; label: string; category: string };
+  edge_id: string;
+  relationship_type: string;
+  status: string;
+  epistemic_status: string;
+  confidence: number;
+  is_authoritative: boolean;
+  is_simulated: boolean;
+  supporting_evidence: string;
+  required_assumptions: string[];
+  unverified_conditions: string[];
+  invalidation_triggers: string[];
+}
+
+export interface ExplainableAttackPath {
+  id: string;
+  project_id: string;
+  name: string;
+  start_node_id: string;
+  target_node_id: string;
+  path_status: AttackPathStatus;
+  cumulative_confidence: number;
+  risk_impact_score: number;
+  step_count: number;
+  is_scope_compliant: boolean;
+  scope_violations: Array<{
+    node_id: string;
+    node_label: string;
+    exclusion_id: string;
+    exclusion_value: string;
+    reason: string;
+  }>;
+  steps_explanation: AttackPathStepExplanation[];
+  chokepoints: any[];
+  calculation_version: string;
+  input_hashes: Record<string, any>;
+  is_stale: boolean;
+  is_invalidated: boolean;
+  invalidation_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeReconciliationAudit {
+  id: string;
+  project_id: string;
+  run_by_user_id?: string | null;
+  status: 'COMPLETED' | 'IN_PROGRESS' | 'FAILED' | 'PARTIALLY_REPAIRED';
+  total_nodes_audited: number;
+  total_relationships_audited: number;
+  dangling_references_detected: number;
+  duplicate_relationships_detected: number;
+  invalid_types_detected: number;
+  missing_provenance_detected: number;
+  stale_conclusions_detected: number;
+  scope_violations_detected: number;
+  contradictions_detected: number;
+  auto_repaired_count: number;
+  manual_review_required_count: number;
+  reconciliation_log: Array<{
+    item_type: string;
+    id?: string;
+    severity: string;
+    description: string;
+    auto_repairable: boolean;
+    repaired: boolean;
+  }>;
+  started_at: string;
+  completed_at?: string | null;
+}
+
+export interface FindingEpistemicExplanation {
+  finding_id: string;
+  title: string;
+  severity: string;
+  lifecycle_status: string;
+  validation_status: string;
+  confidence: string;
+  epistemic_status: string;
+  is_authoritative: boolean;
+  is_simulated: boolean;
+  evidence_items: any[];
+  validation_history: any[];
+  contextual_risk?: {
+    score: number;
+    inherent_score?: number;
+    residual_score?: number;
+    priority: string;
+    scoring_version: string;
+    prior_score?: number | null;
+    score_delta?: number | null;
+    delta_reasons: string[];
+    qualitative_label: string;
+    unverified_penalty: number;
+    is_invalidated: boolean;
+    invalidation_reason?: string | null;
+    contributing_factors: string[];
+    missing_factors: string[];
+    uncertainty_range: Record<string, any>;
+  } | null;
+  dependent_attack_paths: any[];
+  dependencies: KnowledgeDependencyRecord[];
+}
+
+
+
+// ---------------------------------------------------------------------------
+// Prompt 22: Multi-Tenant Governance, Separation of Duties & Approvals
+// ---------------------------------------------------------------------------
+
+export type ApprovalWorkflowType =
+  | 'SCOPE_AUTHORIZATION'
+  | 'SECURITY_DECISION'
+  | 'REMEDIATION_CHANGE'
+  | 'RISK_ACCEPTANCE'
+  | 'MODEL_PROMOTION'
+  | 'DATA_PURGE';
+
+export type GovernanceApprovalStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXECUTED'
+  | 'REVOKED'
+  | 'INVALIDATED';
+
+export interface ProjectGovernancePolicy {
+  id: string;
+  project_id: string;
+  enforce_separation_of_duties: boolean;
+  allow_self_approval_override: boolean;
+  require_two_person_rule_for_purge: boolean;
+  require_lead_for_scope_authorization: boolean;
+  require_lead_for_risk_acceptance: boolean;
+  require_lead_for_remediation_approval: boolean;
+  require_lead_for_model_promotion: boolean;
+  policy_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectGovernancePolicyUpdate {
+  enforce_separation_of_duties?: boolean;
+  allow_self_approval_override?: boolean;
+  require_two_person_rule_for_purge?: boolean;
+  require_lead_for_scope_authorization?: boolean;
+  require_lead_for_risk_acceptance?: boolean;
+  require_lead_for_remediation_approval?: boolean;
+  require_lead_for_model_promotion?: boolean;
+}
+
+export interface ApprovalRequestRecord {
+  id: string;
+  project_id: string;
+  workflow_type: ApprovalWorkflowType;
+  resource_type: string;
+  resource_id: string;
+  status: GovernanceApprovalStatus;
+  title: string;
+  description?: string | null;
+  parameter_hash: string;
+  parameters_snapshot: Record<string, any>;
+  requester_id: string;
+  approver_id?: string | null;
+  executed_by_id?: string | null;
+  requested_at: string;
+  decided_at?: string | null;
+  executed_at?: string | null;
+  invalidated_at?: string | null;
+  decision_reason?: string | null;
+  invalidation_reason?: string | null;
+  policy_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApprovalDecisionRequest {
+  approved: boolean;
+  reason: string;
+}
+
+export interface PermissionMatrixAction {
+  resource: string;
+  actions: Record<string, string[]>;
+}
+
+export interface PermissionMatrixResponse {
+  version: string;
+  roles: {
+    SystemRole: string[];
+    ProjectRole: string[];
+  };
+  matrix: PermissionMatrixAction[];
+}
+
+// Prompt 23: Disaster Recovery, Verified Restoration & Data Integrity Types
+export interface DisasterRecoveryBundle {
+  bundle_id: string;
+  bundle_path: string;
+  created_at: string;
+  created_by_id?: string | null;
+  manifest_sha256: string;
+  database_sha256: string;
+  size_bytes: number;
+  status: 'PENDING' | 'VERIFIED' | 'FAILED' | 'RESTORE_VERIFIED' | 'CORRUPTED';
+  last_verified_at?: string | null;
+  verification_report?: Record<string, any> | null;
+  last_restore_drill_at?: string | null;
+  restore_drill_report?: Record<string, any> | null;
+  is_last_known_good: boolean;
+  table_counts?: Record<string, number> | null;
+  schema_revision?: string | null;
+}
+
+export interface BackupVerificationCheckDetail {
+  passed: boolean;
+  detail: string;
+}
+
+export interface BackupVerificationResult {
+  bundle_id: string;
+  status: 'PASSED' | 'FAILED';
+  verified_at: string;
+  checks: Record<string, BackupVerificationCheckDetail>;
+  errors: string[];
+}
+
+export interface RestoreDrillResult {
+  status: 'SUCCESS' | 'FAILED';
+  bundle_id: string;
+  drill_type: string;
+  sandbox_path: string;
+  jobs_reconciled: Array<{ job_id: string; prior_status: string; new_status: string }>;
+  tables_verified: number;
+  audit_events_count: number;
+  sandbox_cleaned: boolean;
+  duration_ms: number;
+  message: string;
+}
+
+export interface LiveRestoreResult {
+  status: string;
+  bundle_id: string;
+  live_db_path: string;
+  rollback_path: string;
+  tables_restored: number;
+  jobs_reconciled_count: number;
+  audit_events_count: number;
+  integrity_check: string;
+  restored_at: string;
+}
+
+export interface RotationResult {
+  bundles_scanned: number;
+  bundles_retained: number;
+  bundles_pruned: number;
+  incomplete_cleaned: number;
+  last_known_good_preserved?: string | null;
+  details: string[];
+}
+
+export interface RecoveryStatusSummary {
+  total_bundles: number;
+  incomplete_bundles: number;
+  last_attempt_at?: string | null;
+  last_verified_bundle_id?: string | null;
+  last_verified_at?: string | null;
+  last_restore_drill_bundle_id?: string | null;
+  last_restore_drill_at?: string | null;
+  last_known_good_bundle_id?: string | null;
+  total_storage_bytes: number;
+  recovery_readiness: 'READY' | 'ATTENTION_REQUIRED' | 'DEGRADED';
+}
+
+// -----------------------------------------------------------------------------
+// Prompt 25: Software Supply-Chain Security & Verifiable Provenance
+// -----------------------------------------------------------------------------
+export interface DependencyItem {
+  name: string;
+  version: string;
+  ecosystem: 'pypi' | 'npm';
+  purl: string;
+  is_direct: boolean;
+  scope: 'required' | 'optional' | 'dev';
+  license?: string | null;
+  checksum?: string | null;
+  supplier?: string | null;
+}
+
+export interface DependencyInventoryResponse {
+  total_dependencies: number;
+  pypi_count: number;
+  npm_count: number;
+  direct_count: number;
+  transitive_count: number;
+  items: DependencyItem[];
+  generated_at: string;
+}
+
+export type VulnerabilitySeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export interface VulnerabilityAdvisory {
+  id: string;
+  package_name: string;
+  ecosystem: string;
+  affected_version: string;
+  severity: VulnerabilitySeverity;
+  title: string;
+  description?: string | null;
+  remediation_version?: string | null;
+  advisory_url?: string | null;
+}
+
+export interface DependencyAuditResponse {
+  status: 'CLEAN' | 'VULNERABILITIES_FOUND' | 'DEGRADED_SCAN' | 'CRITICAL_BLOCKED';
+  advisory_service_status: 'ONLINE' | 'OFFLINE_FALLBACK' | 'UNAVAILABLE';
+  total_vulnerabilities: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  release_gate_passed: boolean;
+  advisories: VulnerabilityAdvisory[];
+  scanned_at: string;
+  details: Record<string, unknown>;
+}
+
+export interface SecretFinding {
+  file_path: string;
+  line_number?: number | null;
+  rule_name: string;
+  severity: string;
+  redacted_match: string;
+}
+
+export interface SecretScanResponse {
+  status: 'CLEAN' | 'SECRETS_DETECTED';
+  total_scanned_files: number;
+  total_findings: number;
+  findings: SecretFinding[];
+  scanned_at: string;
+}
+
+export interface ReleaseVerificationResult {
+  valid: boolean;
+  release_id: string;
+  version: string;
+  total_files_verified: number;
+  mismatched_files: string[];
+  missing_files: string[];
+  unexpected_files: string[];
+  forbidden_files_detected: string[];
+  signature_valid: boolean;
+  message: string;
+  errors: string[];
+}
+
+export type WorkloadPriority = 'INTERACTIVE' | 'BACKGROUND' | 'MAINTENANCE';
+
+export interface WorkloadQueueStatus {
+  active_workers: number;
+  max_concurrent_workers: number;
+  queue_depth: number;
+  max_queue_depth: number;
+  capacity_utilization_pct: number;
+  saturated: boolean;
+  rejected_tasks_count: number;
+  active_tasks: Array<Record<string, unknown>>;
+  timestamp: string;
+}
+
+export interface PerformanceBudget {
+  operation: string;
+  budget_ms: number;
+  p50_ms: number;
+  p95_ms: number;
+  p99_ms: number;
+  sample_count: number;
+  within_budget: boolean;
+}
+
+export interface PerformanceBudgetsResponse {
+  budgets: PerformanceBudget[];
+  overall_healthy: boolean;
+  measured_at: string;
+}
+
+export interface BenchmarkResult {
+  operation: string;
+  dataset_size: string;
+  record_count: number;
+  duration_ms: number;
+  ops_per_second: number;
+  query_count: number;
+}
+
+export interface BenchmarkSuiteResponse {
+  environment: Record<string, string>;
+  dataset_size: string;
+  benchmarks: BenchmarkResult[];
+  total_duration_ms: number;
+  summary: string;
+  executed_at: string;
+}
+
+export interface StaleJobReconciliationResult {
+  scanned_jobs: number;
+  recovered_jobs_count: number;
+  reconciled_job_ids: string[];
+  details: string[];
+  reconciled_at: string;
+}
+
 
