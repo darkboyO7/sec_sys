@@ -105,6 +105,11 @@ class BackupRecoveryService:
         try:
             # 1. Consistent SQLite WAL Online Backup
             db.flush()
+            try:
+                from sqlalchemy import text
+                db.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+            except Exception:
+                pass
             staging_db_path = staging_dir / "database.db"
 
             db_url = str(
@@ -148,6 +153,37 @@ class BackupRecoveryService:
                             "sha256": compute_sha256(dest_fpath),
                             "size_bytes": dest_fpath.stat().st_size,
                         })
+
+            # 2b. Model Artifacts Snapshot (Prompt 42, Req 1)
+            src_models = Path("./data/models").resolve()
+            staging_models_dir = staging_dir / "models"
+            models_catalog = []
+            if src_models.exists() and src_models.is_dir():
+                staging_models_dir.mkdir(parents=True, exist_ok=True)
+                for root, _, files in os.walk(src_models):
+                    for f in files:
+                        full_fpath = Path(root) / f
+                        rel_path = full_fpath.relative_to(src_models)
+                        dest_fpath = staging_models_dir / rel_path
+                        dest_fpath.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(full_fpath, dest_fpath)
+                        models_catalog.append({
+                            "path": f"models/{rel_path.as_posix()}",
+                            "sha256": compute_sha256(dest_fpath),
+                            "size_bytes": dest_fpath.stat().st_size,
+                        })
+
+            # 2c. Configuration References (Redacted / Sanitized, Req 1)
+            config_ref = {
+                "environment": getattr(settings, "ENVIRONMENT", "development"),
+                "database_driver": "sqlite",
+                "wal_mode": True,
+                "project_name": getattr(settings, "PROJECT_NAME", "VAPT System"),
+                "captured_at": now.isoformat(),
+            }
+            config_ref_path = staging_dir / "config_reference.json"
+            config_ref_bytes = json.dumps(config_ref, indent=2).encode("utf-8")
+            config_ref_path.write_bytes(config_ref_bytes)
 
             # 3. Read Database Metadata & Row Counts
             record_counts = {}
@@ -203,6 +239,8 @@ class BackupRecoveryService:
                     "size_bytes": db_size_bytes,
                 },
                 "evidence_files": evidence_catalog,
+                "model_files": models_catalog,
+                "config_reference": "config_reference.json",
                 "record_counts": record_counts,
                 "audit_chain_head": {
                     "event_id": last_audit_id,
@@ -387,6 +425,18 @@ class BackupRecoveryService:
                         evidence_ok = False
                         ev_err = f"Evidence file {ev.get('path')} digest mismatch."
                         break
+                if evidence_ok and manifest.get("model_files"):
+                    for mf in manifest.get("model_files", []):
+                        mf_path = bundle_path / mf.get("path")
+                        if not mf_path.exists():
+                            evidence_ok = False
+                            ev_err = f"Model file {mf.get('path')} missing."
+                            break
+                        if compute_sha256(mf_path) != mf.get("sha256"):
+                            evidence_ok = False
+                            ev_err = f"Model file {mf.get('path')} digest mismatch."
+                            break
+
                 if not evidence_ok:
                     checks["file_checksums"] = {"passed": False, "detail": ev_err}
                     errors.append(ev_err)
@@ -541,6 +591,15 @@ class BackupRecoveryService:
             if bundle_ev.exists():
                 dest_ev = sandbox_path / "evidence"
                 shutil.copytree(bundle_ev, dest_ev)
+
+            bundle_models = bundle_path / "models"
+            if bundle_models.exists():
+                dest_models = sandbox_path / "models"
+                shutil.copytree(bundle_models, dest_models)
+
+            bundle_cfg = bundle_path / "config_reference.json"
+            if bundle_cfg.exists():
+                shutil.copy2(bundle_cfg, sandbox_path / "config_reference.json")
 
             # 4. Open connection to sandbox database
             conn = sqlite3.connect(str(dest_db))

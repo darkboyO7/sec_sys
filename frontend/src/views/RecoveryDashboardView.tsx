@@ -14,6 +14,10 @@ import {
   FileCheck,
   Layers,
   HelpCircle,
+  Calendar,
+  HardDrive,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -21,6 +25,9 @@ import type {
   RestoreDrillResult,
   RotationResult,
   RecoveryStatusSummary,
+  BackupSchedule,
+  DiskSpaceStatus,
+  BackupScheduleCreate,
 } from '../types';
 
 export const RecoveryDashboardView: React.FC = () => {
@@ -29,14 +36,30 @@ export const RecoveryDashboardView: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Core data
+  const [activeTab, setActiveTab] = useState<'bundles' | 'schedules'>('bundles');
   const [bundles, setBundles] = useState<DisasterRecoveryBundle[]>([]);
   const [statusSummary, setStatusSummary] = useState<RecoveryStatusSummary | null>(null);
+  const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
+  const [diskSpace, setDiskSpace] = useState<DiskSpaceStatus | null>(null);
 
   // Action states
   const [creatingBundle, setCreatingBundle] = useState<boolean>(false);
   const [verifyingBundleId, setVerifyingBundleId] = useState<string | null>(null);
   const [drillingBundleId, setDrillingBundleId] = useState<string | null>(null);
   const [rotating, setRotating] = useState<boolean>(false);
+  const [triggeringScheduleId, setTriggeringScheduleId] = useState<string | null>(null);
+  const [showCreateScheduleModal, setShowCreateScheduleModal] = useState<boolean>(false);
+  const [newSchedule, setNewSchedule] = useState<BackupScheduleCreate>({
+    name: 'Daily Production Snapshot',
+    interval_hours: 24,
+    retention_days: 30,
+    max_bundles_to_keep: 10,
+    storage_location: './data/backups',
+    include_evidence: true,
+    auto_verify_after_backup: true,
+    auto_drill_after_backup: false,
+    is_active: true,
+  });
 
   // Modals & inspect states
   const [selectedBundle, setSelectedBundle] = useState<DisasterRecoveryBundle | null>(null);
@@ -49,16 +72,64 @@ export const RecoveryDashboardView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [bundleList, summary] = await Promise.all([
+      const [bundleList, summary, scheduleList, space] = await Promise.all([
         api.listRecoveryBundles().catch(() => []),
         api.getRecoveryStatus().catch(() => null),
+        api.listBackupSchedules().catch(() => []),
+        api.getDiskSpaceStatus().catch(() => null),
       ]);
       setBundles(bundleList);
       setStatusSummary(summary);
+      setSchedules(scheduleList);
+      setDiskSpace(space);
     } catch (err: any) {
       setError(err?.message || 'Failed to load disaster recovery state.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateSchedule = async () => {
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await api.createBackupSchedule(newSchedule);
+      setSuccessMsg(`Backup schedule "${newSchedule.name}" created successfully.`);
+      setShowCreateScheduleModal(false);
+      await fetchData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create backup schedule.');
+    }
+  };
+
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await api.deleteBackupSchedule(scheduleId);
+      setSuccessMsg('Backup schedule deleted successfully.');
+      await fetchData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete backup schedule.');
+    }
+  };
+
+  const handleTriggerSchedule = async (scheduleId: string) => {
+    setTriggeringScheduleId(scheduleId);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await api.triggerBackupSchedule(scheduleId, true);
+      if (res.status === 'SUCCESS') {
+        setSuccessMsg(`Schedule executed: created bundle ${res.bundle_id}.`);
+      } else {
+        setError(`Schedule run failed: ${res.error || res.status}`);
+      }
+      await fetchData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to trigger schedule execution.');
+    } finally {
+      setTriggeringScheduleId(null);
     }
   };
 
@@ -320,7 +391,74 @@ export const RecoveryDashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* Bundles Table */}
+      {/* Disk Storage Capacity Card (Prompt 42, Req 12) */}
+      {diskSpace && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-lg border ${
+                diskSpace.is_sufficient_for_backup
+                  ? 'bg-emerald-950/50 border-emerald-800/80 text-emerald-400'
+                  : 'bg-red-950/50 border-red-800/80 text-red-400'
+              }`}>
+                <HardDrive className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                  Backup Storage Volume Capacity
+                  <span className={`text-xs px-2 py-0.5 rounded font-mono ${
+                    diskSpace.is_sufficient_for_backup
+                      ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/60'
+                      : 'bg-red-900/60 text-red-300 border border-red-700/60'
+                  }`}>
+                    {diskSpace.is_sufficient_for_backup ? 'CAPACITY HEALTHY' : 'LOW DISK SPACE WARNING'}
+                  </span>
+                </h4>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">
+                  Location: {diskSpace.storage_path}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-bold text-white font-mono">
+                {diskSpace.free_gb} GB Free / {diskSpace.total_gb} GB Total
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                {diskSpace.message}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-gray-800 space-x-6">
+        <button
+          onClick={() => setActiveTab('bundles')}
+          className={`pb-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'bundles'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <Archive className="w-4 h-4" />
+          Disaster Recovery Bundles ({bundles.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('schedules')}
+          className={`pb-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'schedules'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          Automated Backup Schedules ({schedules.length})
+        </button>
+      </div>
+
+      {/* Tab 1: Bundles Table */}
+      {activeTab === 'bundles' && (
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
           <h3 className="text-base font-semibold text-white flex items-center gap-2">
@@ -486,6 +624,133 @@ export const RecoveryDashboardView: React.FC = () => {
           </div>
         )}
       </div>
+      )}
+
+      {/* Tab 2: Schedules Table */}
+      {activeTab === 'schedules' && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              Automated Backup Schedules
+            </h3>
+            <button
+              onClick={() => setShowCreateScheduleModal(true)}
+              className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-500 transition-colors flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Schedule
+            </button>
+          </div>
+
+          {schedules.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <Calendar className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">No automated backup schedules configured.</p>
+              <p className="text-xs text-gray-500 mt-1">Configure scheduled backups with automatic verification and retention enforcement.</p>
+              <button
+                onClick={() => setShowCreateScheduleModal(true)}
+                className="mt-4 px-4 py-2 text-xs font-semibold bg-indigo-600 text-white rounded hover:bg-indigo-500 transition-colors"
+              >
+                Create Backup Schedule
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-950/50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <th className="py-3 px-4">Schedule Name</th>
+                    <th className="py-3 px-4">Cadence</th>
+                    <th className="py-3 px-4">Retention / Cap</th>
+                    <th className="py-3 px-4">Assurance Checks</th>
+                    <th className="py-3 px-4">Last Run</th>
+                    <th className="py-3 px-4">Next Due</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {schedules.map((schedule) => (
+                    <tr key={schedule.id} className="hover:bg-gray-800/30 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="font-medium text-white text-sm">{schedule.name}</div>
+                        <div className="text-[11px] text-gray-500 font-mono">{schedule.id}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-gray-300">
+                        Every {schedule.interval_hours}h
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-gray-400">
+                        {schedule.retention_days} days (max {schedule.max_bundles_to_keep})
+                      </td>
+                      <td className="py-3.5 px-4 text-xs">
+                        <div className="flex flex-col gap-1 text-[11px]">
+                          <span className={schedule.auto_verify_after_backup ? 'text-emerald-400' : 'text-gray-500'}>
+                            {schedule.auto_verify_after_backup ? '✓ Auto-Verify (7-point)' : '✗ No Auto-Verify'}
+                          </span>
+                          <span className={schedule.auto_drill_after_backup ? 'text-blue-400' : 'text-gray-500'}>
+                            {schedule.auto_drill_after_backup ? '✓ Auto-Drill (Sandbox)' : '✗ No Auto-Drill'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-xs text-gray-400">
+                        {schedule.last_run_at ? (
+                          <div>
+                            <div>{new Date(schedule.last_run_at).toLocaleString()}</div>
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              schedule.last_run_status === 'SUCCESS' ? 'bg-emerald-950 text-emerald-300' :
+                              schedule.last_run_status === 'FAILED' ? 'bg-red-950 text-red-300' :
+                              schedule.last_run_status === 'RUNNING' ? 'bg-amber-950 text-amber-300 animate-pulse' :
+                              'bg-gray-800 text-gray-400'
+                            }`}>
+                              {schedule.last_run_status || 'NEVER'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 italic">Never run</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-xs font-mono text-gray-300">
+                        {schedule.next_run_at ? new Date(schedule.next_run_at).toLocaleString() : 'Not scheduled'}
+                      </td>
+                      <td className="py-3.5 px-4 text-xs">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          schedule.is_active ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' : 'bg-gray-800 text-gray-500'
+                        }`}>
+                          {schedule.is_active ? 'Active' : 'Paused'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
+                        <button
+                          onClick={() => handleTriggerSchedule(schedule.id)}
+                          disabled={triggeringScheduleId === schedule.id}
+                          className="px-2.5 py-1 text-xs font-medium bg-gray-800 text-gray-200 rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
+                          title="Trigger manual run of this schedule immediately"
+                        >
+                          {triggeringScheduleId === schedule.id ? (
+                            <RefreshCw className="h-3 w-3 animate-spin inline mr-1" />
+                          ) : (
+                            <Play className="h-3 w-3 inline mr-1 text-emerald-400" />
+                          )}
+                          Run Now
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSchedule(schedule.id)}
+                          className="px-2 py-1 text-xs font-medium bg-red-950/40 text-red-400 hover:bg-red-900/60 rounded transition-colors"
+                          title="Delete this schedule"
+                        >
+                          <Trash2 className="h-3 w-3 inline mr-1" />
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bundle Details Modal */}
       {selectedBundle && (
@@ -500,7 +765,7 @@ export const RecoveryDashboardView: React.FC = () => {
                 onClick={() => setSelectedBundle(null)}
                 className="text-gray-400 hover:text-white text-sm"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -595,7 +860,7 @@ export const RecoveryDashboardView: React.FC = () => {
                 onClick={() => setActiveDrillResult(null)}
                 className="text-gray-400 hover:text-white text-sm"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -635,7 +900,7 @@ export const RecoveryDashboardView: React.FC = () => {
                     {activeDrillResult.jobs_reconciled.map((job) => (
                       <div key={job.job_id} className="p-2 bg-gray-950 rounded border border-gray-800 flex justify-between font-mono text-[11px]">
                         <span className="text-gray-300">{job.job_id}</span>
-                        <span className="text-amber-400 font-semibold">{job.prior_status} → {job.new_status}</span>
+                        <span className="text-amber-400 font-semibold">{job.prior_status} â†’ {job.new_status}</span>
                       </div>
                     ))}
                   </div>
@@ -649,6 +914,140 @@ export const RecoveryDashboardView: React.FC = () => {
                 className="px-4 py-2 text-xs font-medium bg-gray-800 text-gray-300 rounded hover:bg-gray-700"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Schedule Modal */}
+      {showCreateScheduleModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                Create Automated Backup Schedule
+              </h3>
+              <button
+                onClick={() => setShowCreateScheduleModal(false)}
+                className="text-gray-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="text-gray-300 font-medium block mb-1">Schedule Name</label>
+                <input
+                  type="text"
+                  value={newSchedule.name}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, name: e.target.value })}
+                  className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-gray-300 font-medium block mb-1">Interval (Hours)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newSchedule.interval_hours}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, interval_hours: parseInt(e.target.value) || 24 })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-300 font-medium block mb-1">Retention (Days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newSchedule.retention_days}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, retention_days: parseInt(e.target.value) || 30 })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-gray-300 font-medium block mb-1">Max Bundles To Keep</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newSchedule.max_bundles_to_keep}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, max_bundles_to_keep: parseInt(e.target.value) || 10 })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-300 font-medium block mb-1">Storage Location</label>
+                  <input
+                    type="text"
+                    value={newSchedule.storage_location}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, storage_location: e.target.value })}
+                    className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-gray-800">
+                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newSchedule.include_evidence}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, include_evidence: e.target.checked })}
+                    className="rounded bg-gray-950 border-gray-700 text-indigo-600 focus:ring-0"
+                  />
+                  <span>Include Evidence payloads & audit artifacts</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newSchedule.auto_verify_after_backup}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, auto_verify_after_backup: e.target.checked })}
+                    className="rounded bg-gray-950 border-gray-700 text-indigo-600 focus:ring-0"
+                  />
+                  <span>Run independent 7-point verification immediately after backup</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newSchedule.auto_drill_after_backup}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, auto_drill_after_backup: e.target.checked })}
+                    className="rounded bg-gray-950 border-gray-700 text-indigo-600 focus:ring-0"
+                  />
+                  <span>Run isolated restore drill into sandbox after backup</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newSchedule.is_active}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, is_active: e.target.checked })}
+                    className="rounded bg-gray-950 border-gray-700 text-indigo-600 focus:ring-0"
+                  />
+                  <span>Schedule active</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-gray-800">
+              <button
+                onClick={() => setShowCreateScheduleModal(false)}
+                className="px-4 py-2 text-xs font-medium bg-gray-800 text-gray-300 rounded hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateSchedule}
+                className="px-4 py-2 text-xs font-bold bg-indigo-600 text-white rounded hover:bg-indigo-500 transition-colors"
+              >
+                Save Schedule
               </button>
             </div>
           </div>

@@ -23,6 +23,13 @@ class RecoveryBundleStatus(str, enum.Enum):
     RESTORE_VERIFIED = "RESTORE_VERIFIED"
 
 
+class ScheduleRunStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    SKIPPED_DISK_LOW = "SKIPPED_DISK_LOW"
+
+
 class DisasterRecoveryBundleRecord(Base, TimestampMixin):
     """
     Authoritative ledger of disaster recovery backup bundles,
@@ -52,4 +59,33 @@ class DisasterRecoveryBundleRecord(Base, TimestampMixin):
     schema_revision = Column(String(64), nullable=True)
 
     # Relationships
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+
+class BackupScheduleRecord(Base, TimestampMixin):
+    """
+    Automated backup schedule definition with configurable frequency,
+    retention limits, isolated drill options, and failure tracking (Prompt 42).
+    """
+    __tablename__ = "backup_schedules"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(128), nullable=False)
+    interval_hours = Column(Integer, nullable=False, default=24)
+    retention_days = Column(Integer, nullable=False, default=30)
+    max_bundles_to_keep = Column(Integer, nullable=False, default=10)
+    storage_location = Column(String(512), nullable=False, default="./data/backups")
+    include_evidence = Column(Boolean, nullable=False, default=True)
+    auto_verify_after_backup = Column(Boolean, nullable=False, default=True)
+    auto_drill_after_backup = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
+    last_run_status = Column(SqlEnum(ScheduleRunStatus), nullable=True)
+    last_run_error = Column(Text, nullable=True)
+    last_bundle_id = Column(String(128), nullable=True)
+    consecutive_failures = Column(Integer, nullable=False, default=0)
+    next_run_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    created_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by = relationship("User", foreign_keys=[created_by_id])

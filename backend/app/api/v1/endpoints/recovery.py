@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.models.user import User, SystemRole
 from app.api.deps import get_current_user
 from app.services.backup_service import BackupRecoveryService
+from app.services.backup_scheduler_service import BackupSchedulerService
 from app.services.rate_limit_service import rate_limiter
 from app.schemas.recovery import (
     DisasterRecoveryBundleResponse,
@@ -16,6 +17,11 @@ from app.schemas.recovery import (
     RotationRequest,
     RotationResponse,
     RecoveryStatusResponse,
+    BackupScheduleCreate,
+    BackupScheduleUpdate,
+    BackupScheduleResponse,
+    BackupScheduleRunResponse,
+    DiskSpaceStatusResponse,
 )
 
 router = APIRouter(prefix="/recovery", tags=["Disaster Recovery & Data Integrity"])
@@ -210,3 +216,128 @@ def get_status(
     """
     status_data = BackupRecoveryService.get_recovery_status(db=db)
     return status_data
+
+
+# ------------------------------------------------------------------------------
+# Prompt 42: Automated Backup Scheduling, Storage Checks & Failure Handling
+# ------------------------------------------------------------------------------
+
+@router.get("/disk-space", response_model=DiskSpaceStatusResponse)
+def get_disk_space_status(
+    storage_path: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Inspects storage capacity and remaining disk space for backup destination (Prompt 42, Req 12).
+    """
+    return BackupSchedulerService.check_disk_space(storage_path)
+
+
+@router.get("/schedules", response_model=List[BackupScheduleResponse])
+def list_backup_schedules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Lists all configured automated backup schedules and their execution status (Prompt 42).
+    """
+    return BackupSchedulerService.list_schedules(db)
+
+
+@router.post("/schedules", response_model=BackupScheduleResponse, status_code=status.HTTP_201_CREATED)
+def create_backup_schedule(
+    req: BackupScheduleCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Creates a new periodic automated backup schedule with configurable retention and verification (Admin only).
+    """
+    require_admin(current_user)
+    return BackupSchedulerService.create_schedule(db=db, data=req, actor_id=current_user.id)
+
+
+@router.get("/schedules/{schedule_id}", response_model=BackupScheduleResponse)
+def get_backup_schedule(
+    schedule_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieves details and execution metrics for a specific backup schedule.
+    """
+    schedule = BackupSchedulerService.get_schedule(db=db, schedule_id=schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup schedule not found.")
+    return schedule
+
+
+@router.put("/schedules/{schedule_id}", response_model=BackupScheduleResponse)
+def update_backup_schedule(
+    schedule_id: str,
+    req: BackupScheduleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Modifies frequency, retention limits, or execution flags for a backup schedule (Admin only).
+    """
+    require_admin(current_user)
+    try:
+        return BackupSchedulerService.update_schedule(db=db, schedule_id=schedule_id, data=req, actor_id=current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_backup_schedule(
+    schedule_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Deletes an automated backup schedule (Admin only).
+    """
+    require_admin(current_user)
+    deleted = BackupSchedulerService.delete_schedule(db=db, schedule_id=schedule_id, actor_id=current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup schedule not found.")
+    return None
+
+
+@router.post("/schedules/{schedule_id}/trigger", response_model=BackupScheduleRunResponse)
+def trigger_backup_schedule(
+    schedule_id: str,
+    force: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Triggers immediate execution of a backup schedule, enforcing storage checks and retention (Admin only).
+    """
+    require_admin(current_user)
+    try:
+        result = BackupSchedulerService.execute_schedule(
+            db=db,
+            schedule_id=schedule_id,
+            actor_id=current_user.id,
+            force=force,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/schedules/poll-due", response_model=List[BackupScheduleRunResponse])
+def poll_due_schedules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Executes all active schedules that are currently due for execution (Admin only).
+    """
+    require_admin(current_user)
+    return BackupSchedulerService.run_due_schedules(db)

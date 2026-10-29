@@ -71,6 +71,11 @@ import type {
   LiveRestoreResult,
   RotationResult,
   RecoveryStatusSummary,
+  BackupSchedule,
+  BackupScheduleCreate,
+  BackupScheduleUpdate,
+  BackupScheduleRunResult,
+  DiskSpaceStatus,
   DependencyInventoryResponse,
   DependencyAuditResponse,
   SecretScanResponse,
@@ -1612,6 +1617,55 @@ class ApiService {
 
   async getRecoveryStatus(): Promise<RecoveryStatusSummary> {
     return this.request<RecoveryStatusSummary>('/recovery/status');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 42: Automated Backup Scheduling, Storage Checks & Failure Handling
+  // ---------------------------------------------------------------------------
+  async getDiskSpaceStatus(storagePath?: string): Promise<DiskSpaceStatus> {
+    const q = storagePath ? `?storage_path=${encodeURIComponent(storagePath)}` : '';
+    return this.request<DiskSpaceStatus>(`/recovery/disk-space${q}`);
+  }
+
+  async listBackupSchedules(): Promise<BackupSchedule[]> {
+    return this.request<BackupSchedule[]>('/recovery/schedules');
+  }
+
+  async createBackupSchedule(data: BackupScheduleCreate): Promise<BackupSchedule> {
+    return this.request<BackupSchedule>('/recovery/schedules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getBackupSchedule(scheduleId: string): Promise<BackupSchedule> {
+    return this.request<BackupSchedule>(`/recovery/schedules/${scheduleId}`);
+  }
+
+  async updateBackupSchedule(scheduleId: string, data: BackupScheduleUpdate): Promise<BackupSchedule> {
+    return this.request<BackupSchedule>(`/recovery/schedules/${scheduleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteBackupSchedule(scheduleId: string): Promise<void> {
+    return this.request<void>(`/recovery/schedules/${scheduleId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async triggerBackupSchedule(scheduleId: string, force: boolean = false): Promise<BackupScheduleRunResult> {
+    const q = force ? '?force=true' : '';
+    return this.request<BackupScheduleRunResult>(`/recovery/schedules/${scheduleId}/trigger${q}`, {
+      method: 'POST',
+    });
+  }
+
+  async pollDueBackupSchedules(): Promise<BackupScheduleRunResult[]> {
+    return this.request<BackupScheduleRunResult[]>('/recovery/schedules/poll-due', {
+      method: 'POST',
+    });
   }
 
   // ---------------------------------------------------------------------------

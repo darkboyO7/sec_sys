@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -91,3 +91,73 @@ class RecoveryStatusResponse(BaseModel):
     last_known_good_bundle_id: Optional[str] = None
     total_storage_bytes: int
     recovery_readiness: str  # READY, ATTENTION_REQUIRED, DEGRADED
+
+
+# Prompt 42: Automated Backup Scheduling & Restoration Assurance Schemas
+class BackupScheduleCreate(BaseModel):
+    name: str = Field(..., max_length=128, description="Human-readable schedule label")
+    interval_hours: int = Field(24, ge=1, le=720, description="Backup interval frequency in hours")
+    retention_days: int = Field(30, ge=1, le=365, description="Retention limit in days")
+    max_bundles_to_keep: int = Field(10, ge=1, le=100, description="Maximum backup bundles to retain")
+    storage_location: str = Field("./data/backups", description="Designated backup storage destination")
+    include_evidence: bool = Field(True, description="Whether to bundle raw evidence artifacts")
+    auto_verify_after_backup: bool = Field(True, description="Automatically run cryptographic verification")
+    auto_drill_after_backup: bool = Field(False, description="Automatically run non-destructive restore drill")
+    is_active: bool = Field(True, description="Whether schedule is currently active")
+
+
+class BackupScheduleUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=128)
+    interval_hours: Optional[int] = Field(None, ge=1, le=720)
+    retention_days: Optional[int] = Field(None, ge=1, le=365)
+    max_bundles_to_keep: Optional[int] = Field(None, ge=1, le=100)
+    storage_location: Optional[str] = None
+    include_evidence: Optional[bool] = None
+    auto_verify_after_backup: Optional[bool] = None
+    auto_drill_after_backup: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class BackupScheduleResponse(BaseModel):
+    id: str
+    name: str
+    interval_hours: int
+    retention_days: int
+    max_bundles_to_keep: int
+    storage_location: str
+    include_evidence: bool
+    auto_verify_after_backup: bool
+    auto_drill_after_backup: bool
+    is_active: bool
+    last_run_at: Optional[Union[datetime, str]] = None
+    last_run_status: Optional[str] = None
+    last_run_error: Optional[str] = None
+    last_bundle_id: Optional[str] = None
+    consecutive_failures: int
+    next_run_at: Optional[Union[datetime, str]] = None
+    created_at: Union[datetime, str]
+
+    class Config:
+        from_attributes = True
+
+
+class BackupScheduleRunResponse(BaseModel):
+    schedule_id: str
+    status: str
+    bundle_id: Optional[str] = None
+    verification_status: Optional[str] = None
+    drill_status: Optional[str] = None
+    executed_at: str
+    error: Optional[str] = None
+
+
+class DiskSpaceStatusResponse(BaseModel):
+    storage_path: str
+    total_bytes: int
+    free_bytes: int
+    used_bytes: int
+    free_gb: float
+    total_gb: float
+    is_sufficient_for_backup: bool
+    minimum_required_bytes: int
+    message: str

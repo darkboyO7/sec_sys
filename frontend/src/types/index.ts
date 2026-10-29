@@ -2158,6 +2158,73 @@ export interface RecoveryStatusSummary {
   recovery_readiness: 'READY' | 'ATTENTION_REQUIRED' | 'DEGRADED';
 }
 
+// Prompt 42: Automated Backup Scheduling & Restoration Assurance
+export interface BackupSchedule {
+  id: string;
+  name: string;
+  interval_hours: number;
+  retention_days: number;
+  max_bundles_to_keep: number;
+  storage_location: string;
+  include_evidence: boolean;
+  auto_verify_after_backup: boolean;
+  auto_drill_after_backup: boolean;
+  is_active: boolean;
+  last_run_at?: string | null;
+  last_run_status?: string | null;
+  last_run_error?: string | null;
+  last_bundle_id?: string | null;
+  consecutive_failures: number;
+  next_run_at?: string | null;
+  created_at: string;
+}
+
+export interface BackupScheduleCreate {
+  name: string;
+  interval_hours: number;
+  retention_days: number;
+  max_bundles_to_keep: number;
+  storage_location?: string;
+  include_evidence?: boolean;
+  auto_verify_after_backup?: boolean;
+  auto_drill_after_backup?: boolean;
+  is_active?: boolean;
+}
+
+export interface BackupScheduleUpdate {
+  name?: string;
+  interval_hours?: number;
+  retention_days?: number;
+  max_bundles_to_keep?: number;
+  storage_location?: string;
+  include_evidence?: boolean;
+  auto_verify_after_backup?: boolean;
+  auto_drill_after_backup?: boolean;
+  is_active?: boolean;
+}
+
+export interface BackupScheduleRunResult {
+  schedule_id: string;
+  status: string;
+  bundle_id?: string | null;
+  verification_status?: string | null;
+  drill_status?: string | null;
+  executed_at: string;
+  error?: string | null;
+}
+
+export interface DiskSpaceStatus {
+  storage_path: string;
+  total_bytes: number;
+  free_bytes: number;
+  used_bytes: number;
+  free_gb: number;
+  total_gb: number;
+  is_sufficient_for_backup: boolean;
+  minimum_required_bytes: number;
+  message: string;
+}
+
 // -----------------------------------------------------------------------------
 // Prompt 25: Software Supply-Chain Security & Verifiable Provenance
 // -----------------------------------------------------------------------------
@@ -2385,7 +2452,7 @@ export interface SecurityControlsCatalogResponse {
   catalog_updated_at: string;
 }
 
-// Prompt 28 — Deployment & Configuration Governance
+// Prompt 28 â€” Deployment & Configuration Governance
 export type CheckSeverity = 'PASS' | 'WARN' | 'FAIL';
 
 export interface PreflightCheckItem {
@@ -2434,7 +2501,7 @@ export interface UpgradePrecheckResponse {
   checked_at: string;
 }
 
-// Prompt 29 — Evidence Lifecycle Governance & Retention
+// Prompt 29 â€” Evidence Lifecycle Governance & Retention
 export type DataClassification =
   | 'OPERATIONAL_METADATA'
   | 'ASSET_CONFIG'
@@ -2555,7 +2622,7 @@ export interface EvidenceRedactionResult {
   redacted_at: string;
 }
 
-// Prompt 30 — Unified Security Operations Experience
+// Prompt 30 â€” Unified Security Operations Experience
 export type PriorityQueueCategory =
   | 'REMEDIATION_APPROVAL'
   | 'RETEST_FAILED'
