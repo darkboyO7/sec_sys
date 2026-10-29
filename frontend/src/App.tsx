@@ -26,6 +26,8 @@ import { GovernanceView } from './views/GovernanceView';
 import { RecoveryDashboardView } from './views/RecoveryDashboardView';
 import { SupplyChainSecurityView } from './views/SupplyChainSecurityView';
 import { PerformanceEngineeringView } from './views/PerformanceEngineeringView';
+import { SecurityControlVerificationView } from './views/SecurityControlVerificationView';
+import { DeploymentGovernanceView } from './views/DeploymentGovernanceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -412,6 +414,12 @@ export const App: React.FC = () => {
           )}
           {activeTab === 'performance' && (
             <PerformanceEngineeringView />
+          )}
+          {activeTab === 'mutation-verification' && (
+            <SecurityControlVerificationView />
+          )}
+          {activeTab === 'deployment' && (
+            <DeploymentGovernanceView />
           )}
         </main>
       </div>

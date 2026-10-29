@@ -79,6 +79,12 @@ import type {
   PerformanceBudgetsResponse,
   BenchmarkSuiteResponse,
   StaleJobReconciliationResult,
+  SecurityControlsCatalogResponse,
+  MutationScenario,
+  MutationDrillResult,
+  PreflightReport,
+  RedactedConfigResponse,
+  UpgradePrecheckResponse,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1497,6 +1503,40 @@ async listUsers(): Promise<User[]> {
 
   async reconcileStaleJobs(timeoutSeconds: number = 300): Promise<StaleJobReconciliationResult> {
     return this.request<StaleJobReconciliationResult>(`/system/performance/reconcile-stale-jobs?timeout_seconds=${timeoutSeconds}`, {
+      method: 'POST',
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 27: Security Control Verification & Mutation Testing
+  // ---------------------------------------------------------------------------
+  async getSecurityControlsCatalog(): Promise<SecurityControlsCatalogResponse> {
+    return this.request<SecurityControlsCatalogResponse>('/system/verification/controls');
+  }
+
+  async getMutationScenarios(): Promise<MutationScenario[]> {
+    return this.request<MutationScenario[]>('/system/verification/mutations');
+  }
+
+  async runMutationDrill(): Promise<MutationDrillResult> {
+    return this.request<MutationDrillResult>('/system/verification/run-mutation-drill', {
+      method: 'POST',
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 28: Secure Windows Deployment & Configuration Governance
+  // ---------------------------------------------------------------------------
+  async getPreflightReport(): Promise<PreflightReport> {
+    return this.request<PreflightReport>('/system/deployment/preflight');
+  }
+
+  async getRedactedConfig(): Promise<RedactedConfigResponse> {
+    return this.request<RedactedConfigResponse>('/system/deployment/config');
+  }
+
+  async checkUpgradeReadiness(): Promise<UpgradePrecheckResponse> {
+    return this.request<UpgradePrecheckResponse>('/system/deployment/upgrade-check', {
       method: 'POST',
     });
   }

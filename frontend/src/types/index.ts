@@ -2128,4 +2128,118 @@ export interface StaleJobReconciliationResult {
   reconciled_at: string;
 }
 
+export type ControlCategory =
+  | 'AUTHENTICATION'
+  | 'AUTHORIZATION_RBAC'
+  | 'SCOPE_ENFORCEMENT'
+  | 'EXCLUSIONS_PRECEDENCE'
+  | 'EVIDENCE_INTEGRITY'
+  | 'AUDIT_CHAIN_CONSISTENCY'
+  | 'REMEDIATION_GOVERNANCE'
+  | 'INDEPENDENT_RETEST'
+  | 'DISASTER_RECOVERY_POSTCONDITION'
+  | 'SSRF_PROTECTION'
+  | 'SUPPLY_CHAIN_PROVENANCE'
+  | 'CONCURRENCY_WORKLOAD';
+
+export type MutationStatus = 'KILLED' | 'SURVIVED' | 'PENDING' | 'BLOCKED';
+
+export interface SecurityControlRecord {
+  control_id: string;
+  category: ControlCategory;
+  name: string;
+  description: string;
+  enforcement_point: string;
+  positive_test: string;
+  negative_test: string;
+  failure_behavior: string;
+  is_verified: boolean;
+  last_verified_at: string;
+}
+
+export interface MutationScenario {
+  mutation_id: string;
+  control_id: string;
+  name: string;
+  description: string;
+  target_component: string;
+  mutation_type: string;
+  expected_killer_test: string;
+  observed_failure?: string | null;
+  status: MutationStatus;
+  execution_time_ms: number;
+}
+
+export interface MutationDrillResult {
+  drill_id: string;
+  total_mutations: number;
+  killed_count: number;
+  survived_count: number;
+  blocked_count: number;
+  kill_ratio_pct: number;
+  scenarios: MutationScenario[];
+  verdict: 'QUALIFIED' | 'DEFECT_DETECTED';
+  executed_at: string;
+  details: Record<string, unknown>;
+}
+
+export interface SecurityControlsCatalogResponse {
+  total_controls: number;
+  verified_controls: number;
+  verification_pct: number;
+  controls: SecurityControlRecord[];
+  catalog_updated_at: string;
+}
+
+// Prompt 28 — Deployment & Configuration Governance
+export type CheckSeverity = 'PASS' | 'WARN' | 'FAIL';
+
+export interface PreflightCheckItem {
+  name: string;
+  category: string;
+  status: CheckSeverity;
+  details: string;
+  remediation_advice?: string | null;
+}
+
+export interface PreflightReport {
+  status: 'PASSED' | 'WARNINGS' | 'FATAL_ERROR' | string;
+  environment: string;
+  total_checks: number;
+  passed_count: number;
+  warning_count: number;
+  failure_count: number;
+  checks: PreflightCheckItem[];
+  evaluated_at: string;
+}
+
+export interface RedactedConfigResponse {
+  environment: string;
+  debug: boolean;
+  app_name: string;
+  database_type: string;
+  database_url_redacted: string;
+  allowed_origins: string[];
+  audit_strict: boolean;
+  data_directories: Record<string, string>;
+  cryptographic_algorithm: string;
+  token_expiry_minutes: number;
+  worker_execution_mode: string;
+  retrieved_at: string;
+}
+
+export interface UpgradePrecheckResponse {
+  current_version: string;
+  target_version: string;
+  migration_head: string;
+  current_db_version: string;
+  pending_migrations_count: number;
+  backup_required: boolean;
+  can_upgrade: boolean;
+  recommended_action: string;
+  checked_at: string;
+}
+
+
+
 

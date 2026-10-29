@@ -34,6 +34,8 @@ from app.api.v1.endpoints import (
     recovery,
     supply_chain,
     performance,
+    security_controls,
+    deployment,
 )
 
 api_router = APIRouter()
@@ -72,3 +74,5 @@ api_router.include_router(governance.router, tags=["Governance & Separation of D
 api_router.include_router(recovery.router, tags=["Disaster Recovery & Data Integrity"])
 api_router.include_router(supply_chain.router, prefix="/system/supply-chain", tags=["Software Supply-Chain Security & Verifiable Provenance"])
 api_router.include_router(performance.router, prefix="/system/performance", tags=["Performance Engineering & Workload Isolation"])
+api_router.include_router(security_controls.router, prefix="/system/verification", tags=["Security Control Verification & Mutation Testing"])
+api_router.include_router(deployment.router, prefix="/system/deployment", tags=["Secure Windows Deployment & Configuration Governance"])

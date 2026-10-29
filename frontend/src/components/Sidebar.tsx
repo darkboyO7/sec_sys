@@ -33,6 +33,8 @@ export type NavigationTab =
   | 'recovery'
   | 'supply-chain'
   | 'performance'
+  | 'mutation-verification'
+  | 'deployment'
   | 'scopes'
   | 'orchestration'
   | 'assessments'
@@ -142,6 +144,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'recovery', label: 'Disaster Recovery', icon: Database },
         { id: 'supply-chain', label: 'Supply Chain & SBOM', icon: Boxes },
         { id: 'performance', label: 'Performance & Scaling', icon: Gauge },
+        { id: 'mutation-verification', label: 'Control & Mutation Testing', icon: ShieldCheck },
+        { id: 'deployment', label: 'Deployment Governance', icon: Settings },
       ],
     },
   ];
