@@ -46,6 +46,7 @@ from app.api.v1.endpoints import (
     canonical_identity,
     model_experiment,
     incident,
+    connectors,
 )
 
 api_router = APIRouter()
@@ -96,3 +97,4 @@ api_router.include_router(authorization.router, tags=["Identity Security & Autho
 api_router.include_router(canonical_identity.router, prefix="/projects", tags=["Asset Identity Resolution & Data Quality"])
 api_router.include_router(model_experiment.router, tags=["Controlled Experiments & Model Evaluation"])
 api_router.include_router(incident.router, tags=["Incident Investigation & Case Management"])
+api_router.include_router(connectors.router, tags=["Secure Integration Framework & Connectors"])

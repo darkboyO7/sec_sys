@@ -1,0 +1,34 @@
+<USER_REQUEST>
+# PROMPT 41 — Evidence-Based Performance Engineering and Database Optimization
+
+Repository: `D:\alt`
+
+Inspect database models, SQLAlchemy queries, migrations, API pagination, frontend data fetching, background jobs, asset inventory, findings, evidence, and reporting.
+
+## Objective
+Improve performance and responsiveness using measured bottlenecks rather than speculative rewrites.
+
+## Requirements
+
+1. Establish reproducible baseline measurements for representative workflows, including asset listing, finding search, assessment history, dashboard summaries, report generation, and job listing.
+2. Identify N+1 queries, unbounded result sets, expensive joins, repeated calculations, unnecessary frontend requests, and large payloads.
+3. Add indexes based on actual query patterns and query-plan evidence.
+4. Introduce bounded pagination and appropriate filtering for large collections.
+5. Avoid loading raw evidence payloads when only metadata is required.
+6. Use aggregation queries or carefully bounded caching where beneficial.
+7. Ensure cached results cannot bypass authorization or return stale privileged information across users or workspaces.
+8. Define cache invalidation rules where caching is introduced.
+9. Optimize serialization and response payload sizes.
+10. Prevent slow report generation or external integrations from blocking ordinary API requests.
+11. Measure database lock contention and write amplification under the existing SQLite WAL configuration.
+12. Preserve transaction correctness and concurrency safety.
+13. Add regression tests for pagination, filtering, query correctness, cache isolation, and concurrent updates.
+14. Compare before-and-after performance using the same reproducible workload and environment.
+
+Do not claim speed improvements without measurements. Do not introduce Redis, distributed infrastructure, or additional services unless benchmarks demonstrate a real need.
+
+Run the relevant backend and frontend suites, type checks, and production builds. Report baseline and final measurements, methodology, machine/environment constraints, migrations, and unresolved bottlenecks. Preserve unrelated work and the recovery mirror.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:58:25+05:30.
+</ADDITIONAL_METADATA>

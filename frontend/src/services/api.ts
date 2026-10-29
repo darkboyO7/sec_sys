@@ -140,6 +140,13 @@ import type {
   IncidentCaseDetail,
   CorrelationExplanation,
   TimelineEvent,
+  ConnectorInventoryItem,
+  ConnectorConfigCreate,
+  ConnectorConfigUpdate,
+  ConnectorConfigRead,
+  ConnectorHealthRead,
+  ConnectorSyncTriggerResponse,
+  ConnectorSyncEventRead,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -2398,6 +2405,55 @@ class ApiService {
 
   async getCaseTimeline(projectId: string, caseId: string): Promise<TimelineEvent[]> {
     return this.request<TimelineEvent[]>(`/projects/${encodeURIComponent(projectId)}/incidents/cases/${encodeURIComponent(caseId)}/timeline`);
+  }
+
+  // Prompt 40: Secure Integration Framework and Connector Contracts
+  async getConnectorInventory(projectId: string): Promise<ConnectorInventoryItem[]> {
+    return this.request<ConnectorInventoryItem[]>(`/projects/${encodeURIComponent(projectId)}/connectors/inventory`);
+  }
+
+  async listConnectors(projectId: string): Promise<ConnectorConfigRead[]> {
+    return this.request<ConnectorConfigRead[]>(`/projects/${encodeURIComponent(projectId)}/connectors`);
+  }
+
+  async createConnector(projectId: string, data: ConnectorConfigCreate): Promise<ConnectorConfigRead> {
+    return this.request<ConnectorConfigRead>(`/projects/${encodeURIComponent(projectId)}/connectors`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getConnector(projectId: string, connectorId: string): Promise<ConnectorConfigRead> {
+    return this.request<ConnectorConfigRead>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}`);
+  }
+
+  async updateConnector(projectId: string, connectorId: string, data: ConnectorConfigUpdate): Promise<ConnectorConfigRead> {
+    return this.request<ConnectorConfigRead>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteConnector(projectId: string, connectorId: string): Promise<void> {
+    await this.request<void>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async testConnector(projectId: string, connectorId: string): Promise<ConnectorHealthRead> {
+    return this.request<ConnectorHealthRead>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}/test`, {
+      method: 'POST',
+    });
+  }
+
+  async syncConnector(projectId: string, connectorId: string): Promise<ConnectorSyncTriggerResponse> {
+    return this.request<ConnectorSyncTriggerResponse>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}/sync`, {
+      method: 'POST',
+    });
+  }
+
+  async getConnectorSyncHistory(projectId: string, connectorId: string, limit: number = 50): Promise<ConnectorSyncEventRead[]> {
+    return this.request<ConnectorSyncEventRead[]>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}/history?limit=${limit}`);
   }
 }
 

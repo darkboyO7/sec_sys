@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:fa037703-a585-473c-a413-8acd844c4cc8",
+  "serialNumber": "urn:uuid:09cef986-83f1-4633-84ba-ff225a37cb15",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-29T16:15:47.679737+00:00",
+    "timestamp": "2026-10-29T16:38:58.146931+00:00",
     "tools": [
       {
         "vendor": "VAPT Security Platform",

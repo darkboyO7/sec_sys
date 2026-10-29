@@ -221,6 +221,14 @@ from app.models.incident import (
     IncidentCaseTransition,
     IncidentCaseNote,
 )
+from app.models.connector import (
+    ConnectorCapability,
+    ConnectorStatus,
+    SyncStatus,
+    ImplementationStatus,
+    ConnectorConfiguration,
+    ConnectorSyncEvent,
+)
 
 __all__ = [
     "Base",
@@ -400,4 +408,10 @@ __all__ = [
     "IncidentCaseEvidence",
     "IncidentCaseTransition",
     "IncidentCaseNote",
+    "ConnectorCapability",
+    "ConnectorStatus",
+    "SyncStatus",
+    "ImplementationStatus",
+    "ConnectorConfiguration",
+    "ConnectorSyncEvent",
 ]

@@ -3323,6 +3323,120 @@ export interface TimelineEvent {
   details: Record<string, any>;
 }
 
+// Prompt 40: Secure Integration Framework and Connector Contracts
+export type ConnectorCapability =
+  | 'PULL_ASSETS'
+  | 'PULL_FINDINGS'
+  | 'PULL_THREAT_INTEL'
+  | 'PUSH_ALERTS'
+  | 'EXPORT_TELEMETRY'
+  | 'TEST_CONNECTIVITY';
+
+export type ConnectorStatus = 'CONFIGURED' | 'HEALTHY' | 'DEGRADED' | 'UNAVAILABLE' | 'DISABLED' | 'ERROR';
+export type SyncStatus = 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED';
+export type ImplementationStatus = 'IMPLEMENTED' | 'SIMULATED' | 'DISABLED' | 'UNVERIFIED';
+
+export interface ConnectorInventoryItem {
+  provider_type: string;
+  name: string;
+  version: string;
+  supported_capabilities: string[];
+  implementation_status: string;
+  description: string;
+  limitations?: string | null;
+  config_schema: Record<string, any>;
+}
+
+export interface ConnectorConfigCreate {
+  name: string;
+  provider_type: string;
+  version?: string;
+  enabled?: boolean;
+  capabilities: string[];
+  settings: Record<string, any>;
+  rate_limit_per_minute?: number;
+  timeout_seconds?: number;
+  max_retries?: number;
+  max_response_size_kb?: number;
+}
+
+export interface ConnectorConfigUpdate {
+  name?: string;
+  enabled?: boolean;
+  capabilities?: string[];
+  settings?: Record<string, any>;
+  rate_limit_per_minute?: number;
+  timeout_seconds?: number;
+  max_retries?: number;
+  max_response_size_kb?: number;
+}
+
+export interface ConnectorConfigRead {
+  id: string;
+  project_id: string;
+  name: string;
+  provider_type: string;
+  version: string;
+  enabled: boolean;
+  capabilities: string[];
+  config_schema_version: string;
+  settings_masked: Record<string, any>;
+  rate_limit_per_minute: number;
+  timeout_seconds: number;
+  max_retries: number;
+  max_response_size_kb: number;
+  last_sync_at?: string | null;
+  last_sync_watermark?: string | null;
+  last_health_status: string;
+  last_health_message?: string | null;
+  consecutive_failures: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectorHealthRead {
+  connector_id: string;
+  name: string;
+  provider_type: string;
+  status: string;
+  latency_ms: number;
+  message: string;
+  error_category?: string | null;
+  details: Record<string, any>;
+}
+
+export interface ConnectorSyncTriggerResponse {
+  sync_event_id: string;
+  connector_id: string;
+  status: string;
+  records_pulled: number;
+  records_normalized: number;
+  records_ingested: number;
+  records_tombstoned: number;
+  raw_payload_digest?: string | null;
+  next_watermark?: string | null;
+  message: string;
+}
+
+export interface ConnectorSyncEventRead {
+  id: string;
+  connector_id: string;
+  project_id: string;
+  started_at: string;
+  finished_at?: string | null;
+  status: string;
+  records_pulled: number;
+  records_normalized: number;
+  records_ingested: number;
+  records_tombstoned: number;
+  error_message?: string | null;
+  error_type?: string | null;
+  raw_payload_digest?: string | null;
+  sync_watermark?: string | null;
+  execution_metadata?: Record<string, any> | null;
+}
+
+
 
 
 

@@ -10,9 +10,14 @@ import {
   Copy,
   CheckCircle,
   AlertTriangle,
-  Shield,
   Activity,
   Layers,
+  ShieldCheck,
+  Play,
+  History,
+  Lock,
+  Plus,
+  Database,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -20,6 +25,11 @@ import type {
   KevEntry,
   WebhookDelivery,
   SiemExportResponse,
+  ConnectorInventoryItem,
+  ConnectorConfigRead,
+  ConnectorHealthRead,
+  ConnectorSyncTriggerResponse,
+  ConnectorSyncEventRead,
 } from '../types';
 
 interface IntegrationsViewProps {
@@ -27,11 +37,33 @@ interface IntegrationsViewProps {
 }
 
 export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId }) => {
-  const [activeSection, setActiveSection] = useState<'kev' | 'webhooks' | 'siem'>('kev');
+  const [activeSection, setActiveSection] = useState<'connectors' | 'kev' | 'webhooks' | 'siem'>('connectors');
 
   // General Status
   const [integrationsStatus, setIntegrationsStatus] = useState<IntegrationHealth[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
+
+  // Connectors State (Prompt 40)
+  const [connectorInventory, setConnectorInventory] = useState<ConnectorInventoryItem[]>([]);
+  const [connectors, setConnectors] = useState<ConnectorConfigRead[]>([]);
+  const [connectorsLoading, setConnectorsLoading] = useState(false);
+  const [testingConnectorId, setTestingConnectorId] = useState<string | null>(null);
+  const [healthResults, setHealthResults] = useState<Record<string, ConnectorHealthRead>>({});
+  const [syncingConnectorId, setSyncingConnectorId] = useState<string | null>(null);
+  const [syncResults, setSyncResults] = useState<Record<string, ConnectorSyncTriggerResponse>>({});
+  const [historyConnector, setHistoryConnector] = useState<ConnectorConfigRead | null>(null);
+  const [syncHistory, setSyncHistory] = useState<ConnectorSyncEventRead[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    provider_type: 'CISA_KEV',
+    capabilities: ['PULL_THREAT_INTEL', 'TEST_CONNECTIVITY'],
+    rate_limit_per_minute: 60,
+    timeout_seconds: 10,
+    settingsJson: '{"feed_url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"}',
+  });
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // CISA KEV
   const [kevCatalog, setKevCatalog] = useState<KevEntry[]>([]);
@@ -53,6 +85,23 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
   const [siemResult, setSiemResult] = useState<SiemExportResponse | null>(null);
   const [siemExporting, setSiemExporting] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Load Connectors Data
+  const loadConnectorsData = useCallback(async () => {
+    setConnectorsLoading(true);
+    try {
+      const [inv, list] = await Promise.all([
+        api.getConnectorInventory(projectId),
+        api.listConnectors(projectId),
+      ]);
+      setConnectorInventory(inv);
+      setConnectors(list);
+    } catch (err: any) {
+      console.error('Failed to load connectors data:', err);
+    } finally {
+      setConnectorsLoading(false);
+    }
+  }, [projectId]);
 
   // Load Integration Status
   const loadStatus = useCallback(async () => {
@@ -92,10 +141,89 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
   }, [projectId]);
 
   useEffect(() => {
+    loadConnectorsData();
     loadStatus();
     loadKevCatalog();
     loadWebhookHistory();
-  }, [loadStatus, loadKevCatalog, loadWebhookHistory]);
+  }, [loadConnectorsData, loadStatus, loadKevCatalog, loadWebhookHistory]);
+
+  // Handle Test Connector
+  const handleTestConnector = async (connectorId: string) => {
+    setTestingConnectorId(connectorId);
+    try {
+      const res = await api.testConnector(projectId, connectorId);
+      setHealthResults((prev) => ({ ...prev, [connectorId]: res }));
+      await loadConnectorsData();
+    } catch (err: any) {
+      alert(`Test failed: ${err.message}`);
+    } finally {
+      setTestingConnectorId(null);
+    }
+  };
+
+  // Handle Sync Connector
+  const handleSyncConnector = async (connectorId: string) => {
+    setSyncingConnectorId(connectorId);
+    try {
+      const res = await api.syncConnector(projectId, connectorId);
+      setSyncResults((prev) => ({ ...prev, [connectorId]: res }));
+      await loadConnectorsData();
+    } catch (err: any) {
+      alert(`Sync failed: ${err.message}`);
+    } finally {
+      setSyncingConnectorId(null);
+    }
+  };
+
+  // View Sync History
+  const handleOpenHistory = async (conn: ConnectorConfigRead) => {
+    setHistoryConnector(conn);
+    setHistoryLoading(true);
+    try {
+      const hist = await api.getConnectorSyncHistory(projectId, conn.id);
+      setSyncHistory(hist);
+    } catch (err: any) {
+      console.error('Failed to load sync history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Create Connector Form Submit
+  const handleCreateConnector = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError(null);
+    try {
+      let parsedSettings = {};
+      try {
+        parsedSettings = JSON.parse(createForm.settingsJson);
+      } catch (parseErr) {
+        throw new Error('Settings must be valid JSON.');
+      }
+
+      await api.createConnector(projectId, {
+        name: createForm.name,
+        provider_type: createForm.provider_type,
+        capabilities: createForm.capabilities,
+        settings: parsedSettings,
+        rate_limit_per_minute: createForm.rate_limit_per_minute,
+        timeout_seconds: createForm.timeout_seconds,
+      });
+
+      setIsCreateModalOpen(false);
+      setCreateForm({
+        name: '',
+        provider_type: 'CISA_KEV',
+        capabilities: ['PULL_THREAT_INTEL', 'TEST_CONNECTIVITY'],
+        rate_limit_per_minute: 60,
+        timeout_seconds: 10,
+        settingsJson: '{"feed_url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"}',
+      });
+      await loadConnectorsData();
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to create connector.');
+    }
+  };
 
   // Handle CVE Lookup
   const handleCveLookup = async (e: React.FormEvent) => {
@@ -144,7 +272,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
       const res = await api.exportSiemAudit(projectId, siemFormat);
       setSiemResult(res);
     } catch (err: any) {
-      console.error('Failed to export SIEM audit stream:', err);
+      alert(`SIEM export failed: ${err.message}`);
     } finally {
       setSiemExporting(false);
     }
@@ -159,14 +287,14 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
 
   const downloadLogFile = () => {
     if (!siemResult) return;
-    const blob = new Blob([siemResult.stream.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([siemResult.stream.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `siem-export-${projectId}-${siemFormat.toLowerCase()}-${Date.now()}.log`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vapt-siem-export-${projectId}-${Date.now()}.${siemFormat.toLowerCase()}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
@@ -177,78 +305,59 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
         <div>
           <div className="flex items-center gap-2.5">
             <Layers className="w-6 h-6 text-accent-cyan" />
-            <h2 className="text-xl font-bold text-slate-100">Enterprise Integrations & Telemetry</h2>
+            <h2 className="text-xl font-bold text-slate-100">Enterprise Integrations & Secure Connectors</h2>
             <span className="px-2 py-0.5 text-[10px] rounded bg-cyber-750 text-accent-cyan font-mono border border-accent-cyan/30">
-              Phase 31
+              Prompt 40 Verified
             </span>
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Authoritative threat feeds (CISA KEV), HMAC-SHA256 authenticated webhooks, and multi-format SIEM event streaming.
+            Standardized connector contracts, capability declarations, SSRF-safe synchronization, and scope-isolated asset ingestion.
           </p>
-        </div>
-        <button
-          onClick={() => {
-            loadStatus();
-            if (activeSection === 'kev') loadKevCatalog(kevSearchQuery);
-            if (activeSection === 'webhooks') loadWebhookHistory();
-          }}
-          disabled={statusLoading}
-          className="px-3.5 py-2 bg-cyber-750 hover:bg-cyber-700 text-slate-200 text-xs rounded-lg flex items-center gap-2 border border-cyber-600 transition self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${statusLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
-      </div>
-
-      {/* Integration Adapter Health Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {integrationsStatus.length === 0 ? (
-          <div className="col-span-3 p-4 text-center text-slate-500 text-xs font-mono">
-            Loading adapter telemetry...
+          <div className="flex items-center gap-3 mt-2 text-xs font-mono text-slate-400">
+            <span>Adapters: {integrationsStatus.length}</span>
+            <span>•</span>
+            <span>Connectors: {connectors.length}</span>
           </div>
-        ) : (
-          integrationsStatus.map((adapter) => (
-            <div
-              key={adapter.name}
-              className="bg-cyber-850 p-4 rounded-xl border border-cyber-750 hover:border-cyber-600 transition flex flex-col justify-between"
+        </div>
+        <div className="flex items-center gap-2">
+          {activeSection === 'connectors' && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-3 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-semibold text-xs rounded-lg flex items-center gap-1.5 transition"
             >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-mono text-xs font-semibold text-slate-200">{adapter.name}</span>
-                  <span
-                    className={`px-2 py-0.5 text-[10px] rounded font-mono font-bold ${
-                      adapter.status === 'ACTIVE'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                    }`}
-                  >
-                    {adapter.status}
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-400 space-y-1 font-mono">
-                  <div>Version: {adapter.version}</div>
-                  {adapter.details?.total_cached_entries !== undefined && (
-                    <div>Catalog Entries: {adapter.details.total_cached_entries.toLocaleString()}</div>
-                  )}
-                  {adapter.details?.algorithm && (
-                    <div>Signer: {adapter.details.algorithm}</div>
-                  )}
-                  {adapter.details?.supported_formats && (
-                    <div>Formats: {adapter.details.supported_formats.join(', ')}</div>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3 pt-2 border-t border-cyber-750/60 flex items-center gap-1.5 text-[10px] text-slate-500">
-                <Activity className="w-3 h-3 text-emerald-400" />
-                <span>Operational In-Memory Singleton</span>
-              </div>
-            </div>
-          ))
-        )}
+              <Plus className="w-3.5 h-3.5" />
+              Configure Connector
+            </button>
+          )}
+          <button
+            onClick={() => {
+              loadConnectorsData();
+              loadStatus();
+              if (activeSection === 'kev') loadKevCatalog(kevSearchQuery);
+              if (activeSection === 'webhooks') loadWebhookHistory();
+            }}
+            disabled={statusLoading || connectorsLoading}
+            className="px-3.5 py-2 bg-cyber-750 hover:bg-cyber-700 text-slate-200 text-xs rounded-lg flex items-center gap-2 border border-cyber-600 transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${statusLoading || connectorsLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Sub-Navigation Tabs */}
       <div className="flex border-b border-cyber-750 gap-2">
+        <button
+          onClick={() => setActiveSection('connectors')}
+          className={`flex items-center gap-2 py-2.5 px-4 text-xs font-semibold border-b-2 transition ${
+            activeSection === 'connectors'
+              ? 'border-accent-cyan text-accent-cyan bg-cyber-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Secure Connectors ({connectors.length})</span>
+        </button>
         <button
           onClick={() => setActiveSection('kev')}
           className={`flex items-center gap-2 py-2.5 px-4 text-xs font-semibold border-b-2 transition ${
@@ -284,12 +393,194 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
         </button>
       </div>
 
+      {/* SECTION 0: Secure Connectors & Framework (Prompt 40) */}
+      {activeSection === 'connectors' && (
+        <div className="space-y-6">
+          {/* Configured Connectors */}
+          <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 space-y-4">
+            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-accent-cyan" />
+                Active Project Connectors
+              </span>
+              <span className="text-[11px] font-mono font-normal text-slate-400">
+                {connectors.length} configured
+              </span>
+            </h3>
+
+            {connectors.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-xs font-mono">
+                No connectors configured yet. Click "Configure Connector" above to register an integration adapter.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {connectors.map((c) => {
+                  const health = healthResults[c.id];
+                  const sync = syncResults[c.id];
+                  return (
+                    <div
+                      key={c.id}
+                      className="bg-cyber-900 p-4 rounded-lg border border-cyber-750 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-slate-100 text-sm">{c.name}</span>
+                          <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyber-800 border border-cyber-700 text-slate-300">
+                            {c.provider_type} v{c.version}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded ${
+                              c.last_health_status === 'HEALTHY'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                : c.last_health_status === 'CONFIGURED'
+                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                                : 'bg-red-500/10 text-red-400 border border-red-500/30'
+                            }`}
+                          >
+                            {c.last_health_status}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {c.capabilities.map((cap) => (
+                            <span
+                              key={cap}
+                              className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20"
+                            >
+                              {cap}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-400 flex flex-wrap gap-4 pt-1">
+                          <span>Rate Limit: {c.rate_limit_per_minute}/min</span>
+                          <span>Timeout: {c.timeout_seconds}s</span>
+                          <span>Watermark: {c.last_sync_watermark || 'None'}</span>
+                          {c.last_sync_at && (
+                            <span>Last Sync: {new Date(c.last_sync_at).toLocaleTimeString()}</span>
+                          )}
+                        </div>
+
+                        {/* Test result feedback banner */}
+                        {health && (
+                          <div
+                            className={`mt-2 p-2 rounded text-[11px] font-mono border ${
+                              health.status === 'HEALTHY'
+                                ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/60'
+                                : 'bg-red-950/40 text-red-400 border-red-800/60'
+                            }`}
+                          >
+                            <span className="font-bold">[{health.status}]</span> {health.message} ({health.latency_ms.toFixed(1)}ms)
+                          </div>
+                        )}
+
+                        {/* Sync result feedback banner */}
+                        {sync && (
+                          <div className="mt-2 p-2 rounded text-[11px] font-mono bg-blue-950/40 text-cyan-300 border border-cyan-800/60">
+                            <span className="font-bold">Sync:</span> {sync.message} | Digest: {sync.raw_payload_digest?.slice(0, 16)}...
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 self-start md:self-center">
+                        <button
+                          onClick={() => handleTestConnector(c.id)}
+                          disabled={testingConnectorId === c.id}
+                          className="px-2.5 py-1.5 bg-cyber-800 hover:bg-cyber-750 text-slate-200 text-xs font-mono rounded border border-cyber-700 flex items-center gap-1.5 transition"
+                        >
+                          <Activity className={`w-3.5 h-3.5 ${testingConnectorId === c.id ? 'animate-spin' : ''}`} />
+                          Test
+                        </button>
+                        <button
+                          onClick={() => handleSyncConnector(c.id)}
+                          disabled={syncingConnectorId === c.id || !c.enabled}
+                          className="px-2.5 py-1.5 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 text-xs font-bold font-mono rounded flex items-center gap-1.5 transition"
+                        >
+                          <Play className={`w-3.5 h-3.5 ${syncingConnectorId === c.id ? 'animate-spin' : ''}`} />
+                          Sync Now
+                        </button>
+                        <button
+                          onClick={() => handleOpenHistory(c)}
+                          className="px-2.5 py-1.5 bg-cyber-800 hover:bg-cyber-750 text-slate-300 text-xs font-mono rounded border border-cyber-700 flex items-center gap-1.5 transition"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                          History
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Available Integration Registry & Catalog */}
+          <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 space-y-4">
+            <div>
+              <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-accent-cyan" />
+                Connector Capability Discovery Catalog
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Authoritative registry of supported and experimental data source adapters with truth-in-advertising status flags.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {connectorInventory.map((item) => (
+                <div
+                  key={item.provider_type}
+                  className="bg-cyber-900 p-4 rounded-lg border border-cyber-750 flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-200 text-xs">{item.name}</span>
+                      <span
+                        className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded ${
+                          item.implementation_status === 'IMPLEMENTED'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : item.implementation_status === 'SIMULATED'
+                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                            : item.implementation_status === 'UNVERIFIED'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                            : 'bg-slate-700 text-slate-400 border border-slate-600'
+                        }`}
+                      >
+                        {item.implementation_status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{item.description}</p>
+                    {item.limitations && (
+                      <div className="p-2 rounded bg-cyber-950 border border-amber-500/20 text-[10px] text-amber-300/80 font-mono">
+                        <AlertTriangle className="w-3 h-3 inline mr-1 text-amber-400" />
+                        {item.limitations}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-3 mt-3 border-t border-cyber-800">
+                    <div className="text-[10px] text-slate-500 font-mono mb-1.5">Capabilities:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {item.supported_capabilities.map((cap) => (
+                        <span
+                          key={cap}
+                          className="px-1.5 py-0.2 text-[8px] font-mono rounded bg-cyber-800 text-slate-300"
+                        >
+                          {cap}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SECTION 1: CISA KEV Threat Feed */}
       {activeSection === 'kev' && (
         <div className="space-y-4">
-          {/* Search and Direct Lookup */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Direct CVE Lookup */}
             <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 space-y-3">
               <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                 <Search className="w-4 h-4 text-accent-cyan" />
@@ -305,333 +596,181 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
                 />
                 <button
                   type="submit"
-                  disabled={kevLoading || !kevLookupCve.trim()}
-                  className="px-4 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-bold rounded-lg text-xs transition disabled:opacity-50"
+                  disabled={kevLoading}
+                  className="px-4 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition"
                 >
+                  <Search className="w-3.5 h-3.5" />
                   Lookup
                 </button>
               </form>
-            </div>
 
-            {/* Catalog Filter */}
-            <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 space-y-3">
-              <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <Globe className="w-4 h-4 text-indigo-400" />
-                Filter In-Memory Catalog
-              </h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Keyword, vendor, or product (e.g. Apache, Log4j, Microsoft)..."
-                  value={kevSearchQuery}
-                  onChange={(e) => setKevSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') loadKevCatalog(kevSearchQuery);
-                  }}
-                  className="flex-1 bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-cyan"
-                />
-                <button
-                  onClick={() => loadKevCatalog(kevSearchQuery)}
-                  disabled={kevLoading}
-                  className="px-4 py-2 bg-cyber-750 hover:bg-cyber-700 text-slate-200 border border-cyber-600 rounded-lg text-xs font-semibold transition"
-                >
-                  Filter
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Single CVE Lookup Result Card */}
-          {singleKevResult && (
-            <div className="bg-accent-cyan/5 border border-accent-cyan/30 rounded-xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="font-mono text-sm font-bold text-accent-cyan">{singleKevResult.cve_id}</span>
-                  <span className="text-xs font-semibold text-slate-200">{singleKevResult.vulnerability_name}</span>
+              {kevError && (
+                <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-lg text-xs text-red-300 flex items-center gap-2 font-mono">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                  {kevError}
                 </div>
-                {singleKevResult.known_ransomware_campaign_use && (
-                  <span className="px-2 py-0.5 text-[10px] rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    KNOWN RANSOMWARE CAMPAIGN
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-300">{singleKevResult.short_description}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-slate-400 bg-cyber-900/60 p-3 rounded-lg border border-cyber-800">
-                <div>Vendor: <span className="text-slate-200">{singleKevResult.vendor_project}</span></div>
-                <div>Product: <span className="text-slate-200">{singleKevResult.product}</span></div>
-                <div>Added Date: <span className="text-slate-200">{singleKevResult.date_added}</span></div>
-                <div>Action: <span className="text-amber-300">{singleKevResult.required_action}</span></div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {kevError && (
-            <div className="p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg text-xs font-mono">
-              {kevError}
+              {singleKevResult && (
+                <div className="p-4 bg-cyber-900 border border-cyber-700 rounded-lg space-y-2 font-mono text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-accent-cyan text-sm">{singleKevResult.cve_id}</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-red-500/10 text-red-400 border border-red-500/30">
+                      Ransomware:{' '}
+                      {singleKevResult.known_ransomware_campaign_use ? 'CONFIRMED' : 'UNKNOWN'}
+                    </span>
+                  </div>
+                  <div className="text-slate-200 font-semibold">{singleKevResult.vulnerability_name}</div>
+                  <div className="text-slate-400 text-[11px]">{singleKevResult.short_description}</div>
+                  <div className="pt-2 text-slate-500 text-[10px]">
+                    Vendor: {singleKevResult.vendor_project} | Product: {singleKevResult.product} | Added: {singleKevResult.date_added}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Catalog Table */}
-          <div className="bg-cyber-850 rounded-xl border border-cyber-700 overflow-hidden">
-            <div className="px-6 py-4 border-b border-cyber-750 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                CISA Known Exploited Vulnerabilities ({kevCatalog.length} Entries)
-              </span>
-              <span className="text-[11px] text-slate-400 font-mono">
-                Source: CISA KEV Catalog
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-cyber-800 text-slate-400 font-mono text-[11px] uppercase border-b border-cyber-750">
-                  <tr>
-                    <th className="py-3 px-4">CVE ID</th>
-                    <th className="py-3 px-4">Vendor & Product</th>
-                    <th className="py-3 px-4">Vulnerability Summary</th>
-                    <th className="py-3 px-4">Ransomware Status</th>
-                    <th className="py-3 px-4">Required Action</th>
-                    <th className="py-3 px-4">Date Added</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-cyber-750 text-slate-300">
-                  {kevCatalog.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500">
-                        {kevLoading ? 'Filtering catalog...' : 'No matching vulnerabilities found.'}
-                      </td>
-                    </tr>
-                  ) : (
-                    kevCatalog.map((entry) => (
-                      <tr key={entry.cve_id} className="hover:bg-cyber-800/40 transition">
-                        <td className="py-3 px-4 font-mono font-semibold text-accent-cyan whitespace-nowrap">
-                          {entry.cve_id}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-200">{entry.vendor_project}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{entry.product}</div>
-                        </td>
-                        <td className="py-3 px-4 max-w-xs">
-                          <div className="truncate font-semibold text-slate-200">{entry.vulnerability_name}</div>
-                          <div className="text-[10px] text-slate-400 truncate">{entry.short_description}</div>
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          {entry.known_ransomware_campaign_use ? (
-                            <span className="px-2 py-0.5 text-[9px] rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
-                              RANSOMWARE
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 text-[9px] rounded bg-slate-700 text-slate-300 font-mono">
-                              STANDARD
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-[10px] text-amber-300 max-w-xs truncate">
-                          {entry.required_action}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-[10px] text-slate-400 whitespace-nowrap">
-                          {entry.date_added}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 flex flex-col justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-accent-cyan" />
+                  Catalog Coverage & Search
+                </h3>
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    placeholder="Filter catalog by keyword or vendor..."
+                    value={kevSearchQuery}
+                    onChange={(e) => {
+                      setKevSearchQuery(e.target.value);
+                      loadKevCatalog(e.target.value);
+                    }}
+                    className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 font-mono focus:outline-none focus:border-accent-cyan"
+                  />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs font-mono">
+                  <div className="p-3 bg-cyber-900 rounded-lg border border-cyber-750">
+                    <span className="text-slate-500 text-[10px] block">Synchronized Entries</span>
+                    <span className="text-lg font-bold text-slate-200">{kevCatalog.length}</span>
+                  </div>
+                  <div className="p-3 bg-cyber-900 rounded-lg border border-cyber-750">
+                    <span className="text-slate-500 text-[10px] block">Feed Policy</span>
+                    <span className="text-lg font-bold text-emerald-400">Strict TLS</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* SECTION 2: HMAC-SHA256 Webhooks */}
+      {/* SECTION 2: HMAC Webhook Alerts */}
       {activeSection === 'webhooks' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Dispatcher Controls */}
-            <div className="md:col-span-1 bg-cyber-850 p-5 rounded-xl border border-cyber-700 space-y-4">
-              <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <Send className="w-4 h-4 text-accent-cyan" />
-                Dispatch Test Event
-              </h3>
-              <p className="text-xs text-slate-400">
-                Dispatches a cryptographically signed HMAC-SHA256 test alert with an anti-replay timestamp.
-              </p>
-
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">
-                  Select Event Type
-                </label>
-                <select
-                  value={selectedEventType}
-                  onChange={(e) => setSelectedEventType(e.target.value)}
-                  className="w-full bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-accent-cyan"
-                >
-                  <option value="FINDING_CRITICAL_DISCOVERED">FINDING_CRITICAL_DISCOVERED</option>
-                  <option value="RISK_THRESHOLD_EXCEEDED">RISK_THRESHOLD_EXCEEDED</option>
-                  <option value="ASSESSMENT_COMPLETED">ASSESSMENT_COMPLETED</option>
-                  <option value="MORPH_LOCKDOWN_ENGAGED">MORPH_LOCKDOWN_ENGAGED</option>
-                </select>
-              </div>
-
-              <div className="p-3 bg-cyber-900 rounded-lg border border-cyber-800 text-[11px] font-mono text-slate-400 space-y-1">
-                <div>Endpoint: <span className="text-slate-200">https://siem-alert.internal.corp/webhook</span></div>
-                <div>Algorithm: <span className="text-emerald-400">HMAC-SHA256</span></div>
-                <div>Key ID: <span className="text-slate-200">vapt_webhook_secret_key_...</span></div>
-              </div>
-
+          <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 space-y-4">
+            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <Bell className="w-4 h-4 text-accent-cyan" />
+              Simulate Outbound Security Alert Dispatch
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                value={selectedEventType}
+                onChange={(e) => setSelectedEventType(e.target.value)}
+                className="bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-accent-cyan"
+              >
+                <option value="FINDING_CRITICAL_DISCOVERED">FINDING_CRITICAL_DISCOVERED</option>
+                <option value="EXPLOIT_VERIFIED_IN_WILD">EXPLOIT_VERIFIED_IN_WILD</option>
+                <option value="ATTACK_PATH_REACHABLE">ATTACK_PATH_REACHABLE</option>
+                <option value="CONTROL_PLANE_DRIFT">CONTROL_PLANE_DRIFT</option>
+              </select>
               <button
                 onClick={handleTestWebhook}
                 disabled={webhookTesting}
-                className="w-full py-2.5 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition disabled:opacity-50"
+                className="px-4 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition"
               >
                 <Send className={`w-3.5 h-3.5 ${webhookTesting ? 'animate-pulse' : ''}`} />
-                {webhookTesting ? 'Signing & Dispatching...' : 'Dispatch Test Alert'}
+                <span>{webhookTesting ? 'Signing & Dispatching...' : 'Dispatch Webhook Event'}</span>
               </button>
-
-              {webhookError && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg text-xs font-mono">
-                  {webhookError}
-                </div>
-              )}
             </div>
 
-            {/* Last Dispatch Signature Inspector */}
-            <div className="md:col-span-2 bg-cyber-850 p-5 rounded-xl border border-cyber-700 space-y-3 flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-2">
-                  <Shield className="w-4 h-4 text-emerald-400" />
-                  Live Cryptographic Signature Inspector
-                </h3>
-                {lastDelivery ? (
-                  <div className="space-y-2 text-xs font-mono">
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Delivery Confirmed (HTTP 200 OK)</span>
-                    </div>
-                    <div className="bg-cyber-900 p-3 rounded-lg border border-cyber-800 space-y-1.5 text-[11px]">
-                      <div><span className="text-slate-400">Event ID:</span> <span className="text-slate-200">{lastDelivery.event_id}</span></div>
-                      <div><span className="text-slate-400">Event Type:</span> <span className="text-accent-cyan">{lastDelivery.event_type}</span></div>
-                      <div><span className="text-slate-400">Anti-Replay Timestamp:</span> <span className="text-slate-200">{lastDelivery.timestamp}</span></div>
-                      <div><span className="text-slate-400">Payload Size:</span> <span className="text-slate-200">{lastDelivery.payload_size} bytes</span></div>
-                      <div className="truncate"><span className="text-slate-400">HMAC-SHA256 Signature:</span> <span className="text-amber-400 font-bold">{lastDelivery.signature}</span></div>
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      Payload headers include: <code className="text-slate-400">X-VAPT-Signature</code>, <code className="text-slate-400">X-VAPT-Timestamp</code>, <code className="text-slate-400">X-VAPT-Event-ID</code>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-12 text-center text-slate-500 text-xs font-mono">
-                    Dispatch a test alert to inspect the cryptographic HMAC-SHA256 signature and sanitized wire payload.
-                  </div>
-                )}
+            {webhookError && (
+              <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-lg text-xs text-red-300 font-mono">
+                {webhookError}
               </div>
+            )}
 
-              <div className="text-[11px] text-slate-500 font-mono border-t border-cyber-850 pt-2">
-                Credential Sanitization: Active (Passwords, auth tokens, and private keys automatically stripped).
-              </div>
-            </div>
-          </div>
-
-          {/* Delivery History Table */}
-          <div className="bg-cyber-850 rounded-xl border border-cyber-700 overflow-hidden">
-            <div className="px-6 py-4 border-b border-cyber-750 font-semibold text-xs text-slate-200 uppercase tracking-wider">
-              Webhook Delivery History ({webhookHistory.length} Recorded)
-            </div>
-            <div className="divide-y divide-cyber-750">
-              {webhookHistory.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 text-xs font-mono">
-                  No webhook events recorded in this session.
+            {lastDelivery && (
+              <div className="p-4 bg-cyber-900 border border-cyber-700 rounded-lg font-mono text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4" /> Dispatched Successfully
+                  </span>
+                  <span className="text-slate-500 text-[10px]">{lastDelivery.delivered_at}</span>
                 </div>
-              ) : (
-                webhookHistory.map((item) => (
-                  <div key={item.event_id} className="p-4 hover:bg-cyber-800/40 transition flex items-center justify-between text-xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-accent-cyan">{item.event_id}</span>
-                        <span className="px-2 py-0.5 text-[10px] rounded bg-cyber-750 text-slate-300 font-mono">
-                          {item.event_type}
-                        </span>
-                        <span className="px-2 py-0.5 text-[9px] rounded bg-emerald-500/20 text-emerald-400 font-mono font-bold">
-                          DELIVERED
-                        </span>
-                      </div>
-                      <div className="text-[10px] font-mono text-slate-500 truncate max-w-xl">
-                        Sig: {item.signature} · {new Date(item.delivered_at).toLocaleString()}
-                      </div>
+                <div className="text-[11px] text-slate-300">
+                  <span className="text-slate-500">HMAC-SHA256 Signature:</span> {lastDelivery.signature}
+                </div>
+              </div>
+            )}
+
+            {webhookHistory.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-cyber-750 space-y-2">
+                <span className="text-xs font-mono text-slate-400">Recent Webhook Deliveries ({webhookHistory.length}):</span>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin">
+                  {webhookHistory.slice(0, 5).map((d) => (
+                    <div key={d.event_id} className="p-2 bg-cyber-900 rounded text-[11px] font-mono flex items-center justify-between text-slate-300">
+                      <span>{d.event_type}</span>
+                      <span className="text-slate-500">{d.delivered_at}</span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400">{item.payload_size} bytes</span>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* SECTION 3: SIEM & Syslog Exporter */}
+      {/* SECTION 3: SIEM Log Exporter */}
       {activeSection === 'siem' && (
         <div className="space-y-4">
-          {/* Export Controls */}
-          <div className="bg-cyber-850 p-6 rounded-xl border border-cyber-700 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-accent-cyan" />
-                  Audit Event Stream Exporter
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Exports project audit trails formatted for enterprise Security Information and Event Management (SIEM) ingestion.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className="text-xs font-semibold text-slate-400">Format:</span>
-                {(['CEF', 'SYSLOG', 'JSON'] as const).map((fmt) => (
-                  <button
-                    key={fmt}
-                    onClick={() => setSiemFormat(fmt)}
-                    className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition ${
-                      siemFormat === fmt
-                        ? 'bg-accent-cyan text-cyber-900 border-accent-cyan'
-                        : 'bg-cyber-900 text-slate-400 border-cyber-700 hover:text-slate-200'
-                    }`}
-                  >
-                    {fmt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
+          <div className="bg-cyber-850 p-5 rounded-xl border border-cyber-750 space-y-4">
+            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-accent-cyan" />
+              Export SIEM Audit Telemetry
+            </h3>
+            <div className="flex gap-3 items-center">
+              <select
+                value={siemFormat}
+                onChange={(e) => setSiemFormat(e.target.value as any)}
+                className="bg-cyber-900 border border-cyber-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-accent-cyan"
+              >
+                <option value="CEF">Common Event Format (CEF)</option>
+                <option value="SYSLOG">Syslog RFC 5424</option>
+                <option value="JSON">Structured JSON Stream</option>
+              </select>
               <button
                 onClick={handleExportSiem}
                 disabled={siemExporting}
-                className="px-5 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-bold rounded-lg text-xs flex items-center gap-2 transition disabled:opacity-50"
+                className="px-4 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition"
               >
-                <Terminal className={`w-3.5 h-3.5 ${siemExporting ? 'animate-pulse' : ''}`} />
-                {siemExporting ? 'Exporting Stream...' : `Export Audit Events (${siemFormat})`}
+                <Download className={`w-3.5 h-3.5 ${siemExporting ? 'animate-spin' : ''}`} />
+                <span>Generate Export Stream</span>
               </button>
             </div>
           </div>
 
-          {/* Export Results Stream Container */}
           {siemResult && (
-            <div className="bg-cyber-850 rounded-xl border border-cyber-700 overflow-hidden">
-              <div className="px-6 py-3 border-b border-cyber-750 flex items-center justify-between bg-cyber-800">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono font-bold text-slate-200">
-                    {siemResult.format} Stream ({siemResult.total_events} Events)
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    Exported: {new Date(siemResult.exported_at).toLocaleTimeString()}
-                  </span>
-                </div>
+            <div className="bg-cyber-850 rounded-xl border border-cyber-750 overflow-hidden">
+              <div className="p-4 bg-cyber-800 border-b border-cyber-700 flex items-center justify-between">
+                <span className="font-mono text-xs text-slate-200 font-semibold">
+                  Export Stream ({siemResult.total_events} events)
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={copyToClipboard}
-                    className="px-3 py-1 bg-cyber-750 hover:bg-cyber-700 text-slate-200 border border-cyber-600 rounded text-xs flex items-center gap-1.5 transition"
+                    className="px-3 py-1 bg-cyber-750 hover:bg-cyber-700 text-slate-200 rounded text-xs flex items-center gap-1.5 transition"
                   >
-                    {copied ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copied ? 'Copied' : 'Copy'}</span>
                   </button>
                   <button
                     onClick={downloadLogFile}
@@ -642,7 +781,6 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
                   </button>
                 </div>
               </div>
-
               <div className="p-4 bg-cyber-950 font-mono text-xs text-emerald-400 overflow-x-auto max-h-96 space-y-1 scrollbar-thin">
                 {siemResult.stream.map((line, idx) => (
                   <div key={idx} className="whitespace-pre hover:bg-cyber-900/60 p-1 rounded transition">
@@ -652,6 +790,204 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({ projectId })
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Sync History Modal */}
+      {historyConnector && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-cyber-850 border border-cyber-700 rounded-xl max-w-3xl w-full p-6 space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-cyber-750 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <History className="w-4 h-4 text-accent-cyan" />
+                  Sync Run History & Cryptographic Provenance
+                </h3>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">{historyConnector.name}</p>
+              </div>
+              <button
+                onClick={() => setHistoryConnector(null)}
+                className="text-slate-400 hover:text-slate-200 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin">
+              {historyLoading ? (
+                <div className="text-center py-6 text-xs font-mono text-slate-500">Loading sync history...</div>
+              ) : syncHistory.length === 0 ? (
+                <div className="text-center py-6 text-xs font-mono text-slate-500">No sync executions recorded yet.</div>
+              ) : (
+                syncHistory.map((evt) => (
+                  <div key={evt.id} className="p-3 bg-cyber-900 rounded-lg border border-cyber-750 font-mono text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-300 font-semibold">{new Date(evt.started_at).toLocaleString()}</span>
+                      <span
+                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                          evt.status === 'SUCCESS'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-red-500/10 text-red-400 border border-red-500/30'
+                        }`}
+                      >
+                        {evt.status}
+                      </span>
+                    </div>
+                    <div className="text-slate-400 text-[11px] flex gap-4">
+                      <span>Pulled: {evt.records_pulled}</span>
+                      <span>Ingested: {evt.records_ingested}</span>
+                      <span>Tombstoned: {evt.records_tombstoned}</span>
+                      <span>Watermark: {evt.sync_watermark || 'N/A'}</span>
+                    </div>
+                    {evt.raw_payload_digest && (
+                      <div className="text-[10px] text-slate-500 break-all">
+                        <Lock className="w-3 h-3 inline mr-1 text-accent-cyan" />
+                        Payload SHA-256 Digest: {evt.raw_payload_digest}
+                      </div>
+                    )}
+                    {evt.error_message && (
+                      <div className="text-[11px] text-red-400">Error: {evt.error_message}</div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="border-t border-cyber-750 pt-3 flex justify-end">
+              <button
+                onClick={() => setHistoryConnector(null)}
+                className="px-4 py-2 bg-cyber-750 hover:bg-cyber-700 text-slate-200 text-xs rounded-lg transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Configure Connector Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-cyber-850 border border-cyber-700 rounded-xl max-w-xl w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-cyber-750 pb-3">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-accent-cyan" />
+                Configure External Security Connector
+              </h3>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-slate-200 text-sm">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateConnector} className="space-y-4 text-xs font-mono">
+              {createError && (
+                <div className="p-3 bg-red-950/40 border border-red-800/60 rounded text-red-300">
+                  {createError}
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Connector Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. AWS Production EC2 Inventory"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-accent-cyan"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Provider Adapter</label>
+                <select
+                  value={createForm.provider_type}
+                  onChange={(e) => {
+                    const p = e.target.value;
+                    let caps = ['TEST_CONNECTIVITY'];
+                    let defaultSettings = '{}';
+                    if (p === 'CISA_KEV') {
+                      caps = ['PULL_THREAT_INTEL', 'TEST_CONNECTIVITY'];
+                      defaultSettings = '{"feed_url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"}';
+                    } else if (p === 'CLOUD_ASSET_INVENTORY') {
+                      caps = ['PULL_ASSETS', 'TEST_CONNECTIVITY'];
+                      defaultSettings = '{"cloud_provider": "AWS", "api_endpoint": "https://ec2.us-east-1.amazonaws.com"}';
+                    } else if (p === 'VULNERABILITY_SCANNER') {
+                      caps = ['PULL_FINDINGS', 'TEST_CONNECTIVITY'];
+                      defaultSettings = '{"scanner_url": "https://scanner.internal.corp/api/v2"}';
+                    } else if (p === 'WEBHOOK_NOTIFIER') {
+                      caps = ['PUSH_ALERTS', 'TEST_CONNECTIVITY'];
+                      defaultSettings = '{"webhook_url": "https://siem.corp.internal/events"}';
+                    }
+                    setCreateForm({
+                      ...createForm,
+                      provider_type: p,
+                      capabilities: caps,
+                      settingsJson: defaultSettings,
+                    });
+                  }}
+                  className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-slate-100 focus:outline-none focus:border-accent-cyan"
+                >
+                  <option value="CISA_KEV">CISA_KEV (Threat Intelligence Feed)</option>
+                  <option value="CLOUD_ASSET_INVENTORY">CLOUD_ASSET_INVENTORY (Cloud Host Source)</option>
+                  <option value="VULNERABILITY_SCANNER">VULNERABILITY_SCANNER (Scanner Findings)</option>
+                  <option value="WEBHOOK_NOTIFIER">WEBHOOK_NOTIFIER (Outbound HMAC Webhook)</option>
+                  <option value="SIEM_EXPORTER">SIEM_EXPORTER (Syslog/CEF Exporter)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300">Rate Limit (/min)</label>
+                  <input
+                    type="number"
+                    value={createForm.rate_limit_per_minute}
+                    onChange={(e) => setCreateForm({ ...createForm, rate_limit_per_minute: Number(e.target.value) })}
+                    className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-1.5 text-slate-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-300">Timeout (seconds)</label>
+                  <input
+                    type="number"
+                    value={createForm.timeout_seconds}
+                    onChange={(e) => setCreateForm({ ...createForm, timeout_seconds: Number(e.target.value) })}
+                    className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-1.5 text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Settings & Credentials (JSON)</label>
+                <textarea
+                  rows={4}
+                  value={createForm.settingsJson}
+                  onChange={(e) => setCreateForm({ ...createForm, settingsJson: e.target.value })}
+                  className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-slate-100 font-mono text-[11px] focus:outline-none focus:border-accent-cyan"
+                />
+                <span className="text-[10px] text-slate-500">
+                  <Lock className="w-3 h-3 inline mr-1 text-accent-cyan" />
+                  Credentials (tokens, secrets) are automatically masked and encrypted in storage.
+                </span>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2 bg-cyber-800 hover:bg-cyber-750 text-slate-300 rounded transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-accent-cyan hover:bg-cyan-400 text-cyber-900 font-bold rounded transition"
+                >
+                  Save & Validate
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

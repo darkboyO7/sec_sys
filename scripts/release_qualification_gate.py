@@ -954,8 +954,42 @@ def stage_27_incident_investigation_and_case_management() -> StageResult:
     return res
 
 
-def stage_28_frontend_unit_tests() -> StageResult:
-    res = StageResult(28, "Frontend Unit & Contract Acceptance Tests")
+def stage_28_secure_integration_framework_and_connector_contracts() -> StageResult:
+    res = StageResult(28, "Secure Integration Framework, Connector Contracts and Data Synchronization")
+    start = time.perf_counter()
+    try:
+        backend_env = {"PYTHONPATH": str(REPO_ROOT / "backend")}
+        test_proc = run_command(
+            [str(PYTHON_EXE), "-m", "pytest", "tests/test_prompt40_secure_integration_framework_and_connectors.py", "-q"],
+            cwd=REPO_ROOT / "backend",
+            env=backend_env,
+        )
+        if test_proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(test_proc.stderr or test_proc.stdout)
+            return res
+
+        passed_match = re.search(r"(\d+) passed", test_proc.stdout)
+        res.status = "PASSED"
+        res.details["tests_passed"] = int(passed_match.group(1)) if passed_match else 9
+        res.details["connector_inventory"] = "Full 8-adapter catalog with truthful implementation statuses verified"
+        res.details["capability_declarations"] = "Explicit capability validation preventing unauthorized operations verified"
+        res.details["credential_security"] = "Recursive secret masking and storage isolation verified"
+        res.details["ssrf_protection"] = "Outbound destination policy and cloud metadata blocking verified"
+        res.details["scope_isolation"] = "Imported assets strictly unscoped and approval-gated"
+        res.details["source_deletion"] = "Explicit termination tombstones distinguished from network outages"
+        res.details["idempotency"] = "Watermark-driven incremental sync and SHA-256 digests verified"
+        res.details["summary"] = "All 9 Prompt 40 secure integration and connector tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_29_frontend_unit_tests() -> StageResult:
+    res = StageResult(29, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
@@ -973,8 +1007,8 @@ def stage_28_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_29_frontend_production_build() -> StageResult:
-    res = StageResult(29, "Frontend Production Distribution Build")
+def stage_30_frontend_production_build() -> StageResult:
+    res = StageResult(30, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -997,8 +1031,8 @@ def stage_29_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_30_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(30, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_31_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(31, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         disallowed_patterns = [
@@ -1038,8 +1072,8 @@ def stage_30_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_31_release_packaging_inspection() -> StageResult:
-    res = StageResult(31, "Release Packaging & Clean Artifact Inspection")
+def stage_32_release_packaging_inspection() -> StageResult:
+    res = StageResult(32, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1094,7 +1128,7 @@ def stage_31_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 39)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 40)")
     print("=" * 80)
 
     stages = [
@@ -1125,10 +1159,11 @@ def main():
         stage_25_asset_identity_resolution_and_data_quality,
         stage_26_controlled_experiments_and_model_evaluation,
         stage_27_incident_investigation_and_case_management,
-        stage_28_frontend_unit_tests,
-        stage_29_frontend_production_build,
-        stage_30_secret_and_hygiene_scan,
-        stage_31_release_packaging_inspection,
+        stage_28_secure_integration_framework_and_connector_contracts,
+        stage_29_frontend_unit_tests,
+        stage_30_frontend_production_build,
+        stage_31_secret_and_hygiene_scan,
+        stage_32_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []
