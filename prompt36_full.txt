@@ -1,0 +1,33 @@
+<USER_REQUEST>
+# PROMPT 36 â€” Identity Security, Authorization Consistency and Privileged-Action Governance
+
+Repository: `D:\alt`
+
+Inspect the existing authentication, session handling, RBAC, user management, API dependencies, workspace boundaries, approval workflows, audit trail, frontend route guards, and configuration.
+
+## Objective
+Establish consistent, server-enforced identity and authorization across the complete VAPT System.
+
+## Requirements
+
+1. Inventory every API endpoint and classify its required authentication, permission, resource ownership, and privilege level.
+2. Identify inconsistent authorization checks, frontend-only protections, missing object-level checks, insecure defaults, and unintended privilege escalation paths.
+3. Centralize authorization decisions using the repository's existing patterns instead of introducing competing RBAC implementations.
+4. Define explicit permissions for asset management, assessment execution, findings, evidence, remediation, retesting, reporting, integrations, policy changes, backups, and administrative actions.
+5. Enforce least privilege and deny access by default when authorization cannot be verified.
+6. Ensure permissions are checked against the actual requested resource and current server-side state.
+7. Preserve dual-approval or separation-of-duties controls where applicable.
+8. Prevent unauthorized users from approving their own privileged requests where existing policy prohibits it.
+9. Review session expiration, revocation, password handling, token storage, cookie flags, CSRF protections, and credential rotation according to the actual authentication architecture.
+10. Avoid logging secrets, authentication tokens, or sensitive evidence.
+11. Add a permission matrix and an auditable explanation for each denied privileged operation.
+12. Add tests for horizontal privilege escalation, vertical privilege escalation, stale sessions, revoked permissions, invalid resource identifiers, and cross-workspace access.
+13. Ensure frontend permission checks improve usability but never replace backend enforcement.
+
+Do not replace a functioning authentication system merely for architectural preference. Do not disable existing security controls to make tests pass.
+
+Run endpoint-level authorization tests and the relevant full regression suite. Report actual findings, severity, changed files, test counts, and unresolved risks. Preserve unrelated Git changes and never modify the recovery mirror.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:57:03+05:30.
+</ADDITIONAL_METADATA>

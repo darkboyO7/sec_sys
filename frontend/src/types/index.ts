@@ -3050,6 +3050,50 @@ export interface ThreatIntelSummary {
   conflicting_correlations_count: number;
 }
 
+// ---------------------------------------------------------------------------
+// Identity Security, Authorization Consistency & Privileged-Action Governance (Prompt 36)
+// ---------------------------------------------------------------------------
+
+export interface DetailedPermissionMatrixItem {
+  role: string;
+  role_type: string;
+  description: string;
+  granted_permissions: string[];
+}
+
+export interface DetailedPermissionMatrixResponse {
+  available_permissions: string[];
+  system_roles: DetailedPermissionMatrixItem[];
+  project_roles: DetailedPermissionMatrixItem[];
+}
+
+export interface AccessDenialAudit {
+  id: string;
+  user_id?: string | null;
+  user_email?: string | null;
+  project_id?: string | null;
+  endpoint: string;
+  http_method: string;
+  required_privilege: string;
+  held_privilege?: string | null;
+  denial_reason: string;
+  client_ip?: string | null;
+  denied_at: string;
+}
+
+export interface LogoutResponse {
+  status: string;
+  message: string;
+  revoked_token_id?: string | null;
+}
+
+export interface RevokeAllSessionsResponse {
+  status: string;
+  message: string;
+  revoked_before: string;
+}
+
+
 
 
 

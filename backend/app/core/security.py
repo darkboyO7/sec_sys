@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+import uuid
 import bcrypt
 import jwt
 from fastapi import HTTPException, status
@@ -42,6 +43,8 @@ def create_access_token(
         "iat": now,
         "nbf": now,
         "exp": expire,
+        "jti": uuid.uuid4().hex,
+        "iat_precise": now.timestamp(),
     }
     if claims:
         to_encode.update(claims)

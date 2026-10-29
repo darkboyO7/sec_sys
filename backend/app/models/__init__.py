@@ -192,6 +192,10 @@ from app.models.threat_intel import (
     ThreatIntelligenceRecord,
     ThreatCorrelationRecord,
 )
+from app.models.authorization import (
+    TokenRevocationRecord,
+    AccessDenialAuditRecord,
+)
 
 __all__ = [
     "Base",
@@ -350,4 +354,6 @@ __all__ = [
     "ThreatIntelFeedRecord",
     "ThreatIntelligenceRecord",
     "ThreatCorrelationRecord",
+    "TokenRevocationRecord",
+    "AccessDenialAuditRecord",
 ]

@@ -31,6 +31,7 @@ import {
 
 export type NavigationTab =
   | 'overview'
+  | 'identity-auth'
   | 'threat-intel'
   | 'scheduling'
   | 'compliance'
@@ -105,6 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       category: 'CORE & GOVERNANCE',
       items: [
         { id: 'overview', label: 'Mission Overview', icon: LayoutDashboard },
+        { id: 'identity-auth', label: 'Identity & Access (RBAC)', icon: ShieldCheck },
         { id: 'governance', label: 'Governance & SoD', icon: ShieldCheck },
         { id: 'scopes', label: 'Scope & Targets', icon: Target, badge: targetCount > 0 ? targetCount : undefined },
         { id: 'settings', label: 'Team & Settings', icon: Settings },

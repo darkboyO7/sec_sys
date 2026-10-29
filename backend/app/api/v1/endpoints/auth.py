@@ -174,3 +174,137 @@ def list_organization_users(
     """Retrieve registered users in organization for access governance."""
     users = db.query(User).filter(User.is_active == True).order_by(User.full_name).all()
     return users
+
+
+@router.post("/logout")
+def logout_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Revoke the current authentication token and terminate session immediately.
+    """
+    from app.services.authorization_service import AuthorizationService
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.replace("Bearer ", "").strip()
+    revoked_id = None
+    if token:
+        revoked_id = AuthorizationService.revoke_token(
+            db=db,
+            token=token,
+            user_id=current_user.id,
+            reason="USER_LOGOUT",
+        )
+
+    AuditService.record_event(
+        db=db,
+        action="AUTH_LOGOUT",
+        target_type="user",
+        target_id=current_user.id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=get_client_ip(request),
+        details={"revoked_token_id": revoked_id},
+    )
+
+    return {"status": "SUCCESS", "message": "Session terminated and token revoked successfully"}
+
+
+@router.post("/revoke-all")
+def revoke_all_sessions(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Invalidate all issued tokens for the current user across all devices.
+    """
+    from app.services.authorization_service import AuthorizationService
+    cutoff = AuthorizationService.revoke_all_user_tokens(db, current_user.id)
+
+    AuditService.record_event(
+        db=db,
+        action="AUTH_REVOKE_ALL_SESSIONS",
+        target_type="user",
+        target_id=current_user.id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=get_client_ip(request),
+        details={"revoked_before": cutoff.isoformat()},
+    )
+
+    return {
+        "status": "SUCCESS",
+        "message": "All active sessions revoked successfully",
+        "revoked_before": cutoff.isoformat(),
+    }
+
+
+@router.post("/change-password")
+def change_user_password(
+    payload: dict,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Change user password with validation, session invalidation, and zero credential leakage.
+    """
+    from app.services.authorization_service import AuthorizationService
+
+    current_pw = payload.get("current_password", "")
+    new_pw = payload.get("new_password", "")
+
+    if not current_pw or not new_pw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current and new password are required",
+        )
+
+    if len(new_pw) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters in length",
+        )
+
+    if not verify_password(current_pw, current_user.hashed_password):
+        AuditService.record_event(
+            db=db,
+            action="AUTH_CHANGE_PASSWORD_FAIL",
+            target_type="user",
+            target_id=current_user.id,
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+            outcome="FAILURE",
+            ip_address=get_client_ip(request),
+            details={"reason": "Invalid current password"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid current password",
+        )
+
+    # Update password and revoke all existing sessions
+    current_user.hashed_password = hash_password(new_pw)
+    cutoff = AuthorizationService.revoke_all_user_tokens(db, current_user.id)
+    db.commit()
+
+    AuditService.record_event(
+        db=db,
+        action="AUTH_CHANGE_PASSWORD_SUCCESS",
+        target_type="user",
+        target_id=current_user.id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=get_client_ip(request),
+        details={"sessions_invalidated": True},
+    )
+
+    return {
+        "status": "SUCCESS",
+        "message": "Password changed successfully. All previous sessions have been invalidated.",
+    }

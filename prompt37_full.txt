@@ -1,0 +1,29 @@
+# PROMPT 37 — Asset Identity Resolution, Data Quality and Canonical Security Records
+
+Repository: `D:\alt`
+
+Inspect asset inventory, discovery adapters, hostname and IP observations, evidence records, findings, relationships, import mechanisms, deduplication, and database constraints.
+
+## Objective
+Create a reliable canonical asset-identity layer that reduces duplicate assets and incorrect finding associations without merging unrelated systems.
+
+## Requirements
+
+1. Identify the existing asset identity model and document its current limitations.
+2. Define stable asset identifiers and carefully scoped matching rules for supported asset types.
+3. Distinguish observed identifiers from canonical identifiers, including IP addresses, DNS names, certificates, service endpoints, cloud identifiers, and user-provided labels where supported.
+4. Preserve time-dependent observations. IP addresses and DNS names may be reassigned, so do not assume historical identity implies current identity.
+5. Implement confidence-aware entity resolution with explainable match reasons.
+6. Preserve conflicting observations and provenance.
+7. Prevent uncertain matches from automatically merging assets.
+8. Support a reviewable merge or split workflow when the current architecture requires human approval.
+9. Ensure merges preserve findings, evidence references, assessment history, audit provenance, and relationship integrity.
+10. Add data-quality checks for orphaned findings, missing asset references, duplicate identifiers, inconsistent timestamps, invalid relationships, and stale observations.
+11. Provide safe deduplication plans and dry-run reports before any bulk merge.
+12. Add indexes and constraints only where justified by actual query patterns and migration safety.
+13. Integrate canonical identity into existing risk scoring, reporting, monitoring, and assessment selection.
+14. Add tests for IP reuse, conflicting hostnames, duplicate ingestion, ambiguous identity, merge rollback, and concurrent updates.
+
+Never delete historical evidence to make the inventory appear cleaner. Never merge assets solely because they share an IP address or similar hostname.
+
+Implement an authorized API and practical frontend for reviewing uncertain matches and data-quality problems. Report the exact tests and migration effects. Preserve unrelated work and the recovery mirror.

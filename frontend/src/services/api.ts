@@ -128,6 +128,10 @@ import type {
   ThreatCorrelationRunRequest,
   ThreatCorrelationRunResponse,
   ThreatIntelSummary,
+  DetailedPermissionMatrixResponse,
+  AccessDenialAudit,
+  LogoutResponse,
+  RevokeAllSessionsResponse,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -223,12 +227,8 @@ class ApiService {
     return this.request('/auth/me');
   }
 
-async listUsers(): Promise<User[]> {
+  async listUsers(): Promise<User[]> {
     return this.request('/auth/users');
-  }
-
-  logout() {
-    this.setToken(null);
   }
 
   // Projects
@@ -2053,6 +2053,56 @@ async listUsers(): Promise<User[]> {
     return this.request<ThreatCorrelationRunResponse>(`/projects/${encodeURIComponent(projectId)}/threat-intel/correlate`, {
       method: 'POST',
       body: JSON.stringify(req || { force_recorrelate: false }),
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Prompt 36: Identity Security, Authorization Consistency & Privileged-Action Governance
+  // -------------------------------------------------------------------------
+
+  async getDetailedPermissionMatrix(): Promise<DetailedPermissionMatrixResponse> {
+    return this.request<DetailedPermissionMatrixResponse>('/system/permissions/matrix');
+  }
+
+  async listProjectAccessDenials(
+    projectId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<AccessDenialAudit[]> {
+    const q = new URLSearchParams();
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<AccessDenialAudit[]>(`/projects/${encodeURIComponent(projectId)}/governance/access-denials${qs}`);
+  }
+
+  async listGlobalAccessDenials(params?: { limit?: number; offset?: number }): Promise<AccessDenialAudit[]> {
+    const q = new URLSearchParams();
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<AccessDenialAudit[]>(`/system/governance/access-denials${qs}`);
+  }
+
+  logout(): void {
+    this.setToken(null);
+  }
+
+  async revokeServerSession(): Promise<LogoutResponse> {
+    const res = await this.request<LogoutResponse>('/auth/logout', { method: 'POST' });
+    this.setToken(null);
+    return res;
+  }
+
+  async revokeAllSessions(): Promise<RevokeAllSessionsResponse> {
+    const res = await this.request<RevokeAllSessionsResponse>('/auth/revoke-all', { method: 'POST' });
+    this.setToken(null);
+    return res;
+  }
+
+  async changePassword(payload: { current_password: string; new_password: string }): Promise<{ status: string; message: string }> {
+    return this.request<{ status: string; message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 }
