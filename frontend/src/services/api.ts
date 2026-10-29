@@ -85,6 +85,15 @@ import type {
   PreflightReport,
   RedactedConfigResponse,
   UpgradePrecheckResponse,
+  RetentionPolicyModel,
+  LegalHoldModel,
+  LegalHoldCreate,
+  DeletionTombstoneModel,
+  RetentionPreviewReport,
+  RetentionExecutionRequest,
+  RetentionExecutionResult,
+  EvidenceRedactionRequest,
+  EvidenceRedactionResult,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1538,6 +1547,59 @@ async listUsers(): Promise<User[]> {
   async checkUpgradeReadiness(): Promise<UpgradePrecheckResponse> {
     return this.request<UpgradePrecheckResponse>('/system/deployment/upgrade-check', {
       method: 'POST',
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 29: Evidence Lifecycle Governance & Data Retention
+  // ---------------------------------------------------------------------------
+  async getRetentionPolicies(): Promise<RetentionPolicyModel[]> {
+    return this.request<RetentionPolicyModel[]>('/system/lifecycle/policies');
+  }
+
+  async updateRetentionPolicy(policyId: string, policy: RetentionPolicyModel): Promise<RetentionPolicyModel> {
+    return this.request<RetentionPolicyModel>(`/system/lifecycle/policies/${encodeURIComponent(policyId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    });
+  }
+
+  async getLegalHolds(): Promise<LegalHoldModel[]> {
+    return this.request<LegalHoldModel[]>('/system/lifecycle/holds');
+  }
+
+  async createLegalHold(data: LegalHoldCreate): Promise<LegalHoldModel> {
+    return this.request<LegalHoldModel>('/system/lifecycle/holds', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async releaseLegalHold(holdId: string): Promise<LegalHoldModel> {
+    return this.request<LegalHoldModel>(`/system/lifecycle/holds/${encodeURIComponent(holdId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getRetentionPreview(): Promise<RetentionPreviewReport> {
+    return this.request<RetentionPreviewReport>('/system/lifecycle/preview');
+  }
+
+  async executeRetention(req: RetentionExecutionRequest): Promise<RetentionExecutionResult> {
+    return this.request<RetentionExecutionResult>('/system/lifecycle/execute', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async getDeletionTombstones(): Promise<DeletionTombstoneModel[]> {
+    return this.request<DeletionTombstoneModel[]>('/system/lifecycle/tombstones');
+  }
+
+  async redactEvidence(req: EvidenceRedactionRequest): Promise<EvidenceRedactionResult> {
+    return this.request<EvidenceRedactionResult>('/system/lifecycle/redact-evidence', {
+      method: 'POST',
+      body: JSON.stringify(req),
     });
   }
 }

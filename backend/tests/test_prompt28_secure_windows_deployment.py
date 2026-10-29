@@ -197,8 +197,9 @@ def test_12_initialize_environment_preserves_existing_secrets_idempotently():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         test_backend = Path(tmpdir) / "backend"
-        test_backend.mkdir(parents=True)
-        env_file = test_backend / ".env"
+        test_data = test_backend / "data"
+        test_data.mkdir(parents=True)
+        env_file = test_data / ".env"
         existing_secret = "pre_existing_custom_secret_key_1234567890_abcdef"
         env_file.write_text(f'SECRET_KEY="{existing_secret}"\n', encoding="utf-8")
 
@@ -217,7 +218,7 @@ def test_13_initialize_environment_generates_secure_key_when_missing():
     with tempfile.TemporaryDirectory() as tmpdir:
         test_backend = Path(tmpdir) / "backend"
         test_backend.mkdir(parents=True)
-        env_file = test_backend / ".env"
+        env_file = test_backend / "data" / ".env"
 
         with patch("scripts.initialize_environment.BACKEND_DIR", test_backend):
             exit_code = initialize_environment(quiet=True)

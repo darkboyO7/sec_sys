@@ -2240,6 +2240,128 @@ export interface UpgradePrecheckResponse {
   checked_at: string;
 }
 
+// Prompt 29 — Evidence Lifecycle Governance & Retention
+export type DataClassification =
+  | 'OPERATIONAL_METADATA'
+  | 'ASSET_CONFIG'
+  | 'FINDINGS_AND_RISK'
+  | 'RAW_EVIDENCE'
+  | 'CREDENTIALS_AND_SECRETS'
+  | 'AUDIT_RECORDS'
+  | 'AUTH_AND_IDENTITY'
+  | 'DERIVED_ANALYTICS';
+
+export type RetentionActionType = 'RETAIN' | 'ARCHIVE' | 'REDACT' | 'DELETE';
+export type HoldType = 'LEGAL_HOLD' | 'REGULATORY_HOLD' | 'INVESTIGATION_HOLD';
+export type HoldStatus = 'ACTIVE' | 'RELEASED';
+
+export interface RetentionPolicyModel {
+  policy_id: string;
+  classification: DataClassification;
+  retention_days: number;
+  action: RetentionActionType;
+  requires_approval: boolean;
+  is_active: boolean;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LegalHoldModel {
+  hold_id: string;
+  hold_type: HoldType;
+  target_scope: string;
+  target_id: string;
+  reason: string;
+  status: HoldStatus;
+  placed_by_id: string;
+  placed_at: string;
+  released_by_id?: string | null;
+  released_at?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface LegalHoldCreate {
+  hold_type?: HoldType;
+  target_scope: string;
+  target_id: string;
+  reason: string;
+}
+
+export interface DeletionTombstoneModel {
+  tombstone_id: string;
+  evidence_id: string;
+  original_sha256_hash: string;
+  classification: DataClassification;
+  policy_id: string;
+  deleted_by_id: string;
+  deleted_at: string;
+  tombstone_digest: string;
+  reason: string;
+}
+
+export interface RetentionPreviewItem {
+  record_id: string;
+  classification: DataClassification;
+  entity_type: string;
+  created_at: string;
+  age_days: number;
+  applicable_policy_id: string;
+  recommended_action: RetentionActionType;
+  is_held: boolean;
+  hold_reason?: string | null;
+  has_dependent_records: boolean;
+  eligible_for_execution: boolean;
+}
+
+export interface RetentionPreviewReport {
+  preview_id: string;
+  generated_at: string;
+  total_scanned_records: number;
+  eligible_records_count: number;
+  excluded_by_hold_count: number;
+  excluded_by_dependency_count: number;
+  preview_items: RetentionPreviewItem[];
+  dry_run_hash: string;
+}
+
+export interface RetentionExecutionRequest {
+  preview_id: string;
+  dry_run_hash: string;
+  classification_filter?: DataClassification | null;
+  confirmed_by_lead: boolean;
+}
+
+export interface RetentionExecutionResult {
+  execution_id: string;
+  preview_id: string;
+  executed_at: string;
+  archived_count: number;
+  redacted_count: number;
+  deleted_count: number;
+  tombstones_created_count: number;
+  skipped_count: number;
+  status: string;
+  audit_event_id: string;
+  tombstones: DeletionTombstoneModel[];
+}
+
+export interface EvidenceRedactionRequest {
+  evidence_id: string;
+  secret_patterns?: string[];
+  redaction_reason?: string;
+}
+
+export interface EvidenceRedactionResult {
+  evidence_id: string;
+  redacted: boolean;
+  secrets_masked_count: number;
+  original_sha256_hash: string;
+  sanitized_preview: string;
+  redacted_at: string;
+}
+
+
 
 
 

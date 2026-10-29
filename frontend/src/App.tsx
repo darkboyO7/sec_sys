@@ -28,6 +28,7 @@ import { SupplyChainSecurityView } from './views/SupplyChainSecurityView';
 import { PerformanceEngineeringView } from './views/PerformanceEngineeringView';
 import { SecurityControlVerificationView } from './views/SecurityControlVerificationView';
 import { DeploymentGovernanceView } from './views/DeploymentGovernanceView';
+import { EvidenceLifecycleGovernanceView } from './views/EvidenceLifecycleGovernanceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -420,6 +421,9 @@ export const App: React.FC = () => {
           )}
           {activeTab === 'deployment' && (
             <DeploymentGovernanceView />
+          )}
+          {activeTab === 'evidence-lifecycle' && (
+            <EvidenceLifecycleGovernanceView />
           )}
         </main>
       </div>

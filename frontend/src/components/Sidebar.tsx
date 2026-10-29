@@ -35,6 +35,7 @@ export type NavigationTab =
   | 'performance'
   | 'mutation-verification'
   | 'deployment'
+  | 'evidence-lifecycle'
   | 'scopes'
   | 'orchestration'
   | 'assessments'
@@ -146,6 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'performance', label: 'Performance & Scaling', icon: Gauge },
         { id: 'mutation-verification', label: 'Control & Mutation Testing', icon: ShieldCheck },
         { id: 'deployment', label: 'Deployment Governance', icon: Settings },
+        { id: 'evidence-lifecycle', label: 'Evidence Retention & Holds', icon: Database },
       ],
     },
   ];

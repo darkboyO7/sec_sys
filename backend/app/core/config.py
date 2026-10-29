@@ -6,11 +6,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_DB_FILE = (_BACKEND_DIR / "data" / "vapt.db").resolve().as_posix()
+_DATA_ENV_FILE = (_BACKEND_DIR / "data" / ".env").resolve()
+_ROOT_ENV_FILE = (_BACKEND_DIR / ".env").resolve()
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(_DATA_ENV_FILE, _ROOT_ENV_FILE, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
@@ -46,6 +48,15 @@ class Settings(BaseSettings):
     EXECUTION_MODE: str = "SUBPROCESS"  # "SUBPROCESS" or "IN_PROCESS"
     WORKER_TIMEOUT_GRACE_PERIOD_SECONDS: int = 3
     WORKER_MAX_IPC_PAYLOAD_BYTES: int = 10485760  # 10MB
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if v.startswith("sqlite:///./") or v.startswith("sqlite:///data/"):
+            filename = Path(v.replace("sqlite:///", "")).name
+            anchored = (_BACKEND_DIR / "data" / filename).resolve().as_posix()
+            return f"sqlite:///{anchored}"
+        return v
 
     @field_validator("SECRET_KEY")
     @classmethod
