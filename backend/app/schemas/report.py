@@ -8,6 +8,7 @@ class ReportGenerateRequest(BaseModel):
     report_type: ReportType = ReportType.EXECUTIVE
     report_format: ReportFormat = ReportFormat.JSON
     title: Optional[str] = Field(default=None, max_length=255)
+    assessment_id: Optional[str] = None
 
 
 class ReportRecordRead(BaseModel):
@@ -15,6 +16,7 @@ class ReportRecordRead(BaseModel):
 
     id: str
     project_id: str
+    assessment_id: Optional[str] = None
     report_type: ReportType
     report_format: ReportFormat
     title: str

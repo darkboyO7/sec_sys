@@ -65,11 +65,14 @@ class ReportGenerationService:
         user: User,
         db: Session,
         title: Optional[str] = None,
+        assessment_id: Optional[str] = None,
         client_ip: Optional[str] = None,
-    ) -> Tuple[ReportRecord, str, str, str]:
+    ) -> Tuple[ReportRecord, Any, str, str]:
         """
         Generates report content, records metadata, logs audit event, and returns:
         (report_record, content, mime_type, filename)
+        Supports Executive, Technical, Governance, and Assessment Canonical reports,
+        with JSON, CSV, HTML, and verifiable BUNDLE (.tar.gz) exports.
         """
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
@@ -78,42 +81,84 @@ class ReportGenerationService:
         timestamp_str = utc_now().strftime("%Y%m%d_%H%M%S")
         safe_title = title or f"{project.name} {report_type.value.title()} Report"
 
-        # Generate data bundle
-        if report_type == ReportType.EXECUTIVE:
-            data = cls._collect_executive_data(project_id, db)
-            filename = f"executive_report_{project_id[:8]}_{timestamp_str}"
-        elif report_type == ReportType.TECHNICAL:
-            data = cls._collect_technical_data(project_id, db)
-            filename = f"technical_report_{project_id[:8]}_{timestamp_str}"
-        elif report_type == ReportType.GOVERNANCE:
-            data = cls._collect_governance_data(project_id, db)
-            filename = f"governance_report_{project_id[:8]}_{timestamp_str}"
-        else:
-            raise ValueError(f"Unsupported report type: {report_type}")
+        if report_type == ReportType.ASSESSMENT_CANONICAL or assessment_id is not None:
+            from app.services.canonical_report_service import CanonicalReportService
+            if not assessment_id:
+                raise ValueError("assessment_id is required for ASSESSMENT_CANONICAL reports.")
+            
+            manifest = CanonicalReportService.build_assessment_manifest(
+                project_id=project_id,
+                assessment_id=assessment_id,
+                db=db,
+                title=safe_title,
+            )
+            filename = f"assessment_report_{assessment_id[:8]}_{timestamp_str}"
+            item_count = len(manifest.findings)
 
-        # Render format
-        if report_format == ReportFormat.JSON:
-            content = json.dumps(data, indent=2, default=str)
-            mime_type = "application/json"
-            filename += ".json"
-        elif report_format == ReportFormat.CSV:
-            content = cls._render_csv(report_type, data)
-            mime_type = "text/csv; charset=utf-8"
-            filename += ".csv"
-        elif report_format == ReportFormat.HTML:
-            content = cls._render_html(report_type, safe_title, data)
-            mime_type = "text/html; charset=utf-8"
-            filename += ".html"
-        else:
-            raise ValueError(f"Unsupported report format: {report_format}")
+            if report_format == ReportFormat.JSON:
+                content = CanonicalReportService.render_json(manifest)
+                mime_type = "application/json"
+                filename += ".json"
+            elif report_format == ReportFormat.HTML:
+                content = CanonicalReportService.render_html(manifest)
+                mime_type = "text/html; charset=utf-8"
+                filename += ".html"
+            elif report_format == ReportFormat.CSV:
+                content = CanonicalReportService.render_findings_csv(manifest)
+                mime_type = "text/csv; charset=utf-8"
+                filename += ".csv"
+            elif report_format == ReportFormat.BUNDLE:
+                bundle_bytes, _ = CanonicalReportService.create_assessment_bundle(manifest)
+                content = bundle_bytes
+                mime_type = "application/gzip"
+                filename += ".tar.gz"
+            else:
+                raise ValueError(f"Unsupported report format: {report_format}")
 
-        content_bytes = len(content.encode("utf-8"))
-        sha256_digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        item_count = data.get("summary", {}).get("total_findings", len(data.get("items", [])))
+        else:
+            # Generate project-wide report bundle
+            if report_type == ReportType.EXECUTIVE:
+                data = cls._collect_executive_data(project_id, db)
+                filename = f"executive_report_{project_id[:8]}_{timestamp_str}"
+            elif report_type == ReportType.TECHNICAL:
+                data = cls._collect_technical_data(project_id, db)
+                filename = f"technical_report_{project_id[:8]}_{timestamp_str}"
+            elif report_type == ReportType.GOVERNANCE:
+                data = cls._collect_governance_data(project_id, db)
+                filename = f"governance_report_{project_id[:8]}_{timestamp_str}"
+            else:
+                raise ValueError(f"Unsupported report type: {report_type}")
+
+            # Render format
+            if report_format == ReportFormat.JSON:
+                content = json.dumps(data, indent=2, default=str)
+                mime_type = "application/json"
+                filename += ".json"
+            elif report_format == ReportFormat.CSV:
+                content = cls._render_csv(report_type, data)
+                mime_type = "text/csv; charset=utf-8"
+                filename += ".csv"
+            elif report_format == ReportFormat.HTML:
+                content = cls._render_html(report_type, safe_title, data)
+                mime_type = "text/html; charset=utf-8"
+                filename += ".html"
+            else:
+                raise ValueError(f"Unsupported report format: {report_format}")
+
+            item_count = data.get("summary", {}).get("total_findings", len(data.get("items", [])))
+
+        if isinstance(content, str):
+            raw_bytes = content.encode("utf-8")
+        else:
+            raw_bytes = content
+
+        content_bytes = len(raw_bytes)
+        sha256_digest = hashlib.sha256(raw_bytes).hexdigest()
 
         # Persist report record
         record = ReportRecord(
             project_id=project_id,
+            assessment_id=assessment_id,
             report_type=report_type,
             report_format=report_format,
             title=safe_title,
@@ -136,6 +181,7 @@ class ReportGenerationService:
             details={
                 "report_type": report_type.value,
                 "report_format": report_format.value,
+                "assessment_id": assessment_id,
                 "sha256": sha256_digest,
                 "content_bytes": content_bytes,
             },

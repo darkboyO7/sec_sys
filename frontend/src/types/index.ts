@@ -750,21 +750,147 @@ export interface RemediationVerification {
   verified_at: string;
 }
 
-// Phase 15: Reporting and Export
-export type ReportType = 'EXECUTIVE' | 'TECHNICAL' | 'GOVERNANCE';
-export type ReportFormat = 'JSON' | 'CSV' | 'HTML';
+// Phase 15 & Prompt 32: Reporting, Export & Verifiable Assessment Bundles
+export type ReportType = 'EXECUTIVE' | 'TECHNICAL' | 'GOVERNANCE' | 'ASSESSMENT_CANONICAL';
+export type ReportFormat = 'JSON' | 'CSV' | 'HTML' | 'BUNDLE';
+
+export interface CanonicalFindingRecord {
+  id: string;
+  fingerprint: string;
+  title: string;
+  description: string;
+  severity: string;
+  confidence: string;
+  cvss_score?: number | null;
+  target: string;
+  status: string;
+  remediation_status?: string | null;
+  retest_outcome?: string | null;
+  is_simulated: boolean;
+  evidence_refs: string[];
+  has_missing_evidence: boolean;
+  contradictory_evidence_noted: boolean;
+  uncertainty_rationale?: string | null;
+  first_detected_at?: string | null;
+  last_observed_at?: string | null;
+}
+
+export interface CanonicalEvidenceRef {
+  evidence_id: string;
+  finding_id: string;
+  evidence_type: string;
+  sha256_digest: string;
+  collected_at?: string | null;
+  source: string;
+  redacted: boolean;
+}
+
+export interface CanonicalAssetRecord {
+  id: string;
+  name: string;
+  target_value: string;
+  asset_type: string;
+  criticality: string;
+  has_active_findings: boolean;
+  assessment_covered: boolean;
+}
+
+export interface CanonicalRemediationRecord {
+  id: string;
+  finding_id: string;
+  title: string;
+  action_type: string;
+  governance_stage: string;
+  status: string;
+}
+
+export interface CanonicalRetestRecord {
+  id: string;
+  finding_id: string;
+  outcome: string;
+  verification_method: string;
+  verified_at?: string | null;
+}
+
+export interface ReportCoverageSummary {
+  assessment_id: string;
+  target_input: string;
+  status: string;
+  total_targets_assessed: number;
+  total_checks_attempted: number;
+  total_checks_completed: number;
+  checks_failed_count: number;
+  skipped_checks: string[];
+  missing_evidence_count: number;
+  coverage_gap_identified: boolean;
+  is_incomplete: boolean;
+  disclaimer: string;
+}
+
+export interface AssessmentReportManifest {
+  schema_version: string;
+  report_id: string;
+  project_id: string;
+  assessment_id: string;
+  title: string;
+  assessment_status: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  generated_at: string;
+  methodology: Record<string, any>;
+  scope_summary: Record<string, any>;
+  coverage_summary: ReportCoverageSummary;
+  finding_counts_by_severity: Record<string, number>;
+  findings: CanonicalFindingRecord[];
+  assets: CanonicalAssetRecord[];
+  remediation_summary: CanonicalRemediationRecord[];
+  retest_verifications: CanonicalRetestRecord[];
+  evidence_manifest: CanonicalEvidenceRef[];
+  limitations: string[];
+  provenance_digest: string;
+}
+
+export interface BundleVerificationResult {
+  is_valid: boolean;
+  manifest_version?: string | null;
+  bundle_version?: string | null;
+  assessment_id?: string | null;
+  project_id?: string | null;
+  file_count: number;
+  total_decompressed_bytes: number;
+  checked_files: string[];
+  corrupted_files: string[];
+  missing_files: string[];
+  violations: string[];
+  assessment_summary?: {
+    report_id?: string;
+    assessment_id?: string;
+    status?: string;
+    title?: string;
+    findings_count?: number;
+    severity_distribution?: Record<string, number>;
+    coverage_gap?: boolean;
+  } | null;
+  inspection_mode: string;
+}
 
 export interface ReportRecord {
   id: string;
   project_id: string;
+  assessment_id?: string | null;
   report_type: ReportType;
-  format: ReportFormat;
+  format?: ReportFormat;
+  report_format?: ReportFormat;
   title: string;
-  content_sha256: string;
-  file_size_bytes: number;
-  report_metadata: Record<string, any>;
+  content_sha256?: string;
+  report_sha256?: string;
+  file_size_bytes?: number;
+  content_bytes?: number;
+  item_count?: number;
+  report_metadata?: Record<string, any>;
   generated_by_id?: string | null;
-  created_at: string;
+  created_at?: string;
+  generated_at?: string;
 }
 
 // Phase 16: Historical Security Digital Twin

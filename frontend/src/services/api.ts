@@ -100,6 +100,9 @@ import type {
   AlertListResponse,
   OutboxStatusResponse,
   MaintenanceWindowResponse,
+  AssessmentReportManifest,
+  ReportCoverageSummary,
+  BundleVerificationResult,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -686,19 +689,66 @@ async listUsers(): Promise<User[]> {
     });
   }
 
-  // Phase 15: Reporting & Export
+  // Phase 15 & Prompt 32: Reporting & Verifiable Export Bundles
   async generateReport(
     projectId: string,
-    data: { report_type: string; format?: string; title: string }
+    data: { report_type: string; format?: string; report_format?: string; title: string; assessment_id?: string }
   ): Promise<any> {
+    const payload = {
+      report_type: data.report_type,
+      report_format: data.report_format || data.format || 'JSON',
+      title: data.title,
+      assessment_id: data.assessment_id,
+    };
     return this.request(`/projects/${projectId}/reports/generate`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   }
 
   async listReports(projectId: string): Promise<any[]> {
     return this.request(`/projects/${projectId}/reports`);
+  }
+
+  async getCanonicalReport(
+    projectId: string,
+    assessmentId: string,
+    title?: string
+  ): Promise<AssessmentReportManifest> {
+    const qs = title ? `?title=${encodeURIComponent(title)}` : '';
+    return this.request<AssessmentReportManifest>(
+      `/projects/${projectId}/assessments/${assessmentId}/report/canonical${qs}`
+    );
+  }
+
+  async getReportCoverage(
+    projectId: string,
+    assessmentId: string
+  ): Promise<ReportCoverageSummary> {
+    return this.request<ReportCoverageSummary>(
+      `/projects/${projectId}/assessments/${assessmentId}/report/coverage`
+    );
+  }
+
+  async generateAssessmentReport(
+    projectId: string,
+    assessmentId: string,
+    data: { report_format: string; title?: string }
+  ): Promise<any> {
+    return this.request(`/projects/${projectId}/assessments/${assessmentId}/report/generate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async verifyBundle(
+    projectId: string,
+    bundleBase64: string
+  ): Promise<BundleVerificationResult> {
+    return this.request<BundleVerificationResult>(`/projects/${projectId}/reports/bundle/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ bundle_base64: bundleBase64 }),
+    });
   }
 
   // Phase 16: Historical Security Digital Twin

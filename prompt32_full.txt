@@ -1,0 +1,319 @@
+<USER_REQUEST>
+# PROMPT 32 — Evidence-Backed Security Reporting, Verifiable Exports & Reproducible Assessment Results
+
+You are working on my existing VAPT System repository at `D:\alt`.
+
+The platform uses a FastAPI/Python backend, React/TypeScript/Vite frontend, SQLAlchemy/Alembic persistence, and SQLite WAL for local development. It is a defensive security assessment and continuous security intelligence platform.
+
+Your mission is to inspect the current implementation and build a production-minded, integrated reporting and export capability. Reports must be grounded in persisted findings and traceable evidence—not generated from assumptions, frontend-only state, or unsupported AI summaries.
+
+**Do not merely write a plan. Inspect the repository, implement the highest-value compatible solution, test it, update documentation, and report exact results.**
+
+## 1. Inspect before changing anything
+
+1. Inspect the current Git status, branch, recent commits, repository structure, assessment lifecycle, findings, evidence storage, risk scoring, asset inventory, remediation, retesting, audit history, and frontend reporting features.
+2. Identify existing export formats, report templates, serializers, API endpoints, and relevant dependencies.
+3. Inspect the actual database schema and migration head.
+4. Run the relevant existing tests to establish a baseline.
+5. Reuse existing data models, evidence identifiers, provenance mechanisms, and authorization helpers wherever possible.
+6. Preserve unrelated user changes. Do not reset or revert work.
+7. Do not modify `C:\Users\Dark_Boy_\Downloads\VAPT_System`, which is the recovery mirror.
+8. Do not claim a feature is missing until you have inspected the relevant code.
+
+Produce a short internal implementation checklist, then proceed with the work.
+
+## 2. Establish a canonical assessment report model
+
+Create or improve a report-generation layer that builds reports from authoritative, persisted application state.
+
+Where available, support:
+
+- Report ID and schema version.
+- Assessment ID, name, scope, and lifecycle status.
+- Assessment start and completion timestamps.
+- Authorized target identifiers and exclusions.
+- Assessment method and the actual checks performed.
+- Asset inventory and relevant asset criticality.
+- Findings, severity, confidence, and current status.
+- Evidence references and evidence integrity metadata.
+- Risk scores with their methodology and calculation version.
+- Verified attack-path relationships, if supported by the evidence.
+- Remediation recommendations and their approval or execution state.
+- Independent retest outcomes.
+- Unresolved findings and known coverage gaps.
+- Relevant monitoring changes.
+- Data freshness and report-generation timestamp.
+- Limitations, skipped checks, failed checks, and unavailable evidence.
+- Relevant audit or provenance references.
+
+Reuse the existing system's terminology and severity definitions. Do not invent new risk categories if the platform already has an established model.
+
+Clearly distinguish an observed fact, an inference, a recommendation, and an unverified claim.
+
+A report must not imply that an asset is secure merely because no finding was produced. Show assessment coverage and limitations wherever they materially affect interpretation.
+
+## 3. Implement evidence-grounded report generation
+
+Build a dedicated service that retrieves the necessary data through existing repository or service boundaries.
+
+Requirements:
+
+1. Resolve all report data from authorized persisted records.
+2. Verify that findings and evidence belong to the requested assessment and authorized scope.
+3. Preserve the difference between current findings and historical findings.
+4. Include evidence references, collection times, source identifiers, and integrity digests where available.
+5. Include the actual status of remediation and independent retesting.
+6. Preserve contradictory evidence and uncertainty instead of silently selecting the most favorable result.
+7. Identify missing evidence and failed checks explicitly.
+8. Make risk scores traceable to the inputs and methodology used.
+9. Record the report schema and relevant calculation or rule versions.
+10. Use a consistent snapshot or another defensible consistency strategy when report data may change during generation.
+
+Do not use an LLM to invent findings, evidence, risk scores, remediation outcomes, or verification results.
+
+If an AI-generated executive summary already exists, treat it as a derived interpretation. Validate it against the canonical report data and label it appropriately. The canonical evidence and structured results must remain authoritative.
+
+## 4. Support useful report formats
+
+Inspect the existing stack and choose formats that are practical to maintain.
+
+At minimum, implement a structured machine-readable JSON export if an equivalent trustworthy implementation does not already exist.
+
+Where appropriate, support:
+
+- A human-readable HTML report.
+- A printable report or PDF.
+- CSV exports for findings and asset inventory.
+- A versioned machine-readable assessment bundle for archival and re-import.
+
+Avoid adding large dependencies without a demonstrated need.
+
+### Format requirements
+
+**JSON**
+
+- Use a documented, versioned schema.
+- Serialize timestamps consistently.
+- Represent missing values and unknown states accurately.
+- Include stable identifiers and evidence references.
+- Ensure deterministic field ordering or canonical serialization where digest verification requires it.
+
+**HTML or PDF**
+
+- Escape untrusted strings.
+- Avoid executable embedded content and unsafe external resources.
+- Include a report title, generation time, scope, executive summary, methodology, findings, evidence references, remediation status, and limitations.
+- Use clear severity labels that do not depend on color alone.
+- Ensure long evidence strings cannot break the document layout or inject active content.
+
+**CSV**
+
+- Use correct CSV quoting and encoding.
+- Prevent spreadsheet formula injection for untrusted values that could be interpreted as formulas by common spreadsheet applications.
+- Document any normalization applied to exported values.
+
+Do not silently omit failed checks, excluded targets, missing evidence, or unresolved findings from executive summaries.
+
+## 5. Create a verifiable portable assessment bundle
+
+Where compatible with the existing data model, create a portable assessment bundle containing the report manifest and selected structured records required for independent verification.
+
+The bundle may contain:
+
+- A manifest with schema and bundle versions.
+- Assessment metadata.
+- Findings and their relevant relationships.
+- Evidence metadata and references.
+- Cryptographic digests of included files.
+- Provenance or audit references.
+- Export timestamp and exporter version.
+- A clear inventory of included and intentionally omitted content.
+
+Keep sensitive raw evidence optional and subject to explicit authorization and export policy. Do not include credentials, tokens, private configuration, or unrelated workspace data.
+
+Implement a documented digest and integrity-verification scheme. If the existing platform has a hash chain or Merkle-style provenance system, integrate with it rather than creating a conflicting integrity model.
+
+A digest proves that content matches a previously recorded digest; it does not independently prove that the original content was truthful. Document this distinction.
+
+Do not claim an export is digitally signed unless a real signing mechanism with appropriate key management has been implemented and verified.
+
+## 6. Implement safe import and verification
+
+If the system supports or can reasonably support bundle import, build an import pipeline that validates the bundle before any data is committed.
+
+Validate:
+
+- Supported schema and bundle versions.
+- Required fields and identifier formats.
+- Maximum archive size, file count, individual file size, and decompressed size.
+- Path traversal and unsafe archive entries.
+- Duplicate or conflicting record identifiers.
+- JSON and other content parsing.
+- Digest consistency.
+- Evidence references and relationship consistency.
+- Unsupported content types.
+- Cross-workspace or cross-tenant boundaries, where applicable.
+
+Reject malformed or suspicious bundles safely. Do not extract files using untrusted archive paths.
+
+Do not overwrite current findings, audit records, or assets simply because an imported bundle contains matching identifiers. Define explicit import modes such as validation-only, new historical import, or carefully controlled merge, according to the current architecture.
+
+Imported evidence must be labeled as imported and must not be presented as a newly performed live assessment.
+
+Import must not trigger scanning, remediation, external network access, or privileged operations automatically.
+
+If safe merge semantics cannot be implemented confidently in this task, implement validation-only inspection and document the limitation rather than introducing unsafe partial imports.
+
+## 7. Add a secure report API
+
+Extend the existing API conventions with the necessary endpoints, such as:
+
+- List available reports or assessment summaries.
+- Generate a report for an authorized completed or partially completed assessment.
+- Retrieve report metadata and generation status.
+- Download an authorized report in a supported format.
+- Export a structured assessment bundle.
+- Verify a previously exported bundle or manifest.
+- Inspect a bundle in validation-only mode, if implemented.
+
+Apply server-side authentication, RBAC, object-level authorization, and workspace isolation wherever relevant.
+
+Validate every assessment ID and referenced object against the caller's permitted scope. Never rely on a frontend route guard as the authorization boundary.
+
+Use bounded report sizes, pagination for large datasets, and safe background processing when necessary.
+
+Do not expose unrestricted evidence contents through report metadata endpoints.
+
+For long-running exports, use the existing job framework where possible, persist status across restarts, and ensure duplicate requests do not create unbounded work.
+
+Return consistent error responses. Update OpenAPI documentation and API tests.
+
+## 8. Build a usable reporting interface
+
+Integrate reporting into the existing React application.
+
+The interface should let an authorized user:
+
+- Select an assessment.
+- Review its scope, status, coverage, and limitations.
+- Preview a structured report.
+- Inspect findings and evidence references.
+- Review remediation and retest status.
+- Generate and download supported report formats.
+- Inspect export-generation status and failures.
+- Verify an exported bundle where supported.
+
+Display clear warnings when an assessment is incomplete, evidence is unavailable, checks failed, or results are stale.
+
+The interface must distinguish report generation from successful assessment completion.
+
+Use existing design conventions, accessible labels, keyboard navigation, responsive layouts, and meaningful loading, empty, and error states.
+
+Never display a success message until the server confirms that generation or verification succeeded. Do not create fake report data to make the UI appear populated.
+
+## 9. Enforce privacy and export governance
+
+Inspect existing data-retention, authorization, and audit policies before implementing new rules.
+
+Ensure that:
+
+- Exporting sensitive evidence requires appropriate authorization.
+- Reports contain only the data necessary for their stated purpose.
+- Secret values and authentication material are redacted.
+- Redaction is explicit and does not silently alter evidence used for integrity verification.
+- Exported content is not accidentally written into public directories or unprotected temporary locations.
+- Temporary files are handled safely and cleaned up according to the platform's lifecycle policies.
+- Download responses use appropriate content types and safe filenames.
+- Access to sensitive reports and export actions is auditable.
+- Export and import failures do not corrupt canonical records.
+- Retention or deletion of reports follows existing data-governance rules.
+
+Do not put secrets, complete evidence payloads, or personal data into application logs merely to simplify troubleshooting.
+
+## 10. Test integrity, authorization, and failure recovery
+
+Add automated tests for at least:
+
+1. Report generation from persisted assessment records.
+2. Correct representation of completed, incomplete, failed, and partially covered assessments.
+3. Findings with missing evidence.
+4. Conflicting evidence and uncertain conclusions.
+5. Correct risk score and methodology references.
+6. Remediation completion versus independently verified retest outcomes.
+7. JSON schema validity and stable serialization.
+8. HTML escaping and unsafe-input handling.
+9. CSV formula-injection defenses.
+10. Bundle digest verification.
+11. Detection of altered bundle contents.
+12. Unsupported schema versions.
+13. Archive path traversal and oversized archives.
+14. Duplicate and conflicting imported identifiers.
+15. Validation-only import leaves canonical application data unchanged.
+16. Unauthorized users cannot generate or download protected reports.
+17. Cross-workspace access attempts are rejected wherever applicable.
+18. Large report handling and pagination.
+19. Concurrent report requests and duplicate job handling.
+20. Worker failure and restart recovery for background exports, if used.
+21. Audit logging of protected report and export actions.
+22. Frontend generation, download, verification, and error states.
+
+Use isolated test databases and deterministic fixtures. Do not trigger real scans, remediation, external notifications, or uncontrolled network activity during tests.
+
+Run the relevant backend tests, frontend tests, type checks, and production build. Run the full regression suite where practical. Distinguish pre-existing failures from regressions introduced by this work.
+
+## 11. Update documentation
+
+Document:
+
+- Supported report formats and schemas.
+- Report generation semantics.
+- Assessment coverage and limitation reporting.
+- Evidence references and integrity verification.
+- Export authorization requirements.
+- Bundle contents and omitted data.
+- Import validation and merge limitations.
+- Privacy and redaction behavior.
+- API endpoints and expected errors.
+- Operational troubleshooting.
+- Any known limitations or unsupported formats.
+
+Examples must be generated from the actual implementation and must not contain real secrets or fabricated assessment outcomes.
+
+## 12. Acceptance criteria
+
+Consider this task complete only when:
+
+- Reports are generated from authoritative persisted data.
+- Findings, evidence, scope, and risk calculations are traceable.
+- Incomplete assessments cannot be misrepresented as fully successful.
+- Exported data is schema-validated and protected by server-side authorization.
+- Integrity verification detects modified bundle contents.
+- Import validation cannot silently corrupt canonical records.
+- Sensitive data is excluded or redacted according to policy.
+- Report generation and downloads provide truthful status.
+- The frontend integrates with real backend endpoints.
+- Tests cover the main success, security, integrity, and failure paths.
+- Documentation matches actual implementation.
+
+## 13. Final evidence-based report
+
+After implementation, report:
+
+1. Actual files created and modified.
+2. Existing reporting functionality reused.
+3. Implemented formats, API endpoints, and UI changes.
+4. Bundle integrity and import-validation design.
+5. Privacy and authorization protections.
+6. Database migrations, if any.
+7. Exact test commands, pass/fail/skip counts, and exit codes.
+8. Frontend type-check and production-build results.
+9. Known limitations and unfinished requirements.
+10. Git status and commit details, if a commit was actually created.
+
+Do not fabricate successful tests, digital signatures, exports, import results, or verification guarantees.
+
+**Begin by inspecting `D:\alt`, then implement the highest-value end-to-end solution compatible with the existing architecture. Preserve all existing defensive controls, authorization rules, evidence provenance, approval gates, and unrelated user changes.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:50:41+05:30.
+</ADDITIONAL_METADATA>

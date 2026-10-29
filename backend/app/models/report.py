@@ -10,23 +10,26 @@ class ReportType(str, enum.Enum):
     EXECUTIVE = "EXECUTIVE"
     TECHNICAL = "TECHNICAL"
     GOVERNANCE = "GOVERNANCE"
+    ASSESSMENT_CANONICAL = "ASSESSMENT_CANONICAL"
 
 
 class ReportFormat(str, enum.Enum):
     JSON = "JSON"
     CSV = "CSV"
     HTML = "HTML"
+    BUNDLE = "BUNDLE"
 
 
 class ReportRecord(Base, TimestampMixin):
     """
     Immutable audit metadata for generated security reports.
-    Tracks report type, format, cryptographic content hash (SHA-256), author, and generation timestamp.
+    Tracks report type, format, cryptographic content hash (SHA-256), author, assessment reference, and generation timestamp.
     """
     __tablename__ = "report_records"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    assessment_id = Column(String(36), ForeignKey("assessment_jobs.id", ondelete="SET NULL"), nullable=True, index=True)
     report_type = Column(SqlEnum(ReportType), nullable=False, index=True)
     report_format = Column(SqlEnum(ReportFormat), nullable=False, index=True)
     title = Column(String(255), nullable=False)
@@ -38,4 +41,5 @@ class ReportRecord(Base, TimestampMixin):
 
     # Relationships
     project = relationship("Project", backref=backref("report_records", cascade="all, delete-orphan"))
+    assessment = relationship("AssessmentJob", foreign_keys=[assessment_id])
     generated_by = relationship("User", foreign_keys=[generated_by_id])
