@@ -41,6 +41,7 @@ from app.api.v1.endpoints import (
     alerts,
     compliance,
     scheduling,
+    threat_intel,
 )
 
 api_router = APIRouter()
@@ -86,3 +87,4 @@ api_router.include_router(operations_cockpit.router, prefix="/system/operations/
 api_router.include_router(alerts.router, prefix="/alerts", tags=["Reliable Security Alerting & Event Intelligence"])
 api_router.include_router(compliance.router, tags=["Compliance Intelligence, Security Baselines & Drift Governance"])
 api_router.include_router(scheduling.router, tags=["Intelligent Scheduling & Orchestration"])
+api_router.include_router(threat_intel.router, tags=["Threat Intelligence & Vulnerability Correlation"])

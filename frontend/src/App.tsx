@@ -32,6 +32,7 @@ import { EvidenceLifecycleGovernanceView } from './views/EvidenceLifecycleGovern
 import { AlertCenterView } from './views/AlertCenterView';
 import { ComplianceGovernanceView } from './views/ComplianceGovernanceView';
 import { IntelligentSchedulingView } from './views/IntelligentSchedulingView';
+import { ThreatIntelligenceView } from './views/ThreatIntelligenceView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -270,6 +271,10 @@ export const App: React.FC = () => {
 
           {activeProject && (
             <>
+              {activeTab === 'threat-intel' && (
+                <ThreatIntelligenceView project={activeProject} />
+              )}
+
               {activeTab === 'governance' && (
                 <GovernanceView projectId={activeProject.id} />
               )}

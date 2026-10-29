@@ -184,6 +184,14 @@ from app.models.scheduling import (
     SchedulerDecisionRecord,
     SchedulerPolicyRecord,
 )
+from app.models.threat_intel import (
+    FeedSyncStatus,
+    MatchClassification,
+    ThreatIntelSource,
+    ThreatIntelFeedRecord,
+    ThreatIntelligenceRecord,
+    ThreatCorrelationRecord,
+)
 
 __all__ = [
     "Base",
@@ -336,4 +344,10 @@ __all__ = [
     "AssessmentQueueItem",
     "SchedulerDecisionRecord",
     "SchedulerPolicyRecord",
+    "FeedSyncStatus",
+    "MatchClassification",
+    "ThreatIntelSource",
+    "ThreatIntelFeedRecord",
+    "ThreatIntelligenceRecord",
+    "ThreatCorrelationRecord",
 ]

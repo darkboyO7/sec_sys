@@ -2943,6 +2943,114 @@ export interface SchedulerPolicyUpdate {
   is_active?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Threat Intelligence and Vulnerability Correlation (Prompt 35)
+// ---------------------------------------------------------------------------
+
+export type FeedSyncStatus = 'SYNCED' | 'SYNCING' | 'STALE' | 'ERROR' | 'OFFLINE';
+export type MatchClassification = 'CONFIRMED_MATCH' | 'POSSIBLE_MATCH' | 'CONFLICTING_DATA' | 'UNKNOWN_MATCH';
+
+export interface ThreatFeed {
+  id: string;
+  feed_name: string;
+  feed_url: string;
+  is_authoritative: boolean;
+  sync_status: FeedSyncStatus;
+  record_count: number;
+  last_sync_started_at?: string | null;
+  last_synced_at?: string | null;
+  last_sync_error?: string | null;
+  stale_after_days: number;
+  is_stale: boolean;
+  feed_checksum?: string | null;
+}
+
+export interface ThreatFeedSyncRequest {
+  force_local?: boolean;
+  custom_payload?: Record<string, any>;
+}
+
+export interface ThreatFeedSyncResponse {
+  feed_name: string;
+  records_ingested: number;
+  records_updated: number;
+  sync_status: FeedSyncStatus;
+  checksum: string;
+  message: string;
+}
+
+export interface ThreatIntelligenceRecord {
+  id: string;
+  cve_id: string;
+  source: string;
+  title?: string | null;
+  description?: string | null;
+  vendor?: string | null;
+  product?: string | null;
+  cpe?: string | null;
+  version_start_including?: string | null;
+  version_end_excluding?: string | null;
+  version_end_including?: string | null;
+  affected_versions_list: string[];
+  cvss_score?: number | null;
+  cvss_vector?: string | null;
+  epss_score?: number | null;
+  epss_percentile?: number | null;
+  is_known_exploited: boolean;
+  cisa_kev_due_date?: string | null;
+  cisa_kev_action?: string | null;
+  published_at?: string | null;
+  modified_at?: string | null;
+  retrieved_at: string;
+  confidence: number;
+  provenance_url?: string | null;
+}
+
+export interface ThreatCorrelation {
+  id: string;
+  project_id: string;
+  finding_id: string;
+  finding_title: string;
+  finding_severity: string;
+  threat_intel_id: string;
+  cve_id: string;
+  match_classification: MatchClassification;
+  confidence_score: number;
+  evidence_grounding: Record<string, any>;
+  enriched_risk_score: number;
+  risk_enrichment_factors: Record<string, any>;
+  is_known_exploited: boolean;
+  epss_score?: number | null;
+  correlated_at: string;
+}
+
+export interface ThreatCorrelationRunRequest {
+  force_recorrelate?: boolean;
+}
+
+export interface ThreatCorrelationRunResponse {
+  project_id: string;
+  findings_evaluated: number;
+  correlations_created: number;
+  confirmed_matches: number;
+  possible_matches: number;
+  conflicting_data: number;
+  unknown_or_rejected: number;
+  message: string;
+}
+
+export interface ThreatIntelSummary {
+  total_cves: number;
+  known_exploited_count: number;
+  active_feeds_count: number;
+  stale_feeds_count: number;
+  total_project_correlations: number;
+  confirmed_correlations_count: number;
+  possible_correlations_count: number;
+  conflicting_correlations_count: number;
+}
+
+
 
 
 

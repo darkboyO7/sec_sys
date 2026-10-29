@@ -1,0 +1,35 @@
+<USER_REQUEST>
+# PROMPT 35 — Evidence-Grounded Threat Intelligence and Vulnerability Correlation
+
+Repository: `D:\alt`
+
+Inspect the existing VAPT System before making changes. Identify current asset inventory, findings, vulnerability identifiers, evidence records, risk scoring, assessment jobs, event handling, and external integration capabilities.
+
+## Objective
+Implement a trustworthy threat-intelligence layer that enriches existing findings with verified vulnerability intelligence and relevant threat context.
+
+## Requirements
+
+1. Build a normalized intelligence model supporting vulnerability identifiers, affected product/version ranges, source attribution, publication timestamps, modification timestamps, confidence, retrieval time, expiration, and provenance.
+2. Integrate authoritative sources where practical, such as NVD CVE data and CISA Known Exploited Vulnerabilities catalog. Verify current source formats and licensing requirements before implementation.
+3. Support local fixture-based tests and cached intelligence so the application remains usable when external providers are unavailable.
+4. Validate incoming records, enforce response-size limits, use timeouts, and handle malformed data and rate limits safely.
+5. Correlate intelligence with existing findings only when product identity and version evidence are sufficiently reliable.
+6. Distinguish confirmed matches, possible matches, conflicting data, and unknown matches.
+7. Never infer that an asset is vulnerable merely because a product name resembles an affected product.
+8. Preserve original findings and evidence when enrichment changes.
+9. Add explainable risk-enrichment factors for verified exploitation status, asset criticality, exposure, and evidence confidence. Do not silently change finding severity.
+10. Track intelligence freshness and mark stale or unavailable feeds accurately.
+11. Integrate with existing risk, alerting, reporting, and scheduling services where available.
+12. Add authenticated, authorized APIs and a frontend view for intelligence provenance, correlated findings, and freshness.
+13. Add tests for malformed feeds, conflicting records, false matches, stale data, provider outages, duplicate ingestion, and authorization failures.
+
+Use cached or mocked data in tests. Do not execute exploits or automatically launch scans based on threat-intelligence matches.
+
+Inspect the existing Git status first. Preserve unrelated changes and do not modify `C:\Users\Dark_Boy_\Downloads\VAPT_System`.
+
+Run backend tests, frontend tests, type checks, and production builds as practical. Report exact results, actual changed files, source limitations, and any unfinished integrations. Never fabricate intelligence or claim a live feed works without verifying it.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:56:54+05:30.
+</ADDITIONAL_METADATA>

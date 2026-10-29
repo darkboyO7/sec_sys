@@ -26,10 +26,12 @@ import {
   Boxes,
   Gauge,
   Bell,
+  Zap,
 } from 'lucide-react';
 
 export type NavigationTab =
   | 'overview'
+  | 'threat-intel'
   | 'scheduling'
   | 'compliance'
   | 'governance'
@@ -133,6 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       category: 'DEFENSIVE INTELLIGENCE',
       items: [
+        { id: 'threat-intel', label: 'Threat Intel (KEV/NVD)', icon: Zap },
         { id: 'quality', label: 'Detection Quality', icon: Activity },
         { id: 'ai-analyst', label: 'AI Security Analyst', icon: Bot },
         { id: 'learning', label: 'Model Governance', icon: Scale },

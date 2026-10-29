@@ -120,6 +120,14 @@ import type {
   SchedulerDecision,
   SchedulerPolicy,
   SchedulerPolicyUpdate,
+  ThreatFeed,
+  ThreatFeedSyncRequest,
+  ThreatFeedSyncResponse,
+  ThreatIntelligenceRecord,
+  ThreatCorrelation,
+  ThreatCorrelationRunRequest,
+  ThreatCorrelationRunResponse,
+  ThreatIntelSummary,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1982,6 +1990,69 @@ async listUsers(): Promise<User[]> {
     return this.request<SchedulerPolicy>(`/projects/${encodeURIComponent(projectId)}/scheduling/policy`, {
       method: 'PUT',
       body: JSON.stringify(payload),
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Prompt 35: Evidence-Grounded Threat Intelligence and Vulnerability Correlation
+  // -------------------------------------------------------------------------
+
+  async listThreatFeeds(): Promise<ThreatFeed[]> {
+    return this.request<ThreatFeed[]>('/threat-intel/feeds');
+  }
+
+  async syncThreatFeed(feedName: string, req?: ThreatFeedSyncRequest): Promise<ThreatFeedSyncResponse> {
+    return this.request<ThreatFeedSyncResponse>(`/threat-intel/feeds/${encodeURIComponent(feedName)}/sync`, {
+      method: 'POST',
+      body: JSON.stringify(req || { force_local: true }),
+    });
+  }
+
+  async searchThreatRecords(params?: {
+    cve_id?: string;
+    vendor?: string;
+    product?: string;
+    is_known_exploited?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<ThreatIntelligenceRecord[]> {
+    const q = new URLSearchParams();
+    if (params?.cve_id) q.append('cve_id', params.cve_id);
+    if (params?.vendor) q.append('vendor', params.vendor);
+    if (params?.product) q.append('product', params.product);
+    if (params?.is_known_exploited !== undefined) q.append('is_known_exploited', String(params.is_known_exploited));
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<ThreatIntelligenceRecord[]>(`/threat-intel/records${qs}`);
+  }
+
+  async getThreatCveIntel(cveId: string): Promise<ThreatIntelligenceRecord[]> {
+    return this.request<ThreatIntelligenceRecord[]>(`/threat-intel/cve/${encodeURIComponent(cveId)}`);
+  }
+
+  async listProjectThreatCorrelations(
+    projectId: string,
+    params?: { match_classification?: string; is_known_exploited?: boolean }
+  ): Promise<ThreatCorrelation[]> {
+    const q = new URLSearchParams();
+    if (params?.match_classification) q.append('match_classification', params.match_classification);
+    if (params?.is_known_exploited !== undefined) q.append('is_known_exploited', String(params.is_known_exploited));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<ThreatCorrelation[]>(`/projects/${encodeURIComponent(projectId)}/threat-intel/correlations${qs}`);
+  }
+
+  async getThreatIntelSummary(projectId: string): Promise<ThreatIntelSummary> {
+    return this.request<ThreatIntelSummary>(`/projects/${encodeURIComponent(projectId)}/threat-intel/summary`);
+  }
+
+  async runProjectThreatCorrelation(
+    projectId: string,
+    req?: ThreatCorrelationRunRequest
+  ): Promise<ThreatCorrelationRunResponse> {
+    return this.request<ThreatCorrelationRunResponse>(`/projects/${encodeURIComponent(projectId)}/threat-intel/correlate`, {
+      method: 'POST',
+      body: JSON.stringify(req || { force_recorrelate: false }),
     });
   }
 }
