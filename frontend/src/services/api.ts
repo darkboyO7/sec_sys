@@ -109,6 +109,17 @@ import type {
   ComplianceDriftEvent,
   ComplianceException,
   ComplianceComparison,
+  AssessmentQueueItem,
+  QueueItemCreate,
+  QueueItemPreviewRequest,
+  QueueItemPreviewResponse,
+  TriggerAssessmentRequest,
+  DispatchResultResponse,
+  LeaseRecoveryResponse,
+  SchedulerCapacity,
+  SchedulerDecision,
+  SchedulerPolicy,
+  SchedulerPolicyUpdate,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1882,6 +1893,95 @@ async listUsers(): Promise<User[]> {
     const q = notes ? `?notes=${encodeURIComponent(notes)}` : '';
     return this.request<ComplianceException>(`/projects/${encodeURIComponent(projectId)}/compliance/exceptions/${encodeURIComponent(exceptionId)}/revoke${q}`, {
       method: 'POST',
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Prompt 34: Intelligent Assessment Scheduling & Orchestration
+  // -------------------------------------------------------------------------
+
+  async listQueueItems(
+    projectId: string,
+    params?: { status?: string; priority_band?: string; target?: string; skip?: number; limit?: number }
+  ): Promise<AssessmentQueueItem[]> {
+    const q = new URLSearchParams();
+    if (params?.status) q.append('status', params.status);
+    if (params?.priority_band) q.append('priority_band', params.priority_band);
+    if (params?.target) q.append('target', params.target);
+    if (params?.skip !== undefined) q.append('skip', String(params.skip));
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<AssessmentQueueItem[]>(`/projects/${encodeURIComponent(projectId)}/scheduling/queue${qs}`);
+  }
+
+  async getQueueItem(projectId: string, queueId: string): Promise<AssessmentQueueItem> {
+    return this.request<AssessmentQueueItem>(`/projects/${encodeURIComponent(projectId)}/scheduling/queue/${encodeURIComponent(queueId)}`);
+  }
+
+  async enqueueAssessment(projectId: string, payload: QueueItemCreate): Promise<AssessmentQueueItem> {
+    return this.request<AssessmentQueueItem>(`/projects/${encodeURIComponent(projectId)}/scheduling/enqueue`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async previewScheduling(projectId: string, payload: QueueItemPreviewRequest): Promise<QueueItemPreviewResponse> {
+    return this.request<QueueItemPreviewResponse>(`/projects/${encodeURIComponent(projectId)}/scheduling/preview`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async cancelQueueItem(projectId: string, queueId: string, reason?: string): Promise<AssessmentQueueItem> {
+    const q = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+    return this.request<AssessmentQueueItem>(`/projects/${encodeURIComponent(projectId)}/scheduling/queue/${encodeURIComponent(queueId)}/cancel${q}`, {
+      method: 'POST',
+    });
+  }
+
+  async dispatchNextJob(projectId: string, workerId: string = 'worker-ui'): Promise<DispatchResultResponse> {
+    return this.request<DispatchResultResponse>(`/projects/${encodeURIComponent(projectId)}/scheduling/dispatch-next?worker_id=${encodeURIComponent(workerId)}`, {
+      method: 'POST',
+    });
+  }
+
+  async recoverStaleLeases(projectId: string): Promise<LeaseRecoveryResponse> {
+    return this.request<LeaseRecoveryResponse>(`/projects/${encodeURIComponent(projectId)}/scheduling/recover-stale`, {
+      method: 'POST',
+    });
+  }
+
+  async triggerReassessment(projectId: string, payload: TriggerAssessmentRequest): Promise<AssessmentQueueItem> {
+    return this.request<AssessmentQueueItem>(`/projects/${encodeURIComponent(projectId)}/scheduling/trigger`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getSchedulerCapacity(projectId: string): Promise<SchedulerCapacity> {
+    return this.request<SchedulerCapacity>(`/projects/${encodeURIComponent(projectId)}/scheduling/capacity`);
+  }
+
+  async listSchedulerDecisions(
+    projectId: string,
+    params?: { decision_type?: string; skip?: number; limit?: number }
+  ): Promise<SchedulerDecision[]> {
+    const q = new URLSearchParams();
+    if (params?.decision_type) q.append('decision_type', params.decision_type);
+    if (params?.skip !== undefined) q.append('skip', String(params.skip));
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return this.request<SchedulerDecision[]>(`/projects/${encodeURIComponent(projectId)}/scheduling/decisions${qs}`);
+  }
+
+  async getSchedulerPolicy(projectId: string): Promise<SchedulerPolicy> {
+    return this.request<SchedulerPolicy>(`/projects/${encodeURIComponent(projectId)}/scheduling/policy`);
+  }
+
+  async updateSchedulerPolicy(projectId: string, payload: SchedulerPolicyUpdate): Promise<SchedulerPolicy> {
+    return this.request<SchedulerPolicy>(`/projects/${encodeURIComponent(projectId)}/scheduling/policy`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   }
 }

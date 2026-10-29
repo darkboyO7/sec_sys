@@ -31,6 +31,7 @@ import { DeploymentGovernanceView } from './views/DeploymentGovernanceView';
 import { EvidenceLifecycleGovernanceView } from './views/EvidenceLifecycleGovernanceView';
 import { AlertCenterView } from './views/AlertCenterView';
 import { ComplianceGovernanceView } from './views/ComplianceGovernanceView';
+import { IntelligentSchedulingView } from './views/IntelligentSchedulingView';
 import { AdaptiveDefenseView } from './views/AdaptiveDefenseView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { SettingsView } from './views/SettingsView';
@@ -433,6 +434,10 @@ export const App: React.FC = () => {
 
           {activeTab === 'compliance' && (
             <ComplianceGovernanceView />
+          )}
+
+          {activeTab === 'scheduling' && (
+            <IntelligentSchedulingView currentProjectId={activeProject?.id} />
           )}
         </main>
       </div>

@@ -1,0 +1,373 @@
+<USER_REQUEST>
+# PROMPT 34 — Intelligent Assessment Scheduling, Risk-Based Prioritization & Resource-Aware Orchestration
+
+You are working on my existing VAPT System repository at `D:\alt`.
+
+The platform uses FastAPI/Python, React/TypeScript/Vite, SQLAlchemy/Alembic, and SQLite WAL for local development. It is a defensive security assessment and continuous security intelligence platform.
+
+Your mission is to implement an integrated, explainable scheduling and orchestration capability that prioritizes authorized assessment work according to security risk, evidence freshness, observed changes, assessment coverage, and available resources.
+
+This must be a real implementation integrated with existing jobs, assessments, monitoring, findings, scope authorization, and audit mechanisms. Do not merely write a plan, simulate successful work, or rebuild the platform from scratch.
+
+## 1. Inspect the current implementation first
+
+Before editing:
+
+1. Inspect Git status, branch, recent commits, repository structure, background workers, assessment execution, job persistence, monitoring, asset inventory, findings, risk scoring, compliance evaluation if implemented, authorization, audit history, and frontend dashboard.
+2. Identify existing schedulers, queues, concurrency controls, retry logic, job priorities, and cancellation behavior.
+3. Inspect database transaction boundaries and migration history.
+4. Run relevant existing tests and establish a baseline.
+5. Determine which assessment adapters are genuinely available and which are simulated or disabled.
+6. Preserve existing functionality and unrelated user changes.
+7. Never reset or revert unrelated work.
+8. Do not modify `C:\Users\Dark_Boy_\Downloads\VAPT_System`.
+
+Reuse existing scheduling and worker infrastructure wherever possible. Do not introduce a separate scheduler, queue, or orchestration framework unless the repository demonstrates a concrete need.
+
+## 2. Build an explainable assessment-priority engine
+
+Implement a deterministic prioritization service that ranks eligible assessment work using evidence-backed signals.
+
+Consider signals supported by the actual platform, such as:
+
+- Asset criticality.
+- Confirmed finding severity.
+- Verified exposure changes.
+- Evidence freshness.
+- Time since last successful assessment.
+- Assessment coverage gaps.
+- Failed or overdue independent retests.
+- Relevant monitoring changes.
+- Compliance-control failures or unknown states, if supported.
+- Previous assessment failures and repeated infrastructure problems.
+- Explicitly configured assessment deadlines.
+- Cost and expected execution duration, if reliable estimates exist.
+
+Do not invent risk values or assume that missing observations prove a security problem.
+
+Each priority decision must include:
+
+- Computed priority or score.
+- Input factors and their source references.
+- Weighting or ranking policy version.
+- A concise explanation of why the work was prioritized.
+- The timestamp at which the decision was made.
+- Relevant uncertainty and missing data.
+
+Use stable, bounded calculations and deterministic tie-breaking. Avoid unexplained machine-learning scores or random ranking behavior.
+
+Keep the scheduling priority separate from vulnerability severity and risk acceptance. A lower-severity task may be scheduled first because its evidence is stale, but that must not change its underlying finding severity.
+
+## 3. Enforce eligibility before ranking
+
+Priority must never override authorization.
+
+Before a task becomes eligible for scheduling, verify:
+
+- The assessment request is authenticated and authorized.
+- The target belongs to an explicitly permitted assessment scope.
+- Explicit exclusions take precedence over inclusions.
+- Required approvals remain valid.
+- The selected adapter and operation are permitted by policy.
+- The target has not become ineligible since the request was created.
+- Required configuration and credentials, if any, are valid and securely available.
+- The operation complies with the platform's defensive, non-disruptive boundaries.
+
+Revalidate eligibility immediately before execution, not only when creating the job.
+
+Fail closed when authorization or scope cannot be verified. Do not automatically expand scope, bypass an exclusion, or substitute an unapproved target.
+
+The scheduler must not enable raw-socket sweeps, brute-force attacks, denial-of-service activity, arbitrary exploit execution, or unrestricted port scanning.
+
+## 4. Implement durable scheduling and job state
+
+Extend the existing job architecture to support persistent scheduled work.
+
+Where appropriate, represent:
+
+- Job ID and idempotency key.
+- Assessment type and authorized target references.
+- Priority and its explanation.
+- Requested, eligible, scheduled, started, completed, cancelled, and expired timestamps.
+- Current status and progress.
+- Retry count and retry eligibility.
+- Worker lease or claim metadata.
+- Deadline and execution budget.
+- Cancellation request and completion status.
+- Last error classification.
+- Assessment result references.
+- Policy and scheduler versions.
+
+Use explicit state transitions and validate them on the server.
+
+Persist work that must survive process restarts. A process restart must not silently lose queued work or mark unfinished jobs as successful.
+
+Use database transactions, uniqueness constraints, and concurrency-safe job claiming consistent with the current database and worker design.
+
+For SQLite, verify the actual concurrency behavior of the chosen approach. Do not assume that row-level locking behaves as it would in a different database engine.
+
+Prevent two workers from independently executing the same logical job. Use idempotency, leases or equivalent ownership mechanisms, and safe stale-lease recovery.
+
+Do not hold database transactions open throughout long-running assessment operations.
+
+## 5. Add resource-aware scheduling
+
+Implement bounded resource controls appropriate to the existing local-first platform.
+
+Support configurable limits for:
+
+- Total concurrent assessments.
+- Per-target concurrent operations.
+- Per-adapter concurrency.
+- Maximum queued jobs.
+- Maximum execution duration.
+- Retry count and backoff.
+- Worker capacity.
+- Optional priority classes and fairness constraints.
+
+Prevent a single repeatedly failing target or adapter from monopolizing all workers.
+
+Where useful, implement aging or fairness so low-priority eligible work cannot remain postponed indefinitely.
+
+A priority change must not silently rewrite an assessment's scope or operation policy.
+
+Reject or defer work when capacity is unavailable. Explain why it was deferred and preserve its state.
+
+Avoid unbounded in-memory queues and uncontrolled thread or process creation.
+
+## 6. Support intelligent reassessment triggers
+
+Integrate scheduling with actual changes in the existing platform.
+
+Potential triggers include:
+
+- A material change in verified asset exposure.
+- A newly confirmed high-priority finding.
+- A failed independent retest.
+- A change in asset criticality.
+- A material evidence-freshness threshold being exceeded.
+- A compliance control changing to a failing state, if implemented.
+- A previously unavailable adapter becoming healthy.
+- A scheduled reassessment deadline.
+
+Use only triggers backed by actual data and supported event sources.
+
+For each trigger:
+
+1. Validate the event and referenced resource.
+2. Check authorization and exclusions.
+3. Determine whether an equivalent assessment is already pending or running.
+4. Apply cooldown and deduplication rules.
+5. Compute priority and eligibility.
+6. Persist the scheduling decision and its explanation.
+7. Enqueue work only after the relevant transaction is safely committed.
+
+Identical repeated observations must not create unlimited duplicate assessments.
+
+A new trigger must not automatically launch disruptive work. Respect configured approval requirements and the existing assessment execution policy.
+
+## 7. Implement safe retries, cancellation, and recovery
+
+Handle transient and permanent failures separately.
+
+Requirements:
+
+- Classify errors using explicit categories.
+- Apply bounded exponential backoff with jitter where appropriate.
+- Respect execution deadlines and retry budgets.
+- Avoid retrying authorization failures as though they were transient network errors.
+- Revalidate scope and policy before every retry.
+- Make cancellation requests persistent and observable.
+- Check cancellation at safe boundaries within the worker.
+- Distinguish cancellation requested from cancellation completed.
+- Never report a partially executed assessment as a successful complete assessment.
+- Recover abandoned jobs without duplicate execution.
+- Record recovery actions and reasons in the audit trail.
+- Preserve partial evidence with accurate status and provenance.
+
+Do not automatically retry an operation if doing so could repeat a non-idempotent or potentially disruptive action.
+
+## 8. Add a scheduler decision ledger
+
+Persist meaningful scheduling decisions so operators can understand why the system acted.
+
+Record:
+
+- Trigger source.
+- Candidate job or assessment.
+- Eligibility result.
+- Scope and approval verification result.
+- Priority factors and policy version.
+- Queue or capacity decision.
+- Deferral reason.
+- Deduplication decision.
+- Worker claim and recovery actions.
+- Retry and cancellation transitions.
+- Final execution outcome.
+
+Reuse the existing audit and event architecture. Do not create an inconsistent second audit system.
+
+Do not log secrets, credentials, or unrestricted evidence payloads.
+
+Provide a clear distinction between a proposed scheduling decision, an accepted job, a running assessment, and a completed assessment.
+
+## 9. Build an operator-facing orchestration dashboard
+
+Extend the existing frontend with an integrated scheduling and job-management view.
+
+Include:
+
+- Current queue and queue capacity.
+- Running, queued, deferred, completed, failed, and cancelled jobs.
+- Priority and a human-readable explanation.
+- Assessment target and operation type.
+- Creation time, wait duration, execution duration, and deadline.
+- Retry count and next retry time.
+- Worker and adapter health where verifiable.
+- Eligibility or approval blockers.
+- Cancellation controls for authorized users.
+- Job details, related evidence, and assessment results.
+- Clear explanations for deferral, failure, and recovery.
+
+Provide filtering, pagination, accessible controls, and useful empty, loading, and error states.
+
+Display actual persisted state, not frontend-generated progress or fabricated worker health.
+
+Do not show a cancellation as completed until the backend confirms it. Require appropriate server-side authorization for all state-changing actions.
+
+## 10. Expose secure scheduling APIs
+
+Follow the existing FastAPI conventions and add appropriate endpoints for:
+
+- Listing queued and running jobs.
+- Requesting an authorized assessment.
+- Previewing eligibility and priority without starting execution.
+- Viewing a persisted scheduling decision.
+- Retrieving job details and status.
+- Requesting cancellation.
+- Inspecting retry and recovery history.
+- Viewing aggregate scheduler health and capacity.
+- Updating scheduling policies through an authorized administrative workflow, if supported.
+
+Apply authentication, RBAC, object-level authorization, request validation, rate limits where appropriate, bounded pagination, and consistent error handling.
+
+Do not expose internal stack traces, credentials, unrestricted evidence, or cross-workspace data.
+
+A preview endpoint must not execute an assessment or reserve unbounded resources.
+
+Revalidate all security-sensitive conditions on the server at execution time.
+
+Update OpenAPI documentation and API tests.
+
+## 11. Reliability and performance requirements
+
+Test the scheduler under realistic local workloads.
+
+Investigate:
+
+- Database lock contention.
+- Duplicate worker claims.
+- Queue growth.
+- Stale worker leases.
+- Worker termination during execution.
+- Restart with pending jobs.
+- Retry storms.
+- One failing adapter affecting unrelated jobs.
+- Priority starvation.
+- Cancellation races.
+- Policy changes while jobs are queued.
+- Scope revocation between scheduling and execution.
+
+Add bounded queueing, appropriate indexes, and transaction boundaries where justified by evidence.
+
+Measure queue delay, execution duration, retry rates, and failure categories using existing metrics conventions where possible.
+
+Do not add expensive telemetry dependencies without need.
+
+## 12. Automated test requirements
+
+Add tests covering at least:
+
+1. Deterministic priority calculation.
+2. Missing or stale evidence affecting priority correctly.
+3. Priority never bypasses scope or approval requirements.
+4. Excluded targets remain ineligible.
+5. Authorization revoked after scheduling blocks execution.
+6. Duplicate requests do not create duplicate logical jobs.
+7. Concurrent workers cannot claim the same job simultaneously.
+8. SQLite-compatible concurrency behavior.
+9. Worker restart preserves queued jobs.
+10. Stale lease recovery does not duplicate completed work.
+11. Resource limits are enforced.
+12. Fairness or aging behaves as documented.
+13. Transient failures retry within configured bounds.
+14. Permanent authorization failures are not blindly retried.
+15. Cancellation state is accurate and durable.
+16. Partial evidence is retained with honest status.
+17. Repeated triggers do not create assessment storms.
+18. Policy changes are applied safely to queued jobs.
+19. API authentication and object-level authorization are enforced.
+20. Frontend job state reflects server responses accurately.
+21. Scheduler failures do not silently corrupt audit history.
+22. Existing assessment and evidence regressions remain absent.
+
+Use deterministic clocks, isolated test databases, controlled workers, and mocked adapters where appropriate. Do not conduct real external scans or uncontrolled network activity during tests.
+
+Run relevant backend tests, frontend tests, type checks, and production builds. Run the complete regression suite where practical, reporting exact results and distinguishing pre-existing failures from new regressions.
+
+## 13. Documentation and deployment
+
+Document:
+
+- Scheduler architecture.
+- Priority formula and policy versioning.
+- Eligibility and scope enforcement.
+- Job state transitions.
+- Worker concurrency and resource limits.
+- Retry and recovery semantics.
+- Cancellation guarantees and limitations.
+- Configuration options and safe defaults.
+- Monitoring and troubleshooting.
+- Known limitations of the local SQLite deployment.
+
+If the current design cannot safely support multiple processes, document and enforce the limitation rather than claiming distributed-worker safety.
+
+Do not introduce a dependency on WSL or a Linux-only service for the existing Windows workflow.
+
+## 14. Acceptance criteria
+
+The task is complete only when:
+
+- Scheduling decisions are deterministic and explainable.
+- Authorization and scope are checked before execution.
+- Queued work survives restart.
+- Duplicate jobs and concurrent execution are controlled.
+- Resource limits and bounded retries are enforced.
+- Trigger-driven reassessment is deduplicated.
+- Cancellation and recovery are auditable.
+- The dashboard reflects genuine backend state.
+- Automated tests cover important failure and concurrency scenarios.
+- Documentation describes actual guarantees and limitations.
+
+## 15. Final implementation report
+
+Provide:
+
+1. Files created and modified.
+2. Existing scheduler and worker functionality reused.
+3. Implemented priority factors and scheduling rules.
+4. Job state transitions and concurrency controls.
+5. APIs and frontend changes.
+6. Database migrations, if any.
+7. Exact test commands, pass/fail/skip counts, and exit codes.
+8. Frontend type-check and production-build results.
+9. Known limitations and unfinished work.
+10. Git status and commit details, if a commit was actually created.
+
+Do not fabricate execution results, performance numbers, test outcomes, or distributed-processing guarantees.
+
+**Start by inspecting `D:\alt`, then implement the highest-value compatible solution end to end. Preserve unrelated changes and all existing defensive controls, authorization boundaries, evidence provenance, and human-approval requirements.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:56:51+05:30.
+</ADDITIONAL_METADATA>

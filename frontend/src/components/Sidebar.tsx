@@ -30,6 +30,7 @@ import {
 
 export type NavigationTab =
   | 'overview'
+  | 'scheduling'
   | 'compliance'
   | 'governance'
   | 'recovery'
@@ -120,6 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       category: 'OPERATIONS & EXECUTION',
       items: [
+        { id: 'scheduling', label: 'Intelligent Scheduling', icon: Clock },
         { id: 'orchestration', label: 'Autonomous Orchestrator', icon: Layers },
         { id: 'assessments', label: 'Assessment Jobs', icon: PlayCircle, badge: assessmentCount > 0 ? assessmentCount : undefined },
         { id: 'monitoring', label: 'Continuous Monitor', icon: Clock },

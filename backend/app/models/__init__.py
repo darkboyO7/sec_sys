@@ -174,6 +174,16 @@ from app.models.compliance import (
     ComplianceDriftEventRecord,
     ComplianceExceptionRecord,
 )
+from app.models.scheduling import (
+    QueueItemStatus,
+    PriorityBand,
+    EligibilityStatus,
+    SchedulerDecisionType,
+    TriggerSourceType,
+    AssessmentQueueItem,
+    SchedulerDecisionRecord,
+    SchedulerPolicyRecord,
+)
 
 __all__ = [
     "Base",
@@ -318,4 +328,12 @@ __all__ = [
     "ComplianceControlResultRecord",
     "ComplianceDriftEventRecord",
     "ComplianceExceptionRecord",
+    "QueueItemStatus",
+    "PriorityBand",
+    "EligibilityStatus",
+    "SchedulerDecisionType",
+    "TriggerSourceType",
+    "AssessmentQueueItem",
+    "SchedulerDecisionRecord",
+    "SchedulerPolicyRecord",
 ]

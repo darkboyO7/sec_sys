@@ -2756,6 +2756,194 @@ export interface ComplianceComparison {
   unchanged_count: number;
 }
 
+// ---------------------------------------------------------------------------
+// Prompt 34: Intelligent Assessment Scheduling & Orchestration
+// ---------------------------------------------------------------------------
+
+export type QueueItemStatus =
+  | 'PENDING'
+  | 'SCHEDULED'
+  | 'DISPATCHED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'DEFERRED'
+  | 'PAUSED';
+
+export type PriorityBand = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type EligibilityStatus =
+  | 'ELIGIBLE'
+  | 'EXCLUDED'
+  | 'UNAUTHORIZED'
+  | 'APPROVAL_REQUIRED'
+  | 'RATE_LIMITED'
+  | 'UNKNOWN';
+
+export type SchedulerDecisionType =
+  | 'ENQUEUE'
+  | 'DISPATCH'
+  | 'DEFER'
+  | 'DEDUPLICATE'
+  | 'REJECT'
+  | 'CANCEL'
+  | 'RECOVER'
+  | 'RETRY_BACKOFF';
+
+export type TriggerSourceType =
+  | 'MANUAL_DISPATCH'
+  | 'DRIFT_DETECTED'
+  | 'HIGH_SEVERITY_FINDING'
+  | 'FAILED_RETEST'
+  | 'STALE_EVIDENCE'
+  | 'COMPLIANCE_FAILURE'
+  | 'LEASE_RECOVERY'
+  | 'SCHEDULED_TIMER';
+
+export interface AssessmentQueueItem {
+  id: string;
+  project_id: string;
+  target_id?: string | null;
+  schedule_name: string;
+  target_input: string;
+  adapter_name: string;
+  adapter_version: string;
+  status: QueueItemStatus;
+  priority_score: number;
+  priority_band: PriorityBand;
+  priority_explanation: string;
+  priority_factors: Record<string, any>;
+  policy_version: string;
+  eligibility_status: EligibilityStatus;
+  eligibility_reasons: string[];
+  idempotency_key?: string | null;
+  concurrency_key: string;
+  worker_claim_id?: string | null;
+  claimed_at?: string | null;
+  lease_expires_at?: string | null;
+  attempt_count: number;
+  retry_count: number;
+  max_retries: number;
+  backoff_seconds: number;
+  next_eligible_at: string;
+  deadline_at?: string | null;
+  execution_budget_seconds: number;
+  cancellation_requested_at?: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  last_error_category?: string | null;
+  last_error_message?: string | null;
+  job_id?: string | null;
+  created_by_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueueItemCreate {
+  schedule_name?: string;
+  target_input: string;
+  adapter_name?: string;
+  deadline_at?: string | null;
+  execution_budget_seconds?: number;
+}
+
+export interface QueueItemPreviewRequest {
+  target_input: string;
+  adapter_name?: string;
+}
+
+export interface QueueItemPreviewResponse {
+  target_input: string;
+  adapter_name: string;
+  is_eligible: boolean;
+  eligibility_status: EligibilityStatus;
+  eligibility_reasons: string[];
+  computed_priority: number;
+  priority_band: PriorityBand;
+  priority_explanation: string;
+  priority_factors: Record<string, any>;
+  policy_version: string;
+}
+
+export interface TriggerAssessmentRequest {
+  trigger_source: TriggerSourceType;
+  target_input: string;
+  adapter_name?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface DispatchResultResponse {
+  dispatched: boolean;
+  message: string;
+  queue_item?: AssessmentQueueItem | null;
+  job_id?: string | null;
+}
+
+export interface LeaseRecoveryResponse {
+  recovered_count: number;
+  dead_letter_count: number;
+  recovered_ids: string[];
+  dead_letter_ids: string[];
+}
+
+export interface SchedulerCapacity {
+  project_id: string;
+  max_concurrent_assessments: number;
+  current_running_assessments: number;
+  available_capacity: number;
+  total_queued_items: number;
+  active_by_target: Record<string, number>;
+  active_by_adapter: Record<string, number>;
+  queue_utilization_pct: number;
+  stale_unclaimed_leases: number;
+}
+
+export interface SchedulerDecision {
+  id: string;
+  project_id: string;
+  queue_item_id?: string | null;
+  trigger_source: string;
+  target_input: string;
+  decision_type: SchedulerDecisionType;
+  priority_score: number;
+  decision_rationale: string;
+  capacity_snapshot: Record<string, any>;
+  metadata_payload: Record<string, any>;
+  created_at: string;
+}
+
+export interface SchedulerPolicy {
+  id: string;
+  project_id: string;
+  policy_version: string;
+  max_concurrent_assessments: number;
+  max_per_target_concurrency: number;
+  max_per_adapter_concurrency: number;
+  max_queued_jobs: number;
+  max_execution_duration_sec: number;
+  max_retries: number;
+  aging_factor_per_hour: number;
+  stale_lease_timeout_sec: number;
+  cooldown_period_sec: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SchedulerPolicyUpdate {
+  max_concurrent_assessments?: number;
+  max_per_target_concurrency?: number;
+  max_per_adapter_concurrency?: number;
+  max_queued_jobs?: number;
+  max_execution_duration_sec?: number;
+  max_retries?: number;
+  aging_factor_per_hour?: number;
+  stale_lease_timeout_sec?: number;
+  cooldown_period_sec?: number;
+  is_active?: boolean;
+}
+
+
 
 
 

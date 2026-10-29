@@ -40,6 +40,7 @@ from app.api.v1.endpoints import (
     operations_cockpit,
     alerts,
     compliance,
+    scheduling,
 )
 
 api_router = APIRouter()
@@ -84,3 +85,4 @@ api_router.include_router(evidence_lifecycle.router, prefix="/system/lifecycle",
 api_router.include_router(operations_cockpit.router, prefix="/system/operations/cockpit", tags=["Unified Security Operations Cockpit"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["Reliable Security Alerting & Event Intelligence"])
 api_router.include_router(compliance.router, tags=["Compliance Intelligence, Security Baselines & Drift Governance"])
+api_router.include_router(scheduling.router, tags=["Intelligent Scheduling & Orchestration"])
