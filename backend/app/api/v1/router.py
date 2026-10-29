@@ -37,6 +37,7 @@ from app.api.v1.endpoints import (
     security_controls,
     deployment,
     evidence_lifecycle,
+    operations_cockpit,
 )
 
 api_router = APIRouter()
@@ -78,3 +79,4 @@ api_router.include_router(performance.router, prefix="/system/performance", tags
 api_router.include_router(security_controls.router, prefix="/system/verification", tags=["Security Control Verification & Mutation Testing"])
 api_router.include_router(deployment.router, prefix="/system/deployment", tags=["Secure Windows Deployment & Configuration Governance"])
 api_router.include_router(evidence_lifecycle.router, prefix="/system/lifecycle", tags=["Evidence Lifecycle Governance & Data Retention"])
+api_router.include_router(operations_cockpit.router, prefix="/system/operations/cockpit", tags=["Unified Security Operations Cockpit"])

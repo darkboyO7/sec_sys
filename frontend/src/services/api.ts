@@ -94,6 +94,8 @@ import type {
   RetentionExecutionResult,
   EvidenceRedactionRequest,
   EvidenceRedactionResult,
+  UnifiedOpsDashboardResponse,
+  PriorityQueueResponse,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -1600,6 +1602,25 @@ async listUsers(): Promise<User[]> {
     return this.request<EvidenceRedactionResult>('/system/lifecycle/redact-evidence', {
       method: 'POST',
       body: JSON.stringify(req),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Prompt 30: Unified Security Operations Experience & Priority Queue
+  // ---------------------------------------------------------------------------
+  async getCockpitSummary(projectId?: string): Promise<UnifiedOpsDashboardResponse> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<UnifiedOpsDashboardResponse>(`/system/operations/cockpit/summary${q}`);
+  }
+
+  async getPriorityQueue(projectId?: string): Promise<PriorityQueueResponse> {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<PriorityQueueResponse>(`/system/operations/cockpit/priority-queue${q}`);
+  }
+
+  async dismissPriorityQueueItem(itemId: string): Promise<{ status: string; item_id: string }> {
+    return this.request<{ status: string; item_id: string }>(`/system/operations/cockpit/priority-queue/${encodeURIComponent(itemId)}/dismiss`, {
+      method: 'POST',
     });
   }
 }

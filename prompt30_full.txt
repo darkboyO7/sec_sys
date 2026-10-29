@@ -1,0 +1,391 @@
+<USER_REQUEST>
+# Prompt 30 — Unified Security Operations Experience, Actionable Intelligence, and User-Centered Workflow Design
+
+Act as a senior security product architect, UX engineer, accessibility specialist, and full-stack developer working directly in the existing VAPT System repository.
+
+## Mission
+
+Transform the existing frontend into a coherent security-operations experience in which an operator can understand the system's actual condition, identify important security risks, investigate supporting evidence, authorize appropriate actions, verify remediation, and monitor outcomes without navigating disconnected screens or interpreting unexplained technical metrics.
+
+This is an implementation task. Inspect the real application, identify verified workflow and usability gaps, implement the highest-value improvements, and prove that the interface accurately reflects backend state.
+
+**Writable repository:** `D:\alt`
+
+**Recovery mirror:** `C:\Users\Dark_Boy_\Downloads\VAPT_System`
+
+The recovery mirror is read-only and must remain untouched.
+
+## 1. Audit the current user experience
+
+Inspect the existing React/TypeScript frontend, routing, layouts, API clients, state management, component library, tests, and backend endpoints.
+
+Review the actual workflows for:
+
+- Initial application setup.
+- Authentication and permission-aware navigation.
+- Asset inventory and exposure monitoring.
+- Assessment scope configuration and authorization.
+- Assessment submission and progress tracking.
+- Finding investigation and evidence inspection.
+- Knowledge graph and attack-path exploration.
+- Risk explanation and prioritization.
+- Remediation planning, approval, and execution.
+- Independent retesting and finding closure.
+- Monitoring, alerting, and change detection.
+- Diagnostics, backup, recovery, and lifecycle governance.
+- Audit history, reports, and exports.
+
+Identify duplicated interfaces, confusing terminology, dead-end navigation, misleading status indicators, excessive polling, inaccessible controls, missing error states, and workflows that require unnecessary manual coordination.
+
+Do not assume a feature exists because it appears in an architectural document. Confirm the actual routes, components, API contracts, and persisted data.
+
+## 2. Build one coherent security-operations dashboard
+
+Improve the main dashboard so it answers the questions an operator needs answered immediately:
+
+1. Is the application operational?
+2. Is its security configuration valid?
+3. Are authorized assessments running, queued, blocked, or failing?
+4. Which assets have the most significant verified exposures?
+5. Which findings require immediate attention?
+6. Which findings have strong evidence versus tentative or conflicting evidence?
+7. Which remediation actions await approval?
+8. Which remediations failed independent verification?
+9. Has asset exposure changed since the last assessment?
+10. Are monitoring, recovery, and data-integrity checks healthy?
+11. Is the displayed information current or stale?
+12. What is the most useful next action?
+
+Use real backend data. Avoid hardcoded demonstration statistics in operational views.
+
+Every summary should be traceable to the records and calculations that produced it. Explain aggregation rules and distinguish confirmed findings from uncertain or unverified observations.
+
+Provide clear loading, empty, error, stale-data, and partial-service states.
+
+## 3. Introduce an actionable priority queue
+
+Create or improve a unified queue for security work that requires attention.
+
+Where supported by actual data, include:
+
+- Newly verified high-impact findings.
+- Changes in exposure or asset criticality.
+- Findings with conflicting or insufficient evidence.
+- Failed assessments that require investigation.
+- Remediations awaiting authorized approval.
+- Failed or overdue independent retests.
+- Expiring authorization or scope configuration.
+- Broken evidence-integrity checks.
+- Failed backup or recovery verification.
+- Unhealthy workers and abandoned jobs.
+- Required configuration or migration actions.
+
+Prioritize using explainable factors such as verified severity, exposure, asset importance, evidence confidence, exploitability when substantiated, and remediation urgency.
+
+Do not silently invent risk values or use opaque AI-generated priorities as authoritative facts.
+
+Every queue item must show:
+
+- Why it requires attention.
+- The supporting evidence or state.
+- The item's current status and age.
+- The permitted next action.
+- The required permission or approval, if applicable.
+- A direct route to the relevant detail view.
+
+Deduplicate repeated notifications when appropriate without hiding distinct security events.
+
+## 4. Make findings understandable and evidence-driven
+
+Improve the finding detail experience.
+
+For each finding, show the information actually available in the backend, including:
+
+- A clear title and concise summary.
+- Affected asset and relevant asset identity.
+- Severity and contextual risk.
+- Evidence confidence or certainty.
+- First observed and most recent observed timestamps.
+- Assessment source and method.
+- Supporting evidence and provenance.
+- Conflicting observations and unresolved uncertainty.
+- Related findings, assets, and graph relationships.
+- Relevant attack paths and their evidence dependencies.
+- Recommended remediation and its rationale.
+- Approval and execution history.
+- Independent retest results.
+- Current verification status.
+
+Clearly distinguish:
+
+- Confirmed vulnerable.
+- Suspected or tentative.
+- Conflicting evidence.
+- Remediation in progress.
+- Remediated but not independently verified.
+- Independently verified as resolved.
+- No longer observable.
+- Explicitly accepted risk, where supported.
+
+Do not equate missing evidence, assessment failure, or a finding disappearing from a result list with successful remediation.
+
+Preserve original evidence integrity and apply existing access controls when displaying or exporting sensitive material.
+
+## 5. Design a guided assessment workflow
+
+Create a clear, staged workflow that helps users conduct authorized assessments correctly.
+
+The workflow should guide the operator through the existing supported steps:
+
+1. Select assets or an authorized asset group.
+2. Review the applicable authorization and scope.
+3. Check explicit exclusions.
+4. Select a supported assessment profile.
+5. Review the expected assessment behavior and limitations.
+6. Validate the configuration.
+7. Submit the assessment.
+8. Monitor progress and inspect errors.
+9. Review resulting findings and evidence.
+10. Track remediation and independent retesting.
+
+Before submission, display the effective target scope, exclusions, authorization status, and relevant policy restrictions.
+
+If authorization is missing or the scope cannot be verified, explain why submission is blocked.
+
+Do not bypass backend authorization checks to simplify the interface. The backend must remain the final authority.
+
+Do not add disruptive scan profiles, unrestricted network probing, brute-force capabilities, or denial-of-service functionality.
+
+## 6. Create a trustworthy remediation workspace
+
+Provide a coherent view of remediation activity.
+
+For each action, display:
+
+- The finding or risk it addresses.
+- The proposed change.
+- The expected security benefit.
+- The affected asset and scope.
+- Relevant operational impact or uncertainty.
+- Required approval.
+- Current execution state.
+- Failure details, if any.
+- Independent verification results.
+
+Clearly separate recommendations from executable operations.
+
+Where approval is required, present the exact action and scope for review. Prevent approval of one action from being reused for a materially different action.
+
+After execution, show whether the operation succeeded, failed, or completed only partially. Show independent retest evidence before marking the finding resolved.
+
+Do not imply that a button click, queued job, or successful API response proves the underlying security problem has been fixed.
+
+## 7. Improve asset inventory and change visibility
+
+Make the asset inventory useful for ongoing security operations.
+
+Where supported, show:
+
+- Stable asset identity and confidence.
+- Asset type and environment.
+- Ownership or business criticality, if available.
+- Known services and exposure.
+- Authorization and assessment eligibility.
+- Last successful assessment.
+- Last observed change.
+- Active findings and contextual risk.
+- Evidence freshness.
+- Monitoring status.
+- History of meaningful changes.
+
+Distinguish newly discovered assets from previously known assets whose identity remains uncertain.
+
+Provide filters, search, sorting, and pagination that remain responsive on large inventories.
+
+When an asset changes, show what changed, when it was observed, how the change was detected, and whether reassessment is required.
+
+Do not silently merge distinct assets solely because they share an IP address, hostname, or another weak identifier.
+
+## 8. Make knowledge graphs and attack paths explainable
+
+Improve graph and attack-path visualization without sacrificing accuracy.
+
+Requirements:
+
+- Show meaningful node and edge labels.
+- Distinguish verified relationships from inferred or tentative relationships.
+- Expose evidence supporting important relationships.
+- Show the source and freshness of graph information.
+- Identify missing evidence and conflicting relationships.
+- Explain why an attack path is considered possible.
+- Distinguish theoretical paths from paths supported by verified observations.
+- Show which assumptions materially affect a path's risk assessment.
+- Make large graphs navigable through filtering, search, and progressive detail.
+- Provide a textual alternative for users who cannot use the visualization.
+
+Do not present inferred attack paths as confirmed exploitation or imply that a path has been executed merely because the graph contains it.
+
+If graph data is stale or incomplete, display that limitation explicitly.
+
+## 9. Improve accessibility and responsive behavior
+
+Audit the interface against practical accessibility requirements.
+
+Implement appropriate improvements for:
+
+- Keyboard-only navigation.
+- Visible focus indicators.
+- Semantic headings and landmarks.
+- Form labels and accessible validation messages.
+- Screen-reader announcements for meaningful status changes.
+- Sufficient contrast.
+- Non-color indicators for severity and status.
+- Accessible tables, dialogs, menus, and notifications.
+- Reduced-motion preferences.
+- Responsive layouts for supported window sizes.
+- Clear focus handling after navigation and dialog closure.
+
+Do not communicate critical states through color alone.
+
+Ensure charts and graphs provide meaningful textual summaries or data alternatives.
+
+Test the actual components rather than relying solely on a visual inspection.
+
+## 10. Establish consistent interface states and terminology
+
+Create or improve a consistent design system using the existing stack.
+
+Standardize:
+
+- Severity labels and colors.
+- Job and assessment lifecycle states.
+- Finding verification states.
+- Approval and remediation statuses.
+- Timestamps and relative-age displays.
+- Empty, loading, failure, and retry states.
+- Error messages and validation summaries.
+- Confirmation flows for high-impact operations.
+- Pagination and filtering.
+- Notification and audit-history presentation.
+
+Use language that helps a beginner understand the result without concealing the technical details an experienced analyst needs.
+
+For example, explain an unavailable result as “Assessment failed; exposure remains unverified” rather than displaying “No vulnerabilities found.”
+
+Avoid introducing an entirely new UI framework unless the existing architecture demonstrably cannot support the required changes.
+
+## 11. Add user guidance and operational onboarding
+
+Provide a short, practical first-run orientation that explains:
+
+- What the application can currently do.
+- Which security capabilities are available and verified.
+- How authorized assets are configured.
+- How to submit a safe assessment.
+- How to interpret findings and evidence confidence.
+- How to review and approve remediation.
+- How to verify remediation independently.
+- How to interpret stale, incomplete, or failed results.
+- Where to find diagnostics and recovery information.
+
+Make onboarding reflect the actual implementation and configured capabilities.
+
+Do not label unfinished functionality as available. Do not create fake findings, fake assets, or fake security metrics in the real operational dashboard.
+
+If demo data is needed for UI tests, isolate it from real application data and label it clearly.
+
+## 12. Improve interaction reliability and frontend performance
+
+Review the frontend for problems that undermine trust.
+
+Where justified:
+
+- Prevent stale asynchronous responses from overwriting newer state.
+- Avoid duplicate submissions.
+- Cancel obsolete requests when appropriate.
+- Avoid overlapping polling requests.
+- Stop polling when the relevant view is no longer active.
+- Preserve useful state when users navigate between related views.
+- Use server-side pagination for large datasets.
+- Avoid rendering complete raw evidence when summaries are sufficient.
+- Ensure errors do not disappear without explanation.
+- Prevent stale cached data from being presented as current.
+- Use explicit confirmation for high-impact or irreversible actions.
+
+Preserve accurate status and error reporting. Performance improvements must not conceal security failures.
+
+## 13. Verify all workflows against real backend behavior
+
+Build or extend integration tests that exercise the actual API contracts.
+
+Test complete user journeys where supported:
+
+- Asset inventory to authorized assessment.
+- Assessment to persisted findings and evidence.
+- Finding to evidence-backed risk explanation.
+- Finding to remediation proposal and approval.
+- Remediation execution to independent retesting.
+- Asset change to reassessment.
+- Failed job to diagnosis and safe retry.
+- Recovery warning to verified recovery outcome.
+- Unauthorized action to an explicit denial with no unintended side effect.
+
+Verify persisted state after important mutations.
+
+Use synthetic assets and controlled fixtures. Do not conduct intrusive assessments against real infrastructure.
+
+If browser-based end-to-end testing is already available, extend it. Otherwise, add the smallest practical test capability needed for critical workflows without unnecessarily expanding the dependency footprint.
+
+## 14. Add measurable usability acceptance criteria
+
+Define and verify practical acceptance criteria, such as:
+
+- An operator can identify the most urgent verified findings from the main dashboard.
+- A finding's supporting evidence and uncertainty are discoverable from its detail view.
+- An unauthorized assessment or remediation cannot be initiated through frontend manipulation.
+- A failed assessment is not represented as a successful clean result.
+- A remediation is not shown as resolved before the required verification succeeds.
+- A stale-data state is visible to the operator.
+- Critical actions are keyboard-accessible.
+- Large asset and finding lists remain bounded and navigable.
+- Important workflow errors have a clear explanation and next step.
+- All operational metrics come from actual backend responses.
+
+Measure these through automated tests wherever practical and record any criteria that remain manually assessed.
+
+## 15. Execution rules
+
+- Inspect the actual repository before editing.
+- Work only inside `D:\alt`.
+- Leave the recovery mirror untouched.
+- Preserve unrelated changes.
+- Do not reset Git or delete user data.
+- Do not hardcode operational statistics.
+- Do not invent backend capabilities to fill UI gaps.
+- Do not weaken authorization, assessment scope, approval, evidence, or recovery controls.
+- Do not fabricate successful operations or test results.
+- Do not make an AI-generated explanation authoritative without supporting evidence.
+- Keep the existing Windows-first workflow operational.
+
+Proceed autonomously through inspection, implementation, testing, and documentation. Do not stop after presenting a design proposal.
+
+## 16. Final evidence report
+
+Report:
+
+1. The existing UX and workflow gaps confirmed by inspection.
+2. The files changed and significant interface improvements.
+3. Dashboard metrics and their actual backend sources.
+4. Assessment, finding, remediation, and retesting workflow changes.
+5. Accessibility and responsive-behavior improvements.
+6. API integration and end-to-end tests executed.
+7. Exact backend and frontend test counts, failures, and skips.
+8. Any usability criteria that remain unverified.
+9. Remaining UI/backend capability gaps and technical limitations.
+10. Confirmation that `D:\alt` was the only project location modified and the recovery mirror remained untouched.
+
+**Success means an operator can move from an actual security signal to a justified, authorized, and independently verifiable action through a coherent interface—without confusing missing data with safety, recommendations with execution, or attempted remediation with proven resolution.**
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T18:45:33+05:30.
+</ADDITIONAL_METADATA>

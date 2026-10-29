@@ -17,6 +17,7 @@ import { ScopeValidationConsole } from '../components/ScopeValidationConsole';
 import { EmptyState } from '../components/EmptyState';
 import { AutonomousOperationsConsole } from '../components/AutonomousOperationsConsole';
 import { AdaptiveIntelligenceConsole } from '../components/AdaptiveIntelligenceConsole';
+import { UnifiedOperationsCockpit } from '../components/UnifiedOperationsCockpit';
 
 interface OverviewViewProps {
   activeProject: Project | null;
@@ -207,6 +208,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </p>
         </div>
       </div>
+
+      {/* 2.4 Unified Operations Command Cockpit & Actionable Priority Queue (Prompt 30) */}
+      <UnifiedOperationsCockpit
+        projectId={activeProject.id}
+        onNavigate={(route) => {
+          if (route === '/findings' && onNavigateToFindings) onNavigateToFindings();
+          else if (route === '/assessments' && onNavigateToAssessments) onNavigateToAssessments();
+          else if (route === '/assets' && onNavigateToAssets) onNavigateToAssets();
+          else if (route === '/remediation' && onNavigateToVerification) onNavigateToVerification();
+          else if (route === '/scopes') onNavigateToScopes();
+          else if (route === '/audit') onNavigateToAudit();
+        }}
+      />
 
       {/* 2.5 Evidence-Driven Adaptive Security Intelligence Console (Prompt 10) */}
       <AdaptiveIntelligenceConsole

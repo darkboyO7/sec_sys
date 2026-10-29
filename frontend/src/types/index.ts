@@ -2361,6 +2361,65 @@ export interface EvidenceRedactionResult {
   redacted_at: string;
 }
 
+// Prompt 30 — Unified Security Operations Experience
+export type PriorityQueueCategory =
+  | 'REMEDIATION_APPROVAL'
+  | 'RETEST_FAILED'
+  | 'JOB_FAILED'
+  | 'EXPOSURE_DRIFT'
+  | 'INTEGRITY_ALERT'
+  | 'RETENTION_EXPIRATION'
+  | 'SCOPE_EXPIRING';
+
+export interface PriorityQueueItem {
+  item_id: string;
+  priority_score: number;
+  category: PriorityQueueCategory;
+  title: string;
+  reason: string;
+  affected_asset?: string | null;
+  affected_finding_id?: string | null;
+  evidence_ref?: string | null;
+  permitted_action: string;
+  required_role: string;
+  target_route: string;
+  created_at: string;
+}
+
+export interface PriorityQueueResponse {
+  total_items: number;
+  urgent_items_count: number;
+  items: PriorityQueueItem[];
+  retrieved_at: string;
+}
+
+export interface OperatorCoreQuestion {
+  question_id: number;
+  question_text: string;
+  status: 'PASS' | 'WARN' | 'FAIL' | 'INFO' | string;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+export interface UnifiedOpsDashboardResponse {
+  overall_posture: 'HEALTHY' | 'ATTENTION_REQUIRED' | 'ELEVATED_RISK' | string;
+  control_plane_health: string;
+  active_assessments_count: number;
+  queued_assessments_count: number;
+  failed_assessments_count: number;
+  verified_critical_findings: number;
+  verified_high_findings: number;
+  unresolved_uncertainties_count: number;
+  pending_remediation_approvals: number;
+  failed_retests_count: number;
+  exposure_drift_records_count: number;
+  data_freshness_seconds: number;
+  core_questions: OperatorCoreQuestion[];
+  recommended_next_action: string;
+  generated_at: string;
+}
+
+
 
 
 
