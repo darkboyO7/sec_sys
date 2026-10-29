@@ -1020,6 +1020,49 @@ export interface GovernedModel {
   created_at: string;
 }
 
+// Prompt 38: Controlled Experiments, Model Evaluation and Defensible Adaptive Learning
+export interface LearningInventoryItem {
+  component_name: string;
+  prediction_type: string;
+  objective: string;
+  input_features: string[];
+  decision_impact: string;
+  governance_mode: string;
+  online_self_tuning: boolean;
+}
+
+export interface ControlledExperiment {
+  id: string;
+  project_id: string;
+  model_id: string;
+  dataset_id: string;
+  experiment_name: string;
+  split_strategy: string;
+  training_sample_size: number;
+  test_sample_size: number;
+  class_imbalance_ratio: number;
+  data_leakage_detected: boolean;
+  leakage_details: string[];
+  insufficient_data_flag: boolean;
+  baseline_model_id?: string | null;
+  metrics: Record<string, any>;
+  distribution_shift_detected: boolean;
+  decision_outcome: 'ACCEPTED' | 'REJECTED_INFERIOR_METRICS' | 'REJECTED_LEAKAGE' | 'REJECTED_INSUFFICIENT_DATA' | 'PENDING_REVIEW';
+  decision_rationale?: string | null;
+  created_at: string;
+}
+
+export interface DistributionShiftResult {
+  model_id: string;
+  project_id: string;
+  distribution_shift_detected: boolean;
+  evaluated_count: number;
+  accuracy_rate: number;
+  brier_score: number;
+  status: string;
+  recommended_action: string;
+}
+
 // Phase 19.1: Persistent Prediction Ledger
 export type PredictionType =
   | 'FALSE_POSITIVE_LIKELIHOOD'

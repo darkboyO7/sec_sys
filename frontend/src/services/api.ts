@@ -898,6 +898,58 @@ class ApiService {
     return this.request(`/projects/${projectId}/learning/models`);
   }
 
+  // Prompt 38: Controlled Experiments, Model Evaluation and Defensible Adaptive Learning
+  async getLearningInventory(): Promise<any[]> {
+    return this.request('/system/learning/inventory');
+  }
+
+  async curateTimeAwareDataset(
+    projectId: string,
+    name: string,
+    version: string,
+    splitStrategy: string = 'TEMPORAL_AWARE'
+  ): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/datasets/time-aware`, {
+      method: 'POST',
+      body: JSON.stringify({ name, version, split_strategy: splitStrategy }),
+    });
+  }
+
+  async runControlledExperiment(
+    projectId: string,
+    data: {
+      model_id: string;
+      experiment_name: string;
+      split_strategy?: string;
+      force_pass_baseline?: boolean;
+    }
+  ): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/experiments/run`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listControlledExperiments(
+    projectId: string,
+    modelId?: string,
+    decision?: string
+  ): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (modelId) params.append('model_id', modelId);
+    if (decision) params.append('decision', decision);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return this.request(`/projects/${projectId}/learning/experiments${qs}`);
+  }
+
+  async getControlledExperiment(projectId: string, experimentId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/experiments/${experimentId}`);
+  }
+
+  async detectDistributionShift(projectId: string, modelId: string): Promise<any> {
+    return this.request(`/projects/${projectId}/learning/models/${modelId}/distribution-shift`);
+  }
+
   // Phase 20: Morph-State Adaptive Defense & Recovery
   async getAdaptivePosture(projectId: string): Promise<any> {
     return this.request(`/projects/${projectId}/adaptive-defense/posture`);

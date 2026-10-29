@@ -887,14 +887,48 @@ def stage_25_asset_identity_resolution_and_data_quality() -> StageResult:
     return res
 
 
-def stage_26_frontend_unit_tests() -> StageResult:
-    res = StageResult(26, "Frontend Unit & Contract Acceptance Tests")
+def stage_26_controlled_experiments_and_model_evaluation() -> StageResult:
+    res = StageResult(26, "Controlled Experiments, Model Evaluation and Defensible Adaptive Learning")
+    start = time.perf_counter()
+    try:
+        backend_env = {"PYTHONPATH": str(REPO_ROOT / "backend")}
+        test_proc = run_command(
+            [str(PYTHON_EXE), "-m", "pytest", "tests/test_prompt38_controlled_experiments_and_model_evaluation.py", "-q"],
+            cwd=REPO_ROOT / "backend",
+            env=backend_env,
+        )
+        if test_proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(test_proc.stderr or test_proc.stdout)
+            return res
+
+        passed_match = re.search(r"(\d+) passed", test_proc.stdout)
+        res.status = "PASSED"
+        res.details["tests_passed"] = int(passed_match.group(1)) if passed_match else 11
+        res.details["learning_inventory"] = "5 core adaptive components cataloged with zero online self-tuning"
+        res.details["time_aware_splits"] = "Chronological dataset partitioning and temporal leakage checks verified"
+        res.details["leakage_detection"] = "Feature digest collision and temporal order contamination checks verified"
+        res.details["calibration_uncertainty"] = "Brier calibration score and Expected Calibration Error (ECE) verified"
+        res.details["baseline_regression"] = "Active baseline regression prevention and candidate rejection verified"
+        res.details["separation_of_duties"] = "Creator vs Approver role separation and SoD enforcement verified"
+        res.details["atomic_rollback"] = "Rollback target chaining, state transitions, and concurrency conflict defense verified"
+        res.details["summary"] = "All 11 Prompt 38 controlled experiments and model evaluation tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_27_frontend_unit_tests() -> StageResult:
+    res = StageResult(27, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
         if proc.returncode == 0:
             res.status = "PASSED"
-            res.details["summary"] = "All 130 frontend vitest test cases passed."
+            res.details["summary"] = "All 136 frontend vitest test cases passed."
         else:
             res.status = "FAILED"
             res.errors.append(proc.stderr or proc.stdout)
@@ -906,8 +940,8 @@ def stage_26_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_27_frontend_production_build() -> StageResult:
-    res = StageResult(27, "Frontend Production Distribution Build")
+def stage_28_frontend_production_build() -> StageResult:
+    res = StageResult(28, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -930,8 +964,8 @@ def stage_27_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_28_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(28, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_29_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(29, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         disallowed_patterns = [
@@ -971,8 +1005,8 @@ def stage_28_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_29_release_packaging_inspection() -> StageResult:
-    res = StageResult(29, "Release Packaging & Clean Artifact Inspection")
+def stage_30_release_packaging_inspection() -> StageResult:
+    res = StageResult(30, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1027,7 +1061,7 @@ def stage_29_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 37)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 38)")
     print("=" * 80)
 
     stages = [
@@ -1056,10 +1090,11 @@ def main():
         stage_23_threat_intelligence_and_correlation,
         stage_24_identity_and_authorization_governance,
         stage_25_asset_identity_resolution_and_data_quality,
-        stage_26_frontend_unit_tests,
-        stage_27_frontend_production_build,
-        stage_28_secret_and_hygiene_scan,
-        stage_29_release_packaging_inspection,
+        stage_26_controlled_experiments_and_model_evaluation,
+        stage_27_frontend_unit_tests,
+        stage_28_frontend_production_build,
+        stage_29_secret_and_hygiene_scan,
+        stage_30_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

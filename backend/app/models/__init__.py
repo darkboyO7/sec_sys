@@ -204,6 +204,11 @@ from app.models.canonical_asset import (
     AssetDeduplicationProposal,
     AssetDataQualityIssue,
 )
+from app.models.model_experiment import (
+    SplitStrategy,
+    ExperimentDecision,
+    ModelControlledExperiment,
+)
 
 __all__ = [
     "Base",
@@ -370,4 +375,7 @@ __all__ = [
     "DataQualityIssueStatus",
     "AssetDeduplicationProposal",
     "AssetDataQualityIssue",
+    "SplitStrategy",
+    "ExperimentDecision",
+    "ModelControlledExperiment",
 ]
