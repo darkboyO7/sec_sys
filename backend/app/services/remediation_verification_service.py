@@ -108,6 +108,32 @@ class RemediationVerificationService:
         db.add(verification)
         db.flush()
 
+        # Prompt 51: Retesting & Verification Linkage to Recommendation
+        target_rec = None
+        if recommendation_id:
+            target_rec = (
+                db.query(RemediationRecommendation)
+                .filter(
+                    RemediationRecommendation.id == recommendation_id,
+                    RemediationRecommendation.project_id == project_id,
+                )
+                .first()
+            )
+        if not target_rec:
+            target_rec = (
+                db.query(RemediationRecommendation)
+                .filter(
+                    RemediationRecommendation.finding_id == finding.id,
+                    RemediationRecommendation.project_id == project_id,
+                    RemediationRecommendation.is_latest == True,
+                )
+                .first()
+            )
+
+        if target_rec:
+            target_rec.verification_id = verification.id
+            target_rec.verified_outcome = outcome.value if hasattr(outcome, "value") else str(outcome)
+
         # State transition governance
         if outcome == VerificationOutcome.VERIFIED_FIXED:
             # Requires LEAD or ADMIN to verify closure

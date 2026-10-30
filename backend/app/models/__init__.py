@@ -55,8 +55,13 @@ from app.models.knowledge import (
 from app.models.risk import (
     RiskPriority,
     RecommendationStatus,
+    GuidanceType,
+    BusinessPriority,
+    RemediationUrgency,
+    RecommendationFeedbackType,
     RiskAssessment,
     RemediationRecommendation,
+    RecommendationFeedback,
 )
 from app.models.verification import (
     VerificationOutcome,
@@ -293,8 +298,13 @@ __all__ = [
     "RelationshipStatus",
     "RiskPriority",
     "RecommendationStatus",
+    "GuidanceType",
+    "BusinessPriority",
+    "RemediationUrgency",
+    "RecommendationFeedbackType",
     "RiskAssessment",
     "RemediationRecommendation",
+    "RecommendationFeedback",
     "VerificationOutcome",
     "VerificationMethod",
     "RemediationVerification",

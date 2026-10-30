@@ -5,7 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.models.finding import VulnerabilityFinding
 from app.models.asset import Asset
-from app.models.risk import RemediationRecommendation, RecommendationStatus
+from app.models.risk import (
+    RemediationRecommendation,
+    RecommendationStatus,
+    GuidanceType,
+    BusinessPriority,
+    RemediationUrgency,
+    RecommendationFeedbackType,
+    RecommendationFeedback,
+)
 from app.models.user import User, SystemRole
 from app.models.project import ProjectRole
 from app.services.audit_service import AuditService
@@ -248,17 +256,49 @@ class RemediationPrioritizationService:
     ]
 
     @classmethod
-    def generate_or_get_recommendation(
+    def _sanitize_advisory_text(cls, text: Any) -> str:
+        """Sanitizes text against shell command injection and dangerous sequences."""
+        if not text:
+            return ""
+        s = str(text).strip()
+        dangerous_patterns = [r"(\brm\s+-rf\b)", r"(\bcurl\s+.*\|\s*sh\b)", r"(\bwget\s+.*\|\s*sh\b)", r"(`[^`]+`)"]
+        for p in dangerous_patterns:
+            s = re.sub(p, "[REDACTED_COMMAND]", s, flags=re.IGNORECASE)
+        return s[:2000]
+
+    @classmethod
+    def _sanitize_recommended_change(cls, text: Any) -> str:
+        """Enforces that model or external input never invents fake commands or fake resolution."""
+        if not text:
+            return "Perform manual code and configuration review with software owner."
+        s = str(text).strip()
+        fake_resolution_patterns = [
+            r"(?i)\b(vulnerability\s+is\s+(already\s+)?(fixed|resolved|remediated|closed))\b",
+            r"(?i)\b(successfully\s+(fixed|resolved|closed|remediated))\b",
+        ]
+        for p in fake_resolution_patterns:
+            if re.search(p, s):
+                return "Perform manual verification re-testing. Unverified claims of resolution are rejected."
+        dangerous_patterns = [r"(\brm\s+-rf\b)", r"(\bcurl\s+.*\|\s*sh\b)", r"(\bwget\s+.*\|\s*sh\b)"]
+        for p in dangerous_patterns:
+            s = re.sub(p, "[DISALLOWED_SHELL_COMMAND]", s, flags=re.IGNORECASE)
+        return s[:2000]
+
+    @classmethod
+    def generate_explainable_recommendation(
         cls,
         project_id: str,
         finding_id: str,
         db: Session,
         actor: Optional[User] = None,
         client_ip: Optional[str] = None,
+        advisory_input: Optional[Dict[str, Any]] = None,
+        force_regenerate: bool = False,
     ) -> RemediationRecommendation:
         """
-        Generates or retrieves the current remediation recommendation for a finding.
-        Matches the finding against the defensive catalog or defaults to MANUAL_ANALYST_REVIEW.
+        Generates or retrieves an explainable, evidence-backed remediation recommendation (Prompt 51).
+        Separates technical severity, business priority, confidence, urgency, and effort.
+        Grounds decisions in actual observation evidence and asset context.
         """
         finding = (
             db.query(VulnerabilityFinding)
@@ -271,19 +311,61 @@ class RemediationPrioritizationService:
         if not finding:
             raise ValueError(f"Finding '{finding_id}' not found in project '{project_id}'.")
 
-        # Check for existing active recommendation
+        # Check existing latest recommendation
         existing = (
             db.query(RemediationRecommendation)
             .filter(
                 RemediationRecommendation.project_id == project_id,
                 RemediationRecommendation.finding_id == finding_id,
+                RemediationRecommendation.is_latest == True,
             )
             .first()
         )
-        if existing:
+        if existing and not force_regenerate:
             return existing
 
-        # Match finding title, description, or vuln_id
+        # Fetch Asset context
+        asset = None
+        if finding.asset_id:
+            asset = db.query(Asset).filter(Asset.id == finding.asset_id, Asset.project_id == project_id).first()
+
+        # Step 1: Collect Source Evidence IDs
+        source_evidence_ids: List[str] = []
+        if finding.observations:
+            for obs in finding.observations:
+                if obs.evidence_items:
+                    for ev in obs.evidence_items:
+                        if ev.id and ev.id not in source_evidence_ids:
+                            source_evidence_ids.append(ev.id)
+                if obs.id and obs.id not in source_evidence_ids:
+                    source_evidence_ids.append(obs.id)
+
+        try:
+            from app.models.forensic_evidence import ForensicEvidenceRecord
+            forensic_recs = db.query(ForensicEvidenceRecord.id).filter(
+                ForensicEvidenceRecord.project_id == project_id,
+                ForensicEvidenceRecord.finding_id == finding.id,
+            ).all()
+            for (f_id,) in forensic_recs:
+                if f_id and f_id not in source_evidence_ids:
+                    source_evidence_ids.append(f_id)
+        except Exception:
+            pass
+
+        # Step 2: Resolve Exposure
+        is_internet_facing = False
+        if asset:
+            if asset.environment and asset.environment.upper() == "PRODUCTION":
+                is_internet_facing = True
+            if asset.attributes:
+                if asset.attributes.get("internet_facing") or asset.attributes.get("public_ip"):
+                    is_internet_facing = True
+        if finding.target_value:
+            tv = str(finding.target_value).lower()
+            if tv.startswith("http://") or tv.startswith("https://") or ("0.0.0.0" not in tv and "127.0.0.1" not in tv and "localhost" not in tv):
+                is_internet_facing = True
+
+        # Step 3: Match Catalog or Process Advisory Input
         text_corpus = f"{finding.title} {finding.description} {finding.vuln_id or ''}"
         matched_item = None
         for item in cls.REMEDIATION_CATALOG:
@@ -291,77 +373,476 @@ class RemediationPrioritizationService:
                 matched_item = item
                 break
 
-        if not matched_item:
-            # Fallback for novel or unmapped findings
-            matched_item = {
-                "title": f"Investigate and Remediate: {finding.title[:80]}",
-                "action_type": "MANUAL_ANALYST_REVIEW",
-                "description": (
-                    f"Finding '{finding.title}' does not match standard automated defensive playbooks. "
-                    "Conduct a manual code and configuration review to identify root cause and design an appropriate fix."
-                ),
-                "rationale": "Unmapped vulnerability pattern requires human analyst review to avoid disruptive corrective actions.",
-                "qualitative_benefit": "Identifies precise remediation strategy tailored to specific custom software logic.",
-                "estimated_risk_reduction": 0.50,
-                "root_cause": "Unmapped security observation requiring manual triage and context-specific investigation.",
-                "recommended_change": "Engage software development team to audit finding context, isolate root cause, and implement defensive fix.",
-                "estimated_effort": "MEDIUM (1-2d)",
-                "related_controls": ["CIS-Control-16.1", "NIST-SP800-53-RA-5"],
-                "prerequisites": [
-                    "Review scanner observation evidence and reproduction steps.",
-                    "Engage application engineering owner.",
-                ],
-                "operational_impact": "Requires developer investigation and manual verification.",
-                "rollback_procedure": "Document manual rollback steps prior to applying custom patch.",
-                "verification_criteria": "Targeted security re-test confirming finding cannot be reproduced on target.",
-                "verification_test_profile": "WEB_APPLICATION_BASELINE",
-                "requires_approval": True,
-                "approval_role": "LEAD",
-            }
+        missing_prereqs: List[str] = []
+        compatibility_concerns: List[str] = []
+        dependencies: List[str] = []
+
+        if matched_item:
+            guidance_type = GuidanceType.VERIFIED_INSTRUCTION
+            title = matched_item["title"]
+            action_type = matched_item["action_type"]
+            description = matched_item["description"]
+            rationale = matched_item["rationale"]
+            qualitative_benefit = matched_item["qualitative_benefit"]
+            estimated_risk_reduction = matched_item.get("estimated_risk_reduction", 0.70)
+            root_cause = matched_item.get("root_cause")
+            recommended_change = matched_item.get("recommended_change")
+            estimated_effort = matched_item.get("estimated_effort", "LOW (< 2h)")
+            related_controls = matched_item.get("related_controls", [])
+            prerequisites = list(matched_item.get("prerequisites", []))
+            operational_impact = matched_item["operational_impact"]
+            rollback_procedure = matched_item["rollback_procedure"]
+            verification_criteria = matched_item["verification_criteria"]
+            verification_test_profile = matched_item.get("verification_test_profile")
+            requires_approval = matched_item.get("requires_approval", True)
+            approval_role = matched_item.get("approval_role", "LEAD")
+
+            if "Locate query call sites" in str(prerequisites):
+                missing_prereqs.append("Call site static audit required before refactor commit.")
+            if "legacy clients" in str(prerequisites):
+                compatibility_concerns.append("Legacy client connection termination if TLS 1.0/1.1 disabled.")
+            if "CSP" in title:
+                compatibility_concerns.append("Inline scripts and unlisted third-party analytics may be blocked by strict CSP.")
+            dependencies.extend(["Application Runtime", "Web Server / Reverse Proxy"])
+            advisory_disclaimer = (
+                "Verified catalog recommendation grounded in validated defensive templates. "
+                "Automated command execution is prohibited; manual change authorization and independent "
+                "verification re-testing are required."
+            )
+        elif advisory_input:
+            guidance_type = GuidanceType.UNVERIFIED_SUGGESTION
+            raw_title = advisory_input.get("title", f"Advisory Proposal: {finding.title[:70]}")
+            title = cls._sanitize_advisory_text(raw_title)
+            action_type = advisory_input.get("action_type", "ADVISORY_PROPOSAL")
+            description = cls._sanitize_advisory_text(advisory_input.get("description", "Unverified advisory proposal requiring human expert review."))
+            rationale = cls._sanitize_advisory_text(advisory_input.get("rationale", "Generated from external or heuristic advisory input."))
+            qualitative_benefit = cls._sanitize_advisory_text(advisory_input.get("qualitative_benefit", "Potential reduction in attack surface pending manual code review."))
+            estimated_risk_reduction = float(advisory_input.get("estimated_risk_reduction", 0.50))
+            root_cause = cls._sanitize_advisory_text(advisory_input.get("root_cause", "Unverified observation requiring contextual code inspection."))
+
+            raw_rec = advisory_input.get("recommended_change", "")
+            recommended_change = cls._sanitize_recommended_change(raw_rec)
+            estimated_effort = advisory_input.get("estimated_effort", "MEDIUM (1-2d)")
+            related_controls = advisory_input.get("related_controls", ["NIST-SP800-53-RA-5"])
+            prerequisites = advisory_input.get("prerequisites", ["Manual verification of finding reproducibility", "Source code audit"])
+            missing_prereqs = ["Target software vendor documentation review", "Staging environment compatibility test"]
+            operational_impact = advisory_input.get("operational_impact", "Unknown operational impact. Thorough staging verification required.")
+            compatibility_concerns = ["Potential breaking changes in unverified patches or configuration keys."]
+            dependencies = ["Software Deployment Pipeline"]
+            rollback_procedure = advisory_input.get("rollback_procedure", "Maintain full backup of configuration and source tree before applying changes.")
+            verification_criteria = advisory_input.get("verification_criteria", "Targeted re-test confirming finding cannot be reproduced on target.")
+            verification_test_profile = advisory_input.get("verification_test_profile", "WEB_APPLICATION_BASELINE")
+            requires_approval = True
+            approval_role = "LEAD"
+            advisory_disclaimer = (
+                "NOTICE: This recommendation is an UNVERIFIED SUGGESTION generated from external or heuristic input. "
+                "It has NOT been verified against deterministic test profiles. Manual code and configuration review "
+                "is strictly required before taking any action. Automated execution is prohibited."
+            )
+        else:
+            guidance_type = GuidanceType.GENERAL_GUIDANCE
+            title = f"Investigate and Remediate: {finding.title[:80]}"
+            action_type = "MANUAL_ANALYST_REVIEW"
+            description = (
+                f"Finding '{finding.title}' does not match standard automated defensive playbooks. "
+                "Conduct a manual code and configuration review to identify root cause and design an appropriate fix."
+            )
+            rationale = "Unmapped vulnerability pattern requires human analyst review to avoid disruptive corrective actions."
+            qualitative_benefit = "Identifies precise remediation strategy tailored to specific custom software logic."
+            estimated_risk_reduction = 0.50
+            root_cause = "Unmapped security observation requiring manual triage and context-specific investigation."
+            recommended_change = (
+                "Product-specific configuration instructions are unavailable for target software. "
+                "Consult official vendor documentation and perform manual configuration audit."
+            )
+            estimated_effort = "MEDIUM (1-2d)"
+            related_controls = ["CIS-Control-16.1", "NIST-SP800-53-RA-5"]
+            prerequisites = [
+                "Review scanner observation evidence and reproduction steps.",
+                "Engage application engineering owner.",
+            ]
+            missing_prereqs = ["Application owner assignment", "Baseline architecture review"]
+            operational_impact = "Requires developer investigation and manual verification."
+            compatibility_concerns = ["Custom configuration changes require regression testing."]
+            dependencies = ["Application Engineering Team"]
+            rollback_procedure = "Document manual rollback steps prior to applying custom patch."
+            verification_criteria = "Targeted security re-test confirming finding cannot be reproduced on target."
+            verification_test_profile = "WEB_APPLICATION_BASELINE"
+            requires_approval = True
+            approval_role = "LEAD"
+            advisory_disclaimer = (
+                "NOTICE: Standard defensive guidance. Specific vendor patches or configuration instructions "
+                "must be confirmed against target platform documentation. Automated execution is prohibited."
+            )
+
+        # Step 4: Compute Technical Severity & Business Priority
+        tech_sev = finding.severity.value if hasattr(finding.severity, "value") else str(finding.severity)
+        if finding.cvss_score:
+            if finding.cvss_score >= 9.0:
+                tech_sev = "CRITICAL"
+            elif finding.cvss_score >= 7.0:
+                tech_sev = "HIGH"
+            elif finding.cvss_score >= 4.0:
+                tech_sev = "MEDIUM"
+            else:
+                tech_sev = "LOW"
+
+        sev_weights = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
+        s_weight = sev_weights.get(tech_sev, 2)
+
+        crit_val = asset.criticality.value if (asset and hasattr(asset.criticality, "value")) else "MEDIUM"
+        a_weight = sev_weights.get(crit_val, 2)
+
+        exposure_bonus = 1 if is_internet_facing else 0
+        total_priority_score = s_weight + a_weight + exposure_bonus
+
+        if total_priority_score >= 8:
+            business_priority = BusinessPriority.P1_CRITICAL
+            remediation_urgency = RemediationUrgency.IMMEDIATE
+        elif total_priority_score >= 6:
+            business_priority = BusinessPriority.P2_HIGH
+            remediation_urgency = RemediationUrgency.SCHEDULED_SPRINT
+        elif total_priority_score >= 4:
+            business_priority = BusinessPriority.P3_MEDIUM
+            remediation_urgency = RemediationUrgency.NEXT_CYCLE
+        else:
+            business_priority = BusinessPriority.P4_LOW
+            remediation_urgency = RemediationUrgency.BACKLOG
+
+        # Step 5: Confidence Calculation
+        if guidance_type == GuidanceType.VERIFIED_INSTRUCTION:
+            base_conf = 0.85
+        elif guidance_type == GuidanceType.GENERAL_GUIDANCE:
+            base_conf = 0.60
+        else:
+            base_conf = 0.35
+
+        if len(source_evidence_ids) > 0:
+            base_conf += 0.10
+        else:
+            base_conf -= 0.15
+
+        if asset is None:
+            base_conf -= 0.10
+
+        if not finding.is_simulated:
+            base_conf += 0.05
+
+        if guidance_type == GuidanceType.UNVERIFIED_SUGGESTION:
+            confidence = min(0.50, max(0.10, base_conf))
+        else:
+            confidence = min(1.00, max(0.10, base_conf))
+
+        confidence = round(confidence, 2)
+
+        # Step 6: Detailed Ranking Factors
+        ranking_factors = {
+            "technical_severity": tech_sev,
+            "cvss_base_score": finding.cvss_score,
+            "asset_criticality": crit_val if asset else "UNKNOWN",
+            "asset_name": asset.name if asset else "UNASSIGNED",
+            "is_internet_facing": is_internet_facing,
+            "evidence_item_count": len(source_evidence_ids),
+            "evidence_strength": "CONFIRMED" if len(source_evidence_ids) > 0 else "ABSENT_OR_UNVERIFIED",
+            "guidance_type": guidance_type.value,
+            "business_priority": business_priority.value,
+            "remediation_urgency": remediation_urgency.value,
+            "confidence_score": confidence,
+            "factor_explanation": (
+                f"Ranked {business_priority.value} with {remediation_urgency.value} urgency because finding has "
+                f"{tech_sev} severity on {crit_val if asset else 'unclassified'} asset "
+                f"({len(source_evidence_ids)} verified evidence items, exposure={is_internet_facing})."
+            ),
+        }
+
+        # Step 7: Version Lineage Handling
+        now = utc_now()
+        if existing:
+            version = existing.version + 1
+            prior_version_id = existing.id
+            existing.is_latest = False
+            existing.superseded_at = now
+        else:
+            version = 1
+            prior_version_id = None
 
         rec = RemediationRecommendation(
             project_id=project_id,
             finding_id=finding.id,
             asset_id=finding.asset_id,
-            title=matched_item["title"],
-            action_type=matched_item["action_type"],
-            description=matched_item["description"],
-            rationale=matched_item["rationale"],
-            qualitative_benefit=matched_item["qualitative_benefit"],
-            estimated_risk_reduction=matched_item.get("estimated_risk_reduction"),
-            root_cause=matched_item.get("root_cause"),
-            recommended_change=matched_item.get("recommended_change"),
-            estimated_effort=matched_item.get("estimated_effort"),
-            related_controls=matched_item.get("related_controls", []),
+            title=title,
+            action_type=action_type,
+            description=description,
+            rationale=rationale,
+            qualitative_benefit=qualitative_benefit,
+            estimated_risk_reduction=estimated_risk_reduction,
+            root_cause=root_cause,
+            recommended_change=recommended_change,
+            estimated_effort=estimated_effort,
+            related_controls=related_controls,
             execution_governance_stage="GENERATED",
-            prerequisites=matched_item.get("prerequisites", []),
-            operational_impact=matched_item["operational_impact"],
-            rollback_procedure=matched_item["rollback_procedure"],
-            verification_criteria=matched_item["verification_criteria"],
-            verification_test_profile=matched_item.get("verification_test_profile"),
-            requires_approval=matched_item.get("requires_approval", True),
-            approval_role=matched_item.get("approval_role", "LEAD"),
+            prerequisites=prerequisites,
+            operational_impact=operational_impact,
+            rollback_procedure=rollback_procedure,
+            verification_criteria=verification_criteria,
+            verification_test_profile=verification_test_profile,
+            requires_approval=requires_approval,
+            approval_role=approval_role,
             status=RecommendationStatus.PENDING_REVIEW,
+            guidance_type=guidance_type,
+            technical_severity=tech_sev,
+            business_priority=business_priority,
+            confidence=confidence,
+            remediation_urgency=remediation_urgency,
+            source_evidence_ids=source_evidence_ids,
+            ranking_factors=ranking_factors,
+            advisory_disclaimer=advisory_disclaimer,
+            missing_prerequisites=missing_prereqs,
+            compatibility_concerns=compatibility_concerns,
+            dependencies=dependencies,
+            version=version,
+            prior_version_id=prior_version_id,
+            is_latest=True,
         )
         db.add(rec)
         db.flush()
 
         AuditService.log(
             db=db,
-            action="REMEDIATION_RECOMMENDATION_GENERATED",
+            action="REMEDIATION_RECOMMENDATION_EXPLAINABLE_GENERATED",
             actor_id=actor.id if actor else None,
             target_resource=f"remediation:{rec.id}",
             project_id=project_id,
             client_ip=client_ip,
             details={
                 "finding_id": finding.id,
-                "action_type": rec.action_type,
-                "title": rec.title,
+                "version": version,
+                "guidance_type": guidance_type.value,
+                "business_priority": business_priority.value,
+                "confidence": confidence,
             },
         )
         db.commit()
         db.refresh(rec)
         return rec
+
+    @classmethod
+    def generate_or_get_recommendation(
+        cls,
+        project_id: str,
+        finding_id: str,
+        db: Session,
+        actor: Optional[User] = None,
+        client_ip: Optional[str] = None,
+    ) -> RemediationRecommendation:
+        """
+        Backwards-compatible wrapper delegating to explainable recommendation generation.
+        """
+        return cls.generate_explainable_recommendation(
+            project_id=project_id,
+            finding_id=finding_id,
+            db=db,
+            actor=actor,
+            client_ip=client_ip,
+            advisory_input=None,
+            force_regenerate=False,
+        )
+
+    @classmethod
+    def get_recommendation_versions(
+        cls,
+        project_id: str,
+        recommendation_id: str,
+        db: Session,
+    ) -> List[RemediationRecommendation]:
+        """
+        Retrieves all chronological versions of a recommendation without rewriting history.
+        """
+        rec = (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.id == recommendation_id,
+                RemediationRecommendation.project_id == project_id,
+            )
+            .first()
+        )
+        if not rec:
+            raise ValueError(f"Remediation recommendation '{recommendation_id}' not found in project '{project_id}'.")
+
+        return (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.project_id == project_id,
+                RemediationRecommendation.finding_id == rec.finding_id,
+            )
+            .order_by(RemediationRecommendation.version.asc())
+            .all()
+        )
+
+    @classmethod
+    def record_feedback(
+        cls,
+        project_id: str,
+        recommendation_id: str,
+        feedback_type: RecommendationFeedbackType,
+        user: Optional[User],
+        db: Session,
+        rating: Optional[int] = None,
+        comment: Optional[str] = None,
+        was_actionable: bool = True,
+        applied_as_instructed: Optional[bool] = None,
+        client_ip: Optional[str] = None,
+    ) -> RecommendationFeedback:
+        """
+        Records user feedback on recommendation usefulness without rewriting history (Prompt 51).
+        """
+        rec = (
+            db.query(RemediationRecommendation)
+            .filter(
+                RemediationRecommendation.id == recommendation_id,
+                RemediationRecommendation.project_id == project_id,
+            )
+            .first()
+        )
+        if not rec:
+            raise ValueError(f"Remediation recommendation '{recommendation_id}' not found in project '{project_id}'.")
+
+        if rating is not None and not (1 <= rating <= 5):
+            raise ValueError("Feedback rating must be an integer between 1 and 5.")
+
+        clean_comment = (comment or "").strip()[:1000] if comment else None
+
+        feedback = RecommendationFeedback(
+            project_id=project_id,
+            recommendation_id=rec.id,
+            user_id=user.id if user else None,
+            feedback_type=feedback_type,
+            rating=rating,
+            comment=clean_comment,
+            was_actionable=was_actionable,
+            applied_as_instructed=applied_as_instructed,
+        )
+        db.add(feedback)
+        db.flush()
+
+        AuditService.log(
+            db=db,
+            action="REMEDIATION_RECOMMENDATION_FEEDBACK_RECORDED",
+            actor_id=user.id if user else None,
+            target_resource=f"remediation_feedback:{feedback.id}",
+            project_id=project_id,
+            client_ip=client_ip,
+            details={
+                "recommendation_id": rec.id,
+                "feedback_type": feedback_type.value,
+                "rating": rating,
+                "was_actionable": was_actionable,
+            },
+        )
+        db.commit()
+        db.refresh(feedback)
+        return feedback
+
+    @classmethod
+    def get_recommendation_usefulness_metrics(cls, project_id: str, db: Session) -> Dict[str, Any]:
+        """
+        Measures recommendation usefulness strictly from actual review and outcome data (Prompt 51).
+        Never fabricates recommendation-quality metrics.
+        """
+        all_recs = db.query(RemediationRecommendation).filter(RemediationRecommendation.project_id == project_id).all()
+        total_recs = len(all_recs)
+        latest_recs = [r for r in all_recs if r.is_latest]
+
+        by_status = {"PENDING_REVIEW": 0, "APPROVED": 0, "DEFERRED": 0, "REJECTED": 0}
+        by_guidance_type = {g.value: 0 for g in GuidanceType}
+        by_urgency = {u.value: 0 for u in RemediationUrgency}
+        by_business_priority = {b.value: 0 for b in BusinessPriority}
+
+        for r in latest_recs:
+            st = r.status.value if hasattr(r.status, "value") else str(r.status)
+            if st in by_status:
+                by_status[st] += 1
+            gt = r.guidance_type.value if hasattr(r.guidance_type, "value") else str(r.guidance_type)
+            if gt in by_guidance_type:
+                by_guidance_type[gt] += 1
+            urg = r.remediation_urgency.value if hasattr(r.remediation_urgency, "value") else str(r.remediation_urgency)
+            if urg in by_urgency:
+                by_urgency[urg] += 1
+            bp = r.business_priority.value if hasattr(r.business_priority, "value") else str(r.business_priority)
+            if bp in by_business_priority:
+                by_business_priority[bp] += 1
+
+        reviewed_count = by_status["APPROVED"] + by_status["DEFERRED"] + by_status["REJECTED"]
+        approval_rate = round(by_status["APPROVED"] / reviewed_count, 3) if reviewed_count > 0 else None
+
+        # Feedback metrics
+        feedbacks = db.query(RecommendationFeedback).filter(RecommendationFeedback.project_id == project_id).all()
+        total_feedback_count = len(feedbacks)
+        by_feedback_type = {f.value: 0 for f in RecommendationFeedbackType}
+        actionable_count = 0
+        not_actionable_count = 0
+        applied_count = 0
+        ratings: List[int] = []
+
+        for fb in feedbacks:
+            ft = fb.feedback_type.value if hasattr(fb.feedback_type, "value") else str(fb.feedback_type)
+            if ft in by_feedback_type:
+                by_feedback_type[ft] += 1
+            if fb.was_actionable:
+                actionable_count += 1
+            else:
+                not_actionable_count += 1
+            if fb.applied_as_instructed:
+                applied_count += 1
+            if fb.rating is not None:
+                ratings.append(fb.rating)
+
+        actionable_ratio = round(actionable_count / total_feedback_count, 3) if total_feedback_count > 0 else None
+        average_rating = round(sum(ratings) / len(ratings), 2) if ratings else None
+        helpful_tot = by_feedback_type.get("HELPFUL", 0)
+        unhelpful_tot = by_feedback_type.get("UNHELPFUL", 0)
+        helpfulness_ratio = round(helpful_tot / (helpful_tot + unhelpful_tot), 3) if (helpful_tot + unhelpful_tot) > 0 else None
+
+        # Verification / retest metrics
+        verified_recs = [r for r in all_recs if r.verified_outcome is not None or r.verification_id is not None]
+        total_verified_count = len(verified_recs)
+        by_verified_outcome: Dict[str, int] = {}
+        for r in verified_recs:
+            vo = str(r.verified_outcome) if r.verified_outcome else "UNSPECIFIED"
+            by_verified_outcome[vo] = by_verified_outcome.get(vo, 0) + 1
+
+        v_fixed = by_verified_outcome.get("VERIFIED_FIXED", 0)
+        v_persisted = by_verified_outcome.get("STILL_VULNERABLE", 0) + by_verified_outcome.get("PARTIALLY_REMEDIATED", 0)
+        tot_conclusive = v_fixed + v_persisted
+        verified_resolution_rate = round(v_fixed / tot_conclusive, 3) if tot_conclusive > 0 else None
+
+        return {
+            "project_id": project_id,
+            "total_recommendations": total_recs,
+            "latest_recommendations": len(latest_recs),
+            "by_status": by_status,
+            "reviewed_count": reviewed_count,
+            "approval_rate": approval_rate,
+            "by_guidance_type": by_guidance_type,
+            "by_urgency": by_urgency,
+            "by_business_priority": by_business_priority,
+            "total_feedback_count": total_feedback_count,
+            "by_feedback_type": by_feedback_type,
+            "actionable_count": actionable_count,
+            "not_actionable_count": not_actionable_count,
+            "actionable_ratio": actionable_ratio,
+            "applied_count": applied_count,
+            "average_rating": average_rating,
+            "helpfulness_ratio": helpfulness_ratio,
+            "total_verified_count": total_verified_count,
+            "by_verified_outcome": by_verified_outcome,
+            "verified_resolution_rate": verified_resolution_rate,
+            "data_grounding_notice": (
+                "Recommendation usefulness metrics are measured strictly from actual historical review decisions, "
+                "user feedback submissions, and independent re-test verification outcomes. "
+                "Zero synthetic, simulated, or fabricated scores."
+            ),
+        }
 
     @classmethod
     def review_recommendation(

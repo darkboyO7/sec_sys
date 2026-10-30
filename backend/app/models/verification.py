@@ -54,5 +54,5 @@ class RemediationVerification(Base, TimestampMixin):
         "VulnerabilityFinding",
         backref=backref("remediation_verifications", cascade="all, delete-orphan", passive_deletes=True),
     )
-    recommendation = relationship("RemediationRecommendation", backref="verifications")
+    recommendation = relationship("RemediationRecommendation", backref="verifications", foreign_keys=[recommendation_id])
     verifier = relationship("User", foreign_keys=[verifier_id])

@@ -1335,8 +1335,40 @@ def stage_37_environment_separation_and_deployment_profiles() -> StageResult:
     return res
 
 
-def stage_38_frontend_unit_tests() -> StageResult:
-    res = StageResult(38, "Frontend Unit & Contract Acceptance Tests")
+def stage_38_explainable_security_recommendations_and_remediation_prioritization() -> StageResult:
+    res = StageResult(38, "Explainable Security Recommendations and Remediation Prioritization")
+    start = time.perf_counter()
+    try:
+        proc = run_command([
+            str(PYTHON_EXE),
+            "-m",
+            "pytest",
+            "tests/test_prompt51_explainable_recommendations.py",
+            "-v",
+        ], cwd=REPO_ROOT / "backend")
+
+        if proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Prompt 51 explainable recommendations tests failed with code {proc.returncode}:\n{proc.stdout}\n{proc.stderr}")
+            return res
+
+        res.status = "PASSED"
+        res.details["guidance_taxonomy"] = "Explicit distinction: VERIFIED_INSTRUCTION, GENERAL_GUIDANCE, UNVERIFIED_SUGGESTION"
+        res.details["prioritization_dimensions"] = "Separation of technical severity, business priority, confidence, urgency, and effort"
+        res.details["explainability_ranking"] = "Grounded in source evidence, asset criticality, exposure, and factor breakdown"
+        res.details["safeguards_and_governance"] = "Sanitization of model output, prohibition of automated execution, mandatory lead approvals"
+        res.details["lineage_and_feedback"] = "Version history immutability and empirical usefulness metrics verified"
+        res.details["summary"] = "All 11 Prompt 51 explainable recommendation and prioritization tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_39_frontend_unit_tests() -> StageResult:
+    res = StageResult(39, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
@@ -1354,8 +1386,8 @@ def stage_38_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_39_frontend_production_build() -> StageResult:
-    res = StageResult(39, "Frontend Production Distribution Build")
+def stage_40_frontend_production_build() -> StageResult:
+    res = StageResult(40, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -1378,8 +1410,8 @@ def stage_39_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_40_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(40, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_41_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(41, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         from app.services.supply_chain_security_service import SupplyChainSecurityService
@@ -1409,8 +1441,8 @@ def stage_40_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_41_release_packaging_inspection() -> StageResult:
-    res = StageResult(41, "Release Packaging & Clean Artifact Inspection")
+def stage_42_release_packaging_inspection() -> StageResult:
+    res = StageResult(42, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1465,7 +1497,7 @@ def stage_41_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 49)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 51)")
     print("=" * 80)
 
     stages = [
@@ -1506,10 +1538,11 @@ def main():
         stage_35_security_regression_and_control_verification,
         stage_36_forensic_evidence_preservation_and_chain_of_custody,
         stage_37_environment_separation_and_deployment_profiles,
-        stage_38_frontend_unit_tests,
-        stage_39_frontend_production_build,
-        stage_40_secret_and_hygiene_scan,
-        stage_41_release_packaging_inspection,
+        stage_38_explainable_security_recommendations_and_remediation_prioritization,
+        stage_39_frontend_unit_tests,
+        stage_40_frontend_production_build,
+        stage_41_secret_and_hygiene_scan,
+        stage_42_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

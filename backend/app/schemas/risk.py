@@ -2,7 +2,14 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.risk import RiskPriority, RecommendationStatus
+from app.models.risk import (
+    RiskPriority,
+    RecommendationStatus,
+    GuidanceType,
+    BusinessPriority,
+    RemediationUrgency,
+    RecommendationFeedbackType,
+)
 
 
 class RiskAssessmentRead(BaseModel):
@@ -117,8 +124,42 @@ class RemediationRecommendationRead(BaseModel):
     reviewed_by_id: Optional[str] = None
     reviewed_at: Optional[datetime] = None
     review_notes: Optional[str] = None
+
+    # Prompt 51: Explainable Prioritization & Multi-Dimensional Grading
+    guidance_type: GuidanceType = GuidanceType.VERIFIED_INSTRUCTION
+    technical_severity: str = "MEDIUM"
+    business_priority: BusinessPriority = BusinessPriority.P3_MEDIUM
+    confidence: float = 1.0
+    remediation_urgency: RemediationUrgency = RemediationUrgency.SCHEDULED_SPRINT
+
+    source_evidence_ids: List[str] = Field(default_factory=list)
+    ranking_factors: Dict[str, Any] = Field(default_factory=dict)
+    advisory_disclaimer: str = ""
+
+    missing_prerequisites: List[str] = Field(default_factory=list)
+    compatibility_concerns: List[str] = Field(default_factory=list)
+    dependencies: List[str] = Field(default_factory=list)
+
+    # Prompt 51: Version Lineage & Immutability
+    version: int = 1
+    prior_version_id: Optional[str] = None
+    is_latest: bool = True
+    superseded_at: Optional[datetime] = None
+
+    # Prompt 51: Retesting & Verification Linkage
+    verification_id: Optional[str] = None
+    verified_outcome: Optional[str] = None
+
     created_at: datetime
     updated_at: datetime
+
+
+class ExplainableRecommendationGenerateRequest(BaseModel):
+    """
+    Request payload to generate or update an explainable remediation recommendation (Prompt 51).
+    """
+    advisory_input: Optional[Dict[str, Any]] = None
+    force_regenerate: bool = False
 
 
 class RemediationReviewRequest(BaseModel):
@@ -128,3 +169,59 @@ class RemediationReviewRequest(BaseModel):
 
 class AuthorizeChangeRequest(BaseModel):
     change_ticket_ref: str = Field(..., min_length=3, max_length=255)
+
+
+class RecommendationFeedbackCreateRequest(BaseModel):
+    """
+    Feedback submission by security analysts or users (Prompt 51).
+    """
+    feedback_type: RecommendationFeedbackType
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    comment: Optional[str] = Field(None, max_length=1000)
+    was_actionable: bool = True
+    applied_as_instructed: Optional[bool] = None
+
+
+class RecommendationFeedbackRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    project_id: str
+    recommendation_id: str
+    user_id: Optional[str] = None
+    feedback_type: RecommendationFeedbackType
+    rating: Optional[int] = None
+    comment: Optional[str] = None
+    was_actionable: bool = True
+    applied_as_instructed: Optional[bool] = None
+    created_at: datetime
+
+
+class RecommendationUsefulnessMetricsResponse(BaseModel):
+    """
+    Objective, evidence-backed usefulness metrics calculated strictly from review and outcome data (Prompt 51).
+    """
+    project_id: str
+    total_recommendations: int
+    latest_recommendations: int
+    by_status: Dict[str, int]
+    reviewed_count: int
+    approval_rate: Optional[float] = None
+    by_guidance_type: Dict[str, int]
+    by_urgency: Dict[str, int]
+    by_business_priority: Dict[str, int]
+
+    total_feedback_count: int
+    by_feedback_type: Dict[str, int]
+    actionable_count: int
+    not_actionable_count: int
+    actionable_ratio: Optional[float] = None
+    applied_count: int
+    average_rating: Optional[float] = None
+    helpfulness_ratio: Optional[float] = None
+
+    total_verified_count: int
+    by_verified_outcome: Dict[str, int]
+    verified_resolution_rate: Optional[float] = None
+
+    data_grounding_notice: str

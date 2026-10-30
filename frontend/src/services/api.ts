@@ -36,6 +36,9 @@ import type {
   AttackPathAnalysisResponse,
   RemediationRecommendation,
   RecommendationStatus,
+  RecommendationFeedback,
+  RecommendationFeedbackType,
+  RecommendationUsefulnessMetrics,
   ClosedLoopOverview,
   SecurityDecision,
   PostureChange,
@@ -690,10 +693,22 @@ class ApiService {
 
   async listRemediations(
     projectId: string,
-    params?: { status?: RecommendationStatus; limit?: number; offset?: number }
+    params?: {
+      status?: RecommendationStatus;
+      latest_only?: boolean;
+      guidance_type?: string;
+      business_priority?: string;
+      urgency?: string;
+      limit?: number;
+      offset?: number;
+    }
   ): Promise<RemediationRecommendation[]> {
     const query = new URLSearchParams();
     if (params?.status) query.append('status_filter', params.status);
+    if (params?.latest_only !== undefined) query.append('latest_only', params.latest_only ? 'true' : 'false');
+    if (params?.guidance_type) query.append('guidance_type', params.guidance_type);
+    if (params?.business_priority) query.append('business_priority', params.business_priority);
+    if (params?.urgency) query.append('urgency', params.urgency);
     if (params?.limit) query.append('limit', params.limit.toString());
     if (params?.offset) query.append('offset', params.offset.toString());
     const qs = query.toString();
@@ -702,6 +717,47 @@ class ApiService {
 
   async getFindingRemediation(projectId: string, findingId: string): Promise<RemediationRecommendation> {
     return this.request(`/projects/${projectId}/remediations/findings/${findingId}`);
+  }
+
+  // Prompt 51: Explainable Recommendation Generation & Lineage
+  async generateExplainableRecommendation(
+    projectId: string,
+    findingId: string,
+    data?: { advisory_input?: any; force_regenerate?: boolean }
+  ): Promise<RemediationRecommendation> {
+    return this.request(`/projects/${projectId}/findings/${findingId}/recommendations/generate`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+  }
+
+  async getRecommendationVersions(projectId: string, recommendationId: string): Promise<RemediationRecommendation[]> {
+    return this.request(`/projects/${projectId}/remediations/${recommendationId}/versions`);
+  }
+
+  async submitRecommendationFeedback(
+    projectId: string,
+    recommendationId: string,
+    data: {
+      feedback_type: RecommendationFeedbackType;
+      rating?: number;
+      comment?: string;
+      was_actionable?: boolean;
+      applied_as_instructed?: boolean;
+    }
+  ): Promise<RecommendationFeedback> {
+    return this.request(`/projects/${projectId}/remediations/${recommendationId}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getRecommendationFeedback(projectId: string, recommendationId: string): Promise<RecommendationFeedback[]> {
+    return this.request(`/projects/${projectId}/remediations/${recommendationId}/feedback`);
+  }
+
+  async getRecommendationUsefulnessMetrics(projectId: string): Promise<RecommendationUsefulnessMetrics> {
+    return this.request(`/projects/${projectId}/remediations/metrics/usefulness`);
   }
 
   async reviewRemediation(

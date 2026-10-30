@@ -125,6 +125,11 @@ def test_phase13_change_authorization_governance_boundary(
     lead_user: User,
 ):
     """Verify change authorization strictly requires APPROVED status, LEAD/ADMIN role, and change ticket ref."""
+    from app.services.governance_service import ProjectGovernanceService
+    policy = ProjectGovernanceService.get_or_create_policy(db, test_project.id)
+    policy.allow_self_approval_override = True
+    db.commit()
+
     finding = VulnerabilityFinding(
         project_id=test_project.id,
         fingerprint="fp-phase13-patch-03",
@@ -204,6 +209,11 @@ def test_phase13_remediation_api_authorize_change(
     lead_user: User,
 ):
     """Verify HTTP API endpoint for change authorization enforces authentication and role governance."""
+    from app.services.governance_service import ProjectGovernanceService
+    policy = ProjectGovernanceService.get_or_create_policy(db, test_project.id)
+    policy.allow_self_approval_override = True
+    db.commit()
+
     finding = VulnerabilityFinding(
         project_id=test_project.id,
         fingerprint="fp-phase13-api-04",

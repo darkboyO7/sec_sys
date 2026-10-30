@@ -6,7 +6,17 @@ from sqlalchemy import func
 from app.core.database import get_db
 from app.models.user import User, SystemRole
 from app.models.project import ProjectRole
-from app.models.risk import RiskAssessment, RiskPriority, RemediationRecommendation, RecommendationStatus
+from app.models.risk import (
+    RiskAssessment,
+    RiskPriority,
+    RemediationRecommendation,
+    RecommendationStatus,
+    GuidanceType,
+    BusinessPriority,
+    RemediationUrgency,
+    RecommendationFeedbackType,
+    RecommendationFeedback,
+)
 from app.models.finding import VulnerabilityFinding, FindingLifecycleStatus
 from app.schemas.risk import (
     RiskAssessmentRead,
@@ -16,6 +26,10 @@ from app.schemas.risk import (
     RemediationRecommendationRead,
     RemediationReviewRequest,
     AuthorizeChangeRequest,
+    ExplainableRecommendationGenerateRequest,
+    RecommendationFeedbackCreateRequest,
+    RecommendationFeedbackRead,
+    RecommendationUsefulnessMetricsResponse,
 )
 from app.services.contextual_risk_service import ContextualRiskService
 from app.services.attack_path_service import AttackPathAnalysisService
@@ -281,19 +295,31 @@ def analyze_attack_paths(
 def list_remediation_recommendations(
     project_id: str,
     status_filter: Optional[RecommendationStatus] = Query(None, description="Filter by review status"),
+    latest_only: bool = Query(True, description="Filter for latest active versions"),
+    guidance_type: Optional[str] = Query(None, description="Filter by guidance type"),
+    business_priority: Optional[str] = Query(None, description="Filter by business priority"),
+    urgency: Optional[str] = Query(None, description="Filter by remediation urgency"),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    List remediation recommendations for the project with optional status filter.
+    List remediation recommendations for the project with optional multi-dimensional filters.
     """
     verify_project_access(project_id, current_user, db)
 
     query = db.query(RemediationRecommendation).filter(RemediationRecommendation.project_id == project_id)
+    if latest_only:
+        query = query.filter(RemediationRecommendation.is_latest == True)
     if status_filter:
         query = query.filter(RemediationRecommendation.status == status_filter)
+    if guidance_type:
+        query = query.filter(RemediationRecommendation.guidance_type == guidance_type)
+    if business_priority:
+        query = query.filter(RemediationRecommendation.business_priority == business_priority)
+    if urgency:
+        query = query.filter(RemediationRecommendation.remediation_urgency == urgency)
 
     return (
         query.order_by(RemediationRecommendation.created_at.desc())
@@ -458,4 +484,148 @@ def authorize_remediation_change(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+
+@router.post(
+    "/projects/{project_id}/findings/{finding_id}/recommendations/generate",
+    response_model=RemediationRecommendationRead,
+    summary="Generate or update explainable remediation recommendation",
+)
+def generate_explainable_finding_remediation(
+    project_id: str,
+    finding_id: str,
+    body: ExplainableRecommendationGenerateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generates or regenerates an explainable, evidence-backed remediation recommendation (Prompt 51).
+    Discloses source evidence, ranking factors breakdown, and advisory limitations.
+    Never fabricates commands or resolution certainty.
+    """
+    verify_project_access(project_id, current_user, db)
+    client_ip = get_client_ip(request)
+
+    try:
+        return RemediationPrioritizationService.generate_explainable_recommendation(
+            project_id=project_id,
+            finding_id=finding_id,
+            db=db,
+            actor=current_user,
+            client_ip=client_ip,
+            advisory_input=body.advisory_input,
+            force_regenerate=body.force_regenerate,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get(
+    "/projects/{project_id}/remediations/{recommendation_id}/versions",
+    response_model=List[RemediationRecommendationRead],
+    summary="Get full version lineage of remediation recommendation",
+)
+def get_recommendation_versions(
+    project_id: str,
+    recommendation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieves chronological version history without rewriting prior decisions (Prompt 51).
+    """
+    verify_project_access(project_id, current_user, db)
+    try:
+        return RemediationPrioritizationService.get_recommendation_versions(
+            project_id=project_id,
+            recommendation_id=recommendation_id,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post(
+    "/projects/{project_id}/remediations/{recommendation_id}/feedback",
+    response_model=RecommendationFeedbackRead,
+    summary="Submit user/analyst feedback on recommendation usefulness",
+)
+def submit_recommendation_feedback(
+    project_id: str,
+    recommendation_id: str,
+    body: RecommendationFeedbackCreateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Records review feedback on recommendation usefulness (Prompt 51).
+    Grounds usefulness metrics strictly in historical user submissions.
+    """
+    verify_project_access(project_id, current_user, db)
+    client_ip = get_client_ip(request)
+    try:
+        return RemediationPrioritizationService.record_feedback(
+            project_id=project_id,
+            recommendation_id=recommendation_id,
+            feedback_type=body.feedback_type,
+            user=current_user,
+            db=db,
+            rating=body.rating,
+            comment=body.comment,
+            was_actionable=body.was_actionable,
+            applied_as_instructed=body.applied_as_instructed,
+            client_ip=client_ip,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get(
+    "/projects/{project_id}/remediations/{recommendation_id}/feedback",
+    response_model=List[RecommendationFeedbackRead],
+    summary="List feedback entries for a recommendation",
+)
+def list_recommendation_feedback(
+    project_id: str,
+    recommendation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Lists feedback submitted for a specific recommendation.
+    """
+    verify_project_access(project_id, current_user, db)
+    return (
+        db.query(RecommendationFeedback)
+        .filter(
+            RecommendationFeedback.project_id == project_id,
+            RecommendationFeedback.recommendation_id == recommendation_id,
+        )
+        .order_by(RecommendationFeedback.created_at.desc())
+        .all()
+    )
+
+
+@router.get(
+    "/projects/{project_id}/remediations/metrics/usefulness",
+    response_model=RecommendationUsefulnessMetricsResponse,
+    summary="Get recommendation usefulness metrics grounded in actual data",
+)
+def get_recommendation_usefulness_metrics(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Measures recommendation usefulness strictly from actual review and outcome data (Prompt 51).
+    Zero fabricated or synthetic metrics.
+    """
+    verify_project_access(project_id, current_user, db)
+    return RemediationPrioritizationService.get_recommendation_usefulness_metrics(
+        project_id=project_id,
+        db=db,
+    )
+
 

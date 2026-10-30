@@ -704,6 +704,12 @@ export interface AttackPathAnalysisResponse {
 
 export type RecommendationStatus = 'PENDING_REVIEW' | 'APPROVED' | 'DEFERRED' | 'REJECTED';
 
+// Prompt 51: Multi-Dimensional Prioritization & Explainability Types
+export type GuidanceType = 'VERIFIED_INSTRUCTION' | 'GENERAL_GUIDANCE' | 'UNVERIFIED_SUGGESTION';
+export type BusinessPriority = 'P1_CRITICAL' | 'P2_HIGH' | 'P3_MEDIUM' | 'P4_LOW';
+export type RemediationUrgency = 'IMMEDIATE' | 'SCHEDULED_SPRINT' | 'NEXT_CYCLE' | 'BACKLOG';
+export type RecommendationFeedbackType = 'HELPFUL' | 'UNHELPFUL' | 'INACCURATE' | 'INCOMPLETE' | 'OUTDATED' | 'IRRELEVANT';
+
 export interface RemediationRecommendation {
   id: string;
   project_id: string;
@@ -715,6 +721,10 @@ export interface RemediationRecommendation {
   rationale: string;
   qualitative_benefit: string;
   estimated_risk_reduction?: number | null;
+  root_cause?: string | null;
+  recommended_change?: string | null;
+  estimated_effort?: string | null;
+  related_controls?: string[];
   prerequisites: string[];
   operational_impact: string;
   rollback_procedure: string;
@@ -728,8 +738,65 @@ export interface RemediationRecommendation {
   review_notes?: string | null;
   execution_governance_stage?: string;
   external_change_ticket_ref?: string;
+
+  // Prompt 51: Explainable Prioritization & Multi-Dimensional Grading
+  guidance_type?: GuidanceType;
+  technical_severity?: string;
+  business_priority?: BusinessPriority;
+  confidence?: number;
+  remediation_urgency?: RemediationUrgency;
+  source_evidence_ids?: string[];
+  ranking_factors?: Record<string, any>;
+  advisory_disclaimer?: string;
+  missing_prerequisites?: string[];
+  compatibility_concerns?: string[];
+  dependencies?: string[];
+  version?: number;
+  prior_version_id?: string | null;
+  is_latest?: boolean;
+  superseded_at?: string | null;
+  verification_id?: string | null;
+  verified_outcome?: string | null;
+
   created_at: string;
   updated_at: string;
+}
+
+export interface RecommendationFeedback {
+  id: string;
+  project_id: string;
+  recommendation_id: string;
+  user_id?: string | null;
+  feedback_type: RecommendationFeedbackType;
+  rating?: number | null;
+  comment?: string | null;
+  was_actionable: boolean;
+  applied_as_instructed?: boolean | null;
+  created_at: string;
+}
+
+export interface RecommendationUsefulnessMetrics {
+  project_id: string;
+  total_recommendations: number;
+  latest_recommendations: number;
+  by_status: Record<string, number>;
+  reviewed_count: number;
+  approval_rate?: number | null;
+  by_guidance_type: Record<string, number>;
+  by_urgency: Record<string, number>;
+  by_business_priority: Record<string, number>;
+  total_feedback_count: number;
+  by_feedback_type: Record<string, number>;
+  actionable_count: number;
+  not_actionable_count: number;
+  actionable_ratio?: number | null;
+  applied_count: number;
+  average_rating?: number | null;
+  helpfulness_ratio?: number | null;
+  total_verified_count: number;
+  by_verified_outcome: Record<string, number>;
+  verified_resolution_rate?: number | null;
+  data_grounding_notice: string;
 }
 
 // Phase 14: Independent Remediation Verification
