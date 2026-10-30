@@ -1,0 +1,35 @@
+# PROMPT 45 - Secrets Management, Configuration Validation and Credential Lifecycle Security
+
+Work in the existing VAPT System repository at `D:\alt`.
+
+## Objective
+Harden the complete credential and configuration lifecycle without breaking the existing Windows development workflow.
+
+### Phase 1: Inspect
+- Inspect backend settings, environment variables, `.env` files, frontend configuration, provider credentials, authentication secrets, database configuration, logging, startup scripts, and release packaging.
+- Search for hardcoded credentials, insecure fallback secrets, accidentally exposed tokens, and sensitive values in logs or tests.
+- Inspect Git status before editing. Preserve unrelated changes and never modify `C:\Users\Dark_Boy_\Downloads\VAPT_System`.
+
+### Phase 2: Implement
+1. Establish one validated backend configuration system with explicit types, constraints, and safe defaults.
+2. Fail closed when a production-like deployment lacks required authentication secrets or secure configuration.
+3. Distinguish development configuration from production configuration.
+4. Prevent frontend build variables from exposing backend secrets. Treat every `VITE_*` variable as potentially public.
+5. Add secure secret redaction for logs, exceptions, diagnostics, and exported reports.
+6. Inspect credential storage for external integrations. Use an appropriate operating-system or deployment secret store when practical; otherwise document a safer local configuration method.
+7. Support credential rotation without exposing secret values in administrative APIs.
+8. Remove insecure fallback credentials only after providing a documented migration path.
+9. Ensure generated reports, backups, temporary files, and release archives do not accidentally contain secrets.
+10. Add a configuration diagnostic that reports missing or invalid settings without revealing their values.
+11. Add a secret-scanning gate to release validation, using an existing tool where available.
+12. Document secret rotation, revocation, recovery, and incident response.
+
+### Phase 3: Test
+Test missing secrets, invalid URLs, malformed configuration, production startup with unsafe settings, secret redaction, credential rotation, and accidental secret inclusion in release artifacts.
+
+Never print real secrets during tests. Use synthetic credentials and isolated configuration.
+
+### Acceptance
+The application must reject unsafe production configurations, preserve supported local development, and never expose secret values through the UI, logs, APIs, or release package.
+
+Run relevant backend and frontend tests, type checks, and builds. Report exact changed files, commands, results, remaining risks, and Git status. Never fabricate a successful security audit.

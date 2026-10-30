@@ -18,6 +18,7 @@ import tarfile
 import tempfile
 import time
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
@@ -108,9 +109,9 @@ SECRET_PATTERNS = [
 ]
 
 FORBIDDEN_RELEASE_PATTERNS = [
-    r"\.env$",
-    r"\.env\.local$",
-    r"\.env\..*\.local$",
+    r"^\.env$",
+    r"^\.env\.local$",
+    r"^\.env\..*\.local$",
     r"^\.git$",
     r"^node_modules$",
     r"^\.venv$",
@@ -121,8 +122,12 @@ FORBIDDEN_RELEASE_PATTERNS = [
     r"-wal$",
     r"-shm$",
     r"-journal$",
-    r"vapt_test\.db",
-    r"vapt\.db",
+    r"^vapt_test\.db$",
+    r"^vapt\.db$",
+    r"\.log$",
+    r"^temp_evidence$",
+    r"^\.coverage$",
+    r"^htmlcov$",
 ]
 
 
@@ -566,15 +571,25 @@ class SupplyChainSecurityService:
         version: str = "1.0.0",
         signing_key: Optional[str] = None,
         output_dir: Optional[Path] = None,
+        as_candidate: bool = False,
     ) -> Tuple[Path, Path]:
         """
-        Builds a clean, deterministic release archive (dist/vapt-platform-v{version}.tar.gz)
-        and signs the release manifest with HMAC-SHA256 cryptographic provenance.
+        Builds a clean, deterministic release archive and signs the release manifest with HMAC-SHA256.
+        When as_candidate=True, places artifacts in dist/candidates to preserve last-known-good releases.
         """
-        out_dir = output_dir or self.dist_dir
+        base_dir = output_dir or self.dist_dir
+        if as_candidate:
+            out_dir = base_dir / "candidates"
+            archive_name = f"vapt-platform-v{version}-candidate.tar.gz"
+            manifest_name = f"release-manifest-v{version}-candidate.json"
+        else:
+            out_dir = base_dir
+            archive_name = f"vapt-platform-v{version}.tar.gz"
+            manifest_name = "release-manifest.json"
+
         out_dir.mkdir(parents=True, exist_ok=True)
-        archive_path = out_dir / f"vapt-platform-v{version}.tar.gz"
-        manifest_path = out_dir / "release-manifest.json"
+        archive_path = out_dir / archive_name
+        manifest_path = out_dir / manifest_name
 
         # Generate fresh SBOMs for inclusion in release
         cdx_sbom = self.generate_cyclonedx_sbom()
@@ -584,24 +599,29 @@ class SupplyChainSecurityService:
         # Files to package
         file_entries: List[ReleaseFileEntry] = []
 
-        def _is_forbidden_path(rel_p: str) -> bool:
-            return any(re.search(pat, rel_p, re.IGNORECASE) for pat in FORBIDDEN_RELEASE_PATTERNS)
+        def _is_forbidden_path(rel_p: str, file_name: str) -> bool:
+            if any(rel_p.startswith(prefix) for prefix in ["backend/data", "backend/tests"]):
+                return True
+            return any(
+                re.search(pat, file_name, re.IGNORECASE) or re.search(pat, rel_p, re.IGNORECASE)
+                for pat in FORBIDDEN_RELEASE_PATTERNS
+            )
 
         with tarfile.open(archive_path, "w:gz") as tar:
-            # Package backend
+            # 1. Package backend runtime & migrations
             for root, dirs, files in os.walk(str(self.backend_dir)):
-                dirs[:] = [d for d in dirs if d not in {".venv", "__pycache__", ".pytest_cache"}]
+                dirs[:] = [d for d in dirs if d not in {".venv", "__pycache__", ".pytest_cache", "data", "tests"}]
                 for file in files:
                     full_p = Path(root) / file
                     rel_p = "backend/" + str(full_p.relative_to(self.backend_dir)).replace("\\", "/")
-                    if _is_forbidden_path(rel_p):
+                    if _is_forbidden_path(rel_p, file):
                         continue
                     file_bytes = full_p.read_bytes()
                     file_sha = hashlib.sha256(file_bytes).hexdigest()
                     file_entries.append(ReleaseFileEntry(path=rel_p, size_bytes=len(file_bytes), sha256=file_sha))
                     tar.add(str(full_p), arcname=rel_p)
 
-            # Package frontend dist if built
+            # 2. Package frontend dist if built
             frontend_dist = self.frontend_dir / "dist"
             if frontend_dist.exists():
                 for root, _, files in os.walk(str(frontend_dist)):
@@ -613,7 +633,37 @@ class SupplyChainSecurityService:
                         file_entries.append(ReleaseFileEntry(path=rel_p, size_bytes=len(file_bytes), sha256=file_sha))
                         tar.add(str(full_p), arcname=rel_p)
 
-            # Package SBOM
+            # 3. Package Windows startup, upgrade, and health scripts
+            windows_scripts_dir = self.repo_root / "scripts" / "windows"
+            if windows_scripts_dir.exists():
+                for root, _, files in os.walk(str(windows_scripts_dir)):
+                    for file in files:
+                        full_p = Path(root) / file
+                        rel_p = "scripts/windows/" + str(full_p.relative_to(windows_scripts_dir)).replace("\\", "/")
+                        file_bytes = full_p.read_bytes()
+                        file_sha = hashlib.sha256(file_bytes).hexdigest()
+                        file_entries.append(ReleaseFileEntry(path=rel_p, size_bytes=len(file_bytes), sha256=file_sha))
+                        tar.add(str(full_p), arcname=rel_p)
+
+            # 4. Package upgrade utility script
+            upgrade_py = self.repo_root / "scripts" / "upgrade_platform.py"
+            if upgrade_py.exists():
+                rel_p = "scripts/upgrade_platform.py"
+                file_bytes = upgrade_py.read_bytes()
+                file_sha = hashlib.sha256(file_bytes).hexdigest()
+                file_entries.append(ReleaseFileEntry(path=rel_p, size_bytes=len(file_bytes), sha256=file_sha))
+                tar.add(str(upgrade_py), arcname=rel_p)
+
+            # 5. Package root launchers & templates
+            for root_file in ["start_platform.bat", "upgrade_platform.bat", ".env.example", ".env.production.example", "README.md"]:
+                rf_path = self.repo_root / root_file
+                if rf_path.exists():
+                    file_bytes = rf_path.read_bytes()
+                    file_sha = hashlib.sha256(file_bytes).hexdigest()
+                    file_entries.append(ReleaseFileEntry(path=root_file, size_bytes=len(file_bytes), sha256=file_sha))
+                    tar.add(str(rf_path), arcname=root_file)
+
+            # 6. Package CycloneDX SBOM
             if cdx_file.exists():
                 rel_p = "reports/sbom/vapt-sbom.cdx.json"
                 file_bytes = cdx_file.read_bytes()
@@ -648,6 +698,27 @@ class SupplyChainSecurityService:
             f.write(manifest.model_dump_json(indent=2))
 
         return archive_path, manifest_path
+
+    def promote_release_candidate(
+        self,
+        candidate_archive: Path,
+        candidate_manifest: Path,
+        target_dir: Optional[Path] = None,
+        version: str = "1.0.0",
+    ) -> Tuple[Path, Path]:
+        """
+        Safely promotes a verified release candidate to the primary release destination.
+        Atomic copy ensures the last-known-good release is never overwritten until
+        acceptance gates pass.
+        """
+        dest_dir = target_dir or self.dist_dir
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        final_archive = dest_dir / f"vapt-platform-v{version}.tar.gz"
+        final_manifest = dest_dir / "release-manifest.json"
+
+        shutil.copy2(candidate_archive, final_archive)
+        shutil.copy2(candidate_manifest, final_manifest)
+        return final_archive, final_manifest
 
     def verify_release_package(
         self,

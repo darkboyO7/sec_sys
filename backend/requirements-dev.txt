@@ -1,0 +1,4 @@
+# VAPT Platform — Development, Testing & Verification Dependencies
+-r requirements.txt
+pytest==8.4.2
+pytest-asyncio==1.4.0
