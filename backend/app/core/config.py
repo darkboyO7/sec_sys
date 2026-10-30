@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "evidence").resolve().as_posix())
     TEST_EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "test_evidence").resolve().as_posix())
 
+    # Prompt 52: Fault Injection Controls (Strictly test-only)
+    FAULT_INJECTION_ENABLED: bool = False
+
     @field_validator("ENVIRONMENT")
     @classmethod
     def validate_environment(cls, v: str) -> str:
@@ -159,6 +162,12 @@ class Settings(BaseSettings):
             if "sqlite" in self.DATABASE_URL.lower():
                 raise ValueError(
                     f"SQLite database is forbidden in {env_lower} mode. A managed enterprise PostgreSQL database is required."
+                )
+
+            # Reject Fault Injection in production-like environments (Prompt 52)
+            if self.FAULT_INJECTION_ENABLED:
+                raise ValueError(
+                    f"FAULT_INJECTION_ENABLED must be False in {env_lower} mode. Fault injection is strictly prohibited in production and staging."
                 )
 
             # Validate PostgreSQL connection string credentials
@@ -344,6 +353,18 @@ class Settings(BaseSettings):
             "strength": "STRONG" if self.SECRET_REDACTION_ENABLED else "WEAK",
             "redacted_value": str(self.SECRET_REDACTION_ENABLED),
             "message": "Global secret redaction filter active for logs, exceptions, and diagnostics.",
+        })
+
+        # 9. FAULT_INJECTION_ENABLED (Prompt 52)
+        fi_status = "FAIL" if (is_prod and self.FAULT_INJECTION_ENABLED) else "PASS"
+        diagnostics.append({
+            "key": "FAULT_INJECTION_ENABLED",
+            "is_secret": False,
+            "configured": True,
+            "status": fi_status,
+            "strength": "STRONG" if not self.FAULT_INJECTION_ENABLED else "WEAK",
+            "redacted_value": str(self.FAULT_INJECTION_ENABLED),
+            "message": "Fault injection disabled (safe)" if not self.FAULT_INJECTION_ENABLED else "Fault injection enabled (test only)",
         })
 
         return diagnostics

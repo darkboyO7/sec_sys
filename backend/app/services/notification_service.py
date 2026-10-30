@@ -295,6 +295,10 @@ class NotificationService:
         )
 
         try:
+            # Prompt 52: Deterministic Fault Injection Hook (Test-Only)
+            from app.core.fault_injection import FaultInjector
+            FaultInjector.maybe_inject("provider:webhook", {"webhook_url": webhook_url, "notification_id": notification.id})
+
             with urllib.request.urlopen(req, timeout=5.0) as resp:
                 status_code = resp.status
                 notification.status = NotificationStatus.DELIVERED

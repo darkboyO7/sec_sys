@@ -477,6 +477,29 @@ class AssessmentExecutionEngine:
 
         try:
             AssessmentStateMachine.record_heartbeat(job, now=now)
+
+            # Prompt 52: Deterministic Fault Injection Hooks (Test-Only)
+            from app.core.fault_injection import (
+                FaultInjector,
+                AdapterTimeoutError,
+                WorkerTerminationError,
+                DatabaseInterruptionError,
+                MalformedResponseError,
+            )
+            FaultInjector.maybe_inject("adapter:execute", {"adapter_name": job.adapter_name, "job_id": job.id})
+            FaultInjector.maybe_inject("adapter:timeout", {"adapter_name": job.adapter_name, "job_id": job.id})
+
+            # Injected Worker Termination: Simulates abrupt worker crash mid-execution
+            # Sets heartbeat back into the past and leaves job in RUNNING state for recovery engine
+            if FaultInjector.is_injection_permitted():
+                try:
+                    FaultInjector.maybe_inject("worker:termination", {"job_id": job.id})
+                except WorkerTerminationError as wte:
+                    job.heartbeat_at = now - timedelta(seconds=job.timeout_seconds + 60)
+                    db.commit()
+                    logger.warning(f"Injected worker termination: Job '{job.id}' left in RUNNING status.")
+                    raise wte
+
             if getattr(settings, "EXECUTION_MODE", "SUBPROCESS") == "SUBPROCESS":
                 runner = SubprocessWorkerRunner()
                 ipc_req = WorkerIPCRequest(
@@ -514,6 +537,29 @@ class AssessmentExecutionEngine:
                     config=job.config,
                     cancellation_check=check_cancellation,
                 )
+        except WorkerTerminationError:
+            # Return job in RUNNING state to simulate worker crash before status transition
+            return job
+        except AdapterTimeoutError as te:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.TIMED_OUT,
+                error_message=f"Adapter execution deadline exceeded: {str(te)}",
+                failure_category="WORKER_PROCESS_TIMEOUT",
+                now=now,
+            )
+            db.commit()
+            return job
+        except MalformedResponseError as me:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.FAILED,
+                error_message=f"Malformed scanner payload rejected at execution boundary: {str(me)}",
+                failure_category="CORRUPT_IPC_RESPONSE",
+                now=now,
+            )
+            db.commit()
+            return job
         except Exception as e:
             AssessmentStateMachine.transition(
                 job=job,
@@ -558,6 +604,9 @@ class AssessmentExecutionEngine:
 
         try:
             with db.begin_nested():
+                # Prompt 52: Injected DB interruption hook
+                FaultInjector.maybe_inject("db:commit:findings", {"job_id": job.id})
+
                 for raw_finding in raw_findings:
                     # Validate CVSS numeric sanity (sanitize non-finite/NaN/inf)
                     safe_cvss = raw_finding.cvss_score
@@ -687,6 +736,7 @@ class AssessmentExecutionEngine:
 
         # Step 8: Reconcile Asset Inventory and auto-populate Security Knowledge Graph
         try:
+            FaultInjector.maybe_inject("secondary:asset_graph", {"job_id": job.id})
             cls.integrate_assessment_assets_and_graph(
                 job=job,
                 canonical_findings=canonical_findings,
@@ -698,6 +748,12 @@ class AssessmentExecutionEngine:
             logging.getLogger("vapt.assessment").warning(
                 f"Asset/Graph integration warning for job {job.id}: {e}", exc_info=True
             )
+            # Record secondary service degradation without discarding findings or audit logs
+            cur_stats = dict(job.summary_stats or {})
+            deg_list = list(cur_stats.get("secondary_degradations", []))
+            deg_list.append(f"Asset/Graph integration degraded: {str(e)}")
+            cur_stats["secondary_degradations"] = deg_list
+            job.summary_stats = cur_stats
 
         db.commit()
         db.refresh(job)
@@ -1239,3 +1295,132 @@ class AssessmentExecutionEngine:
             db.commit()
 
         return recovered
+
+    @classmethod
+    def execute_batch_assessment(
+        cls,
+        db: Session,
+        job_id: str,
+        targets: List[str],
+        worker_id: str = "worker-01",
+        now: Optional[datetime] = None,
+    ) -> AssessmentJob:
+        """
+        Executes an assessment job against a batch of targets, ensuring truthful partial success reporting (Prompt 52).
+        - If any target fails or is interrupted, the overall job status is strictly PARTIAL (never falsely COMPLETED).
+        - Explicitly records completed_targets and failed_targets in summary_stats.
+        - Supports deterministic fault injection (trigger_point='background:task').
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        job = db.query(AssessmentJob).filter(AssessmentJob.id == job_id).first()
+        if not job:
+            raise ValueError(f"Assessment job '{job_id}' not found.")
+
+        job.status = AssessmentStatus.RUNNING
+        job.started_at = now
+        job.claimed_by = worker_id
+        db.commit()
+
+        completed_targets: List[str] = []
+        failed_targets: List[Dict[str, Any]] = []
+        all_errors: List[str] = []
+
+        from app.core.fault_injection import FaultInjector, InterruptedBackgroundTaskError
+
+        for target in targets:
+            # Deterministic interruption hook (Prompt 52 Scenario 7)
+            try:
+                FaultInjector.maybe_inject("background:task", {"job_id": job.id, "target": target})
+            except InterruptedBackgroundTaskError as ite:
+                logger.warning(f"Batch execution interrupted on target '{target}': {ite}")
+                failed_targets.append({
+                    "target": target,
+                    "error": str(ite),
+                    "failure_category": "BACKGROUND_TASK_INTERRUPTED",
+                })
+                all_errors.append(f"Interrupted on target '{target}': {str(ite)}")
+                break
+
+            # Preflight Scope validation for target
+            scope_eval = ScopeEngine.validate_target_in_scope(
+                db=db,
+                project_id=job.project_id,
+                target=target,
+                now=now,
+            )
+            if not scope_eval.get("is_authorized"):
+                failed_targets.append({
+                    "target": target,
+                    "error": f"Target outside authorized scope: {scope_eval.get('reason')}",
+                    "failure_category": "SCOPE_AUTHORIZATION_DENIED",
+                })
+                all_errors.append(f"Target '{target}' denied: {scope_eval.get('reason')}")
+                continue
+
+            # Execute adapter for target
+            adapter = AdapterRegistry.get(job.adapter_name)
+            if not adapter:
+                failed_targets.append({
+                    "target": target,
+                    "error": f"Adapter '{job.adapter_name}' not found",
+                    "failure_category": "UNSUPPORTED_ADAPTER",
+                })
+                all_errors.append(f"Unknown adapter '{job.adapter_name}'")
+                continue
+
+            try:
+                res = adapter.execute(target=target, config=job.config)
+                if res.success:
+                    completed_targets.append(target)
+                else:
+                    failed_targets.append({
+                        "target": target,
+                        "error": "; ".join(res.errors),
+                        "failure_category": res.failure_category or "ADAPTER_EXECUTION_FAILURE",
+                    })
+                    all_errors.extend(res.errors)
+            except Exception as ex:
+                failed_targets.append({
+                    "target": target,
+                    "error": str(ex),
+                    "failure_category": "DRIVER_EXCEPTION",
+                })
+                all_errors.append(f"Execution failed on target '{target}': {str(ex)}")
+
+        # Determine honest final status
+        total_count = len(targets)
+        completed_count = len(completed_targets)
+        failed_count = len(failed_targets)
+
+        if completed_count == total_count and failed_count == 0:
+            final_status = AssessmentStatus.COMPLETED
+            summary_msg = f"All {total_count} target(s) successfully assessed."
+            failure_cat = None
+        elif completed_count > 0 and failed_count > 0:
+            final_status = AssessmentStatus.PARTIAL
+            summary_msg = f"Partial success: {completed_count}/{total_count} targets succeeded; {failed_count} failed or interrupted."
+            failure_cat = "PARTIAL_MODULE_FAILURE"
+        else:
+            final_status = AssessmentStatus.FAILED
+            summary_msg = f"Batch assessment failed: 0/{total_count} targets succeeded."
+            failure_cat = failed_targets[0]["failure_category"] if failed_targets else "BATCH_EXECUTION_FAILED"
+
+        job.status = final_status
+        job.completed_at = datetime.now(timezone.utc)
+        job.error_message = "; ".join(all_errors) if all_errors else None
+        job.failure_category = failure_cat
+        job.summary_stats = {
+            "status_summary": summary_msg,
+            "total_targets": total_count,
+            "completed_targets": completed_targets,
+            "failed_targets": failed_targets,
+            "completed_count": completed_count,
+            "failed_count": failed_count,
+            "errors": all_errors,
+        }
+
+        db.commit()
+        db.refresh(job)
+        return job

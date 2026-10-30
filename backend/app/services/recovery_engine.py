@@ -129,6 +129,16 @@ class RecoveryEngineService:
                 outcome = RecoveryOutcome.FAILED
                 verification_notes = f"Recovery rejected: Target '{orig_job.target_input}' is outside authorized scope."
                 post_condition = {"scope_error": "OUT_OF_SCOPE"}
+            elif orig_job.status in (AssessmentStatus.QUEUED, AssessmentStatus.RUNNING, AssessmentStatus.PREFLIGHT):
+                # Idempotency & duplicate prevention (Prompt 52 Requirement 5)
+                outcome = RecoveryOutcome.FAILED
+                verification_notes = f"Recovery rejected: Job '{orig_job.id}' is currently active in status '{orig_job.status.value}'. Retrying denied to prevent duplicate assessment."
+                post_condition = {"error": "JOB_ALREADY_ACTIVE", "status": orig_job.status.value}
+            elif orig_job.retry_count >= orig_job.max_retries:
+                # Bounded retry budget (Prompt 52 Requirement 6)
+                outcome = RecoveryOutcome.FAILED
+                verification_notes = f"Recovery aborted: Maximum retry budget exhausted ({orig_job.max_retries} attempts)."
+                post_condition = {"error": "MAX_RETRIES_EXHAUSTED", "attempts": orig_job.retry_count}
             else:
                 # Preflight Policy Enforcement
                 policy_eval = PolicyEngineService.evaluate_action_permission(
@@ -147,8 +157,10 @@ class RecoveryEngineService:
                         target_input=orig_job.target_input,
                         adapter_name=orig_job.adapter_name,
                         status=AssessmentStatus.QUEUED,
+                        idempotency_key=f"retry:{orig_job.id}:{orig_job.retry_count + 1}",
                         created_by_id=actor.id if actor else None,
                     )
+                    orig_job.retry_count += 1
                     db.add(new_job)
                     db.commit()
 
@@ -157,7 +169,7 @@ class RecoveryEngineService:
                         "new_status": new_job.status.value,
                     }
                     outcome = RecoveryOutcome.SUCCESS
-                    verification_notes = f"New retry job '{new_job.id}' enqueued successfully."
+                    verification_notes = f"New retry job '{new_job.id}' enqueued successfully (attempt {orig_job.retry_count}/{orig_job.max_retries})."
 
         # ----------------------------------------------------------------------
         # Action 3: REQUEUE_NOTIFICATION

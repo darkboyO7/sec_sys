@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -47,4 +47,17 @@ class DependencyHealthResponse(BaseModel):
     critical_healthy: bool
     timestamp: datetime
     dependencies: Dict[str, DependencyItemCheck]
+    summary: str
+
+
+class DegradationHealthResponse(BaseModel):
+    status: str  # "healthy", "degraded", "unhealthy"
+    timestamp: datetime
+    critical_healthy: bool
+    capabilities: Dict[str, Any]
+    degraded_capabilities: List[str] = Field(default_factory=list)
+    failure_playbooks: Dict[str, Any] = Field(default_factory=dict)
+    fault_injection_active: bool = False
+    active_fault_rules: List[Dict[str, Any]] = Field(default_factory=list)
+    operator_recommendations: List[str] = Field(default_factory=list)
     summary: str

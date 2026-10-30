@@ -8,6 +8,7 @@ import type {
   ScopeValidationResult,
   AuditEvent,
   ReadinessResponse,
+  DegradationHealthResponse,
   AssessmentJob,
   AssessmentFinding,
   AdapterCapability,
@@ -246,6 +247,10 @@ class ApiService {
 
   async getReadiness(): Promise<ReadinessResponse> {
     return this.request('/ready');
+  }
+
+  async getDegradationStatus(): Promise<DegradationHealthResponse> {
+    return this.request('/health/degradation');
   }
 
   // Authentication

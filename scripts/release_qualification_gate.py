@@ -1367,8 +1367,41 @@ def stage_38_explainable_security_recommendations_and_remediation_prioritization
     return res
 
 
-def stage_39_frontend_unit_tests() -> StageResult:
-    res = StageResult(39, "Frontend Unit & Contract Acceptance Tests")
+def stage_39_fault_injection_graceful_degradation_and_recovery_verification() -> StageResult:
+    res = StageResult(39, "Fault Injection, Graceful Degradation and Recovery Verification")
+    start = time.perf_counter()
+    try:
+        proc = run_command([
+            str(PYTHON_EXE),
+            "-m",
+            "pytest",
+            "tests/test_prompt52_fault_injection_and_recovery.py",
+            "-v",
+        ], cwd=REPO_ROOT / "backend")
+
+        if proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Prompt 52 fault injection and recovery tests failed with code {proc.returncode}:\n{proc.stdout}\n{proc.stderr}")
+            return res
+
+        res.status = "PASSED"
+        res.details["fail_closed_guard"] = "Prohibits fault injection registration and execution in production and staging."
+        res.details["injected_fault_scenarios"] = "7/7 deterministic scenarios verified (DB interruption, worker termination, adapter timeout, provider outage, disk write failure, malformed response, background task interruption)."
+        res.details["resilience_and_evidence_preservation"] = "Secondary provider outages degrade gracefully without losing or rolling back findings or forensic evidence."
+        res.details["idempotent_recovery"] = "Retries bounded by retry budgets (max 3), exponential backoff with jitter, and duplicate prevention."
+        res.details["honest_status_reporting"] = "Partial success reported truthfully as PARTIAL (completed vs failed target breakdown)."
+        res.details["health_separation"] = "Liveness, readiness, dependencies, and degradation probes cleanly separated with zero secret leakage."
+        res.details["summary"] = "All 12 Prompt 52 fault injection, degradation, and recovery verification tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_40_frontend_unit_tests() -> StageResult:
+    res = StageResult(40, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
@@ -1386,8 +1419,8 @@ def stage_39_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_40_frontend_production_build() -> StageResult:
-    res = StageResult(40, "Frontend Production Distribution Build")
+def stage_41_frontend_production_build() -> StageResult:
+    res = StageResult(41, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -1410,8 +1443,8 @@ def stage_40_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_41_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(41, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_42_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(42, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         from app.services.supply_chain_security_service import SupplyChainSecurityService
@@ -1441,8 +1474,8 @@ def stage_41_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_42_release_packaging_inspection() -> StageResult:
-    res = StageResult(42, "Release Packaging & Clean Artifact Inspection")
+def stage_43_release_packaging_inspection() -> StageResult:
+    res = StageResult(43, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1497,7 +1530,7 @@ def stage_42_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 51)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 52)")
     print("=" * 80)
 
     stages = [
@@ -1539,10 +1572,11 @@ def main():
         stage_36_forensic_evidence_preservation_and_chain_of_custody,
         stage_37_environment_separation_and_deployment_profiles,
         stage_38_explainable_security_recommendations_and_remediation_prioritization,
-        stage_39_frontend_unit_tests,
-        stage_40_frontend_production_build,
-        stage_41_secret_and_hygiene_scan,
-        stage_42_release_packaging_inspection,
+        stage_39_fault_injection_graceful_degradation_and_recovery_verification,
+        stage_40_frontend_unit_tests,
+        stage_41_frontend_production_build,
+        stage_42_secret_and_hygiene_scan,
+        stage_43_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

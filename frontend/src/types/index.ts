@@ -3876,6 +3876,35 @@ export interface EvidenceImportResult {
   warnings: string[];
 }
 
+// Prompt 52: Fault Injection, Graceful Degradation & Recovery Verification
+export interface DegradationHealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  critical_healthy: boolean;
+  capabilities: Record<string, any>;
+  degraded_capabilities: string[];
+  failure_playbooks: Record<string, FailureClassification>;
+  fault_injection_active: boolean;
+  active_fault_rules: Array<Record<string, any>>;
+  operator_recommendations: string[];
+  summary: string;
+}
+
+export interface FailureClassification {
+  code: string;
+  name: string;
+  category: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  impact_scope: string;
+  can_auto_recover: boolean;
+  auto_recovery_mechanism?: string;
+  requires_manual_intervention: boolean;
+  manual_recovery_steps: string[];
+  operator_summary: string;
+  evidence_preserved: boolean;
+}
+
+
 
 
 

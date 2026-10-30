@@ -1,6 +1,20 @@
-import React from 'react';
-import { Activity, Database, HardDrive, ShieldCheck, RefreshCw, Layers, AlertTriangle, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
-import type { ReadinessResponse, OperationalHealthState } from '../types';
+import React, { useState, useEffect } from 'react';
+import {
+  Activity,
+  Database,
+  HardDrive,
+  ShieldCheck,
+  RefreshCw,
+  Layers,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Wrench,
+  BookOpen,
+} from 'lucide-react';
+import { api } from '../services/api';
+import type { ReadinessResponse, OperationalHealthState, DegradationHealthResponse } from '../types';
 
 interface SystemHealthViewProps {
   health: { status: string; version: string; environment: string; timestamp: string } | null;
@@ -14,12 +28,36 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
   onRefresh,
   loading,
 }) => {
+  const [degradationData, setDegradationData] = useState<DegradationHealthResponse | null>(null);
+  const [loadingDegradation, setLoadingDegradation] = useState<boolean>(false);
+
+  const fetchDegradation = async () => {
+    setLoadingDegradation(true);
+    try {
+      const data = await api.getDegradationStatus();
+      setDegradationData(data);
+    } catch {
+      // Degraded or offline fallback handled gracefully
+    } finally {
+      setLoadingDegradation(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDegradation();
+  }, []);
+
+  const handleFullRefresh = () => {
+    onRefresh();
+    fetchDegradation();
+  };
+
   // Determine precise operational state (never display unknown as healthy)
   const getOperationalStatus = (): OperationalHealthState => {
     if (loading && !readiness) return 'UNKNOWN';
     if (!readiness) return 'UNKNOWN';
     if (readiness.status === 'not_ready') return 'UNAVAILABLE';
-    if (readiness.degraded) return 'DEGRADED';
+    if (readiness.degraded || (degradationData && degradationData.degraded_capabilities.length > 0)) return 'DEGRADED';
     if (readiness.status === 'ready') return 'HEALTHY';
     return 'UNKNOWN';
   };
@@ -43,11 +81,11 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
         </div>
 
         <button
-          onClick={onRefresh}
-          disabled={loading}
+          onClick={handleFullRefresh}
+          disabled={loading || loadingDegradation}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-800 hover:bg-cyber-750 text-slate-300 hover:text-white text-xs font-semibold transition-colors shrink-0"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-accent-cyan' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading || loadingDegradation ? 'animate-spin text-accent-cyan' : ''}`} />
           Run Health Probes
         </button>
       </div>
@@ -206,6 +244,127 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
           </p>
           <div className="mt-3 text-[10px] text-slate-500 font-mono">Path: ./data/vapt.db</div>
         </div>
+      </div>
+
+      {/* Prompt 52: Critical Capability Matrix & Operational Degradation Guidance */}
+      <div className="bg-cyber-850 border border-cyber-750 rounded-xl p-6 shadow-md space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-cyber-750">
+          <div className="flex items-center gap-2 text-white font-bold text-xs uppercase font-mono tracking-wider">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Critical Capabilities & Degradation Matrix</span>
+          </div>
+          {degradationData && (
+            <span
+              className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                degradationData.status === 'healthy'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : degradationData.status === 'degraded'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+              }`}
+            >
+              Mode: {degradationData.status}
+            </span>
+          )}
+        </div>
+
+        {/* Operator Recommendations Banner */}
+        {degradationData && degradationData.operator_recommendations.length > 0 && (
+          <div className="bg-cyber-900 border border-cyber-750 rounded-lg p-3 space-y-1.5 text-xs">
+            <div className="text-accent-cyan font-bold flex items-center gap-1.5 font-mono">
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Operator Action Playbook</span>
+            </div>
+            <ul className="list-disc list-inside text-slate-300 space-y-1 text-[11px]">
+              {degradationData.operator_recommendations.map((rec, i) => (
+                <li key={i} className="leading-relaxed">
+                  {rec}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Capability Grid */}
+        {degradationData && degradationData.capabilities && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {Object.entries(degradationData.capabilities).map(([key, cap]: [string, any]) => {
+              const isDegraded = degradationData.degraded_capabilities.includes(key);
+              return (
+                <div
+                  key={key}
+                  className={`p-3 rounded-lg border text-xs flex flex-col justify-between ${
+                    isDegraded
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                      : 'bg-cyber-900 border-cyber-750 text-slate-300'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 truncate uppercase">
+                        {cap.criticality}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold ${
+                          isDegraded
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : 'bg-emerald-500/20 text-emerald-300'
+                        }`}
+                      >
+                        {isDegraded ? 'DEGRADED' : 'OPERATIONAL'}
+                      </span>
+                    </div>
+                    <div className="font-bold text-white text-[11px] mb-1">{cap.name}</div>
+                    <p className="text-[10px] text-slate-400 leading-snug">{cap.description}</p>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-cyber-750/50 text-[9px] font-mono text-slate-500 truncate">
+                    Dependencies: {cap.dependencies?.join(', ')}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Collapsible Playbook Drawer */}
+        {degradationData && degradationData.failure_playbooks && (
+          <div className="pt-2">
+            <details className="text-xs group">
+              <summary className="cursor-pointer text-slate-400 hover:text-white font-mono flex items-center gap-1.5 select-none py-1">
+                <BookOpen className="w-3.5 h-3.5 text-accent-blue" />
+                <span className="font-semibold text-slate-300">
+                  Inspect Failure Classification Catalog & Recovery Playbooks (
+                  {Object.keys(degradationData.failure_playbooks).length} Playbooks)
+                </span>
+              </summary>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
+                {Object.entries(degradationData.failure_playbooks).map(([code, pb]: [string, any]) => (
+                  <div
+                    key={code}
+                    className="p-3 rounded-lg bg-cyber-900 border border-cyber-750 space-y-1.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-accent-cyan text-[11px]">{code}</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyber-800 text-slate-300">
+                        {pb.severity}
+                      </span>
+                    </div>
+                    <div className="text-white font-semibold text-xs">{pb.name}</div>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">{pb.operator_summary}</p>
+                    <div className="pt-1.5 border-t border-cyber-750/40 text-[10px] text-slate-400 space-y-0.5">
+                      <div className="text-slate-300 font-mono font-bold">Manual Recovery Steps:</div>
+                      {pb.manual_recovery_steps?.map((step: string, sIdx: number) => (
+                        <div key={sIdx} className="text-slate-400">
+                          {step}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        )}
       </div>
 
       {/* Production Migration Notice & Architectural Invariants */}

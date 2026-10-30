@@ -207,6 +207,14 @@ class ThreatIntelService:
                     raise FileNotFoundError(f"Fixture file missing: {filepath}")
                 with open(filepath, "rb") as f:
                     raw_bytes = f.read()
+
+                # Prompt 52: Deterministic Fault Injection Hooks (Test-Only)
+                from app.core.fault_injection import FaultInjector
+                FaultInjector.maybe_inject("provider:threat_feed", {"feed_name": feed_name})
+                malformed_feed = FaultInjector.maybe_inject("provider:malformed_feed", {"feed_name": feed_name})
+                if malformed_feed is not None:
+                    raw_bytes = malformed_feed.encode("utf-8") if isinstance(malformed_feed, str) else malformed_feed
+
                 data = json.loads(raw_bytes.decode("utf-8"))
             else:
                 raise NotImplementedError("Direct live external network requests prohibited in isolated test gate")

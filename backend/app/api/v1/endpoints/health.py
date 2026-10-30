@@ -14,7 +14,10 @@ from app.schemas.health import (
     ReadinessCheck,
     DependencyItemCheck,
     DependencyHealthResponse,
+    DegradationHealthResponse,
 )
+from app.services.failure_classification_service import FailureClassificationService
+from app.core.fault_injection import FaultInjector
 
 router = APIRouter()
 _PROCESS_START_TIME = time.time()
@@ -284,4 +287,96 @@ def dependencies_check(response: Response, db: Session = Depends(get_db)):
         timestamp=datetime.now(timezone.utc),
         dependencies=dependencies,
         summary=summary,
+    )
+
+
+@router.get("/health/degradation", response_model=DegradationHealthResponse)
+@router.get("/health/status", response_model=DegradationHealthResponse)
+def degradation_status_check(response: Response, db: Session = Depends(get_db)):
+    """
+    Degraded Functionality & Operator Guidance Probe (Prompt 52).
+    Evaluates:
+    - Critical vs secondary capability health
+    - Degraded capabilities list
+    - Operator-actionable failure playbooks
+    - Active fault injection status (if active in test environments)
+    - Zero secrets or internal credential disclosure.
+    """
+    dep_health = dependencies_check(response=response, db=db)
+    deps = dep_health.dependencies
+
+    db_ok = deps.get("database") and deps["database"].status == "healthy"
+    storage_ok = deps.get("storage") and deps["storage"].status == "healthy"
+    adapters_ok = deps.get("scanner_adapters") and deps["scanner_adapters"].status == "healthy"
+    notifs_ok = deps.get("notifications") and deps["notifications"].status == "healthy"
+    feeds_ok = deps.get("vulnerability_feeds") and deps["vulnerability_feeds"].status == "healthy"
+
+    degraded_caps: List[str] = []
+    if not db_ok:
+        degraded_caps.extend([
+            "AUTHENTICATION_RBAC",
+            "SCOPE_AUTHORIZATION",
+            "ASSESSMENT_EXECUTION",
+            "EVIDENCE_AND_AUDIT_PRESERVATION",
+            "REMEDIATION_APPROVAL_GOVERNANCE",
+        ])
+    if not storage_ok:
+        degraded_caps.append("EVIDENCE_AND_AUDIT_PRESERVATION")
+    if not adapters_ok:
+        degraded_caps.append("ASSESSMENT_EXECUTION")
+    if not notifs_ok:
+        degraded_caps.append("NOTIFICATION_DISPATCH")
+    if not feeds_ok:
+        degraded_caps.append("THREAT_INTEL_ENRICHMENT")
+
+    # Deduplicate degraded capabilities
+    degraded_caps = sorted(list(set(degraded_caps)))
+
+    # Compile operator recommendations
+    recommendations: List[str] = []
+    if not db_ok:
+        recommendations.append("Database connectivity interrupted: Verify database process health and file locks.")
+    if not storage_ok:
+        recommendations.append("Storage volume unwritable: Inspect disk free space and service write permissions on data directory.")
+    if not adapters_ok:
+        recommendations.append("Scanner adapters failed to initialize: Check adapter plugin dependencies.")
+    if not notifs_ok:
+        recommendations.append("Notification dispatch degraded: External webhook endpoint may be offline. Delivery retries active.")
+    if not feeds_ok:
+        recommendations.append("Threat intelligence feeds degraded: Check CISA/NVD cache status.")
+    if not recommendations:
+        recommendations.append("All primary and secondary capabilities are fully operational.")
+
+    fault_active = FaultInjector.is_injection_permitted() and len(FaultInjector.get_active_rules()) > 0
+    active_rules = FaultInjector.get_active_rules() if FaultInjector.is_injection_permitted() else []
+
+    all_caps = FailureClassificationService.get_capabilities()
+    playbooks = FailureClassificationService.get_classifications()
+
+    # Determine overall status
+    critical_ok = db_ok and storage_ok
+    if not critical_ok:
+        overall_status = "unhealthy"
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        summary_msg = f"Critical capabilities degraded: {len(degraded_caps)} capabilities offline. Control plane unavailable."
+    elif degraded_caps:
+        overall_status = "degraded"
+        response.status_code = status.HTTP_200_OK
+        summary_msg = f"Platform operational in degraded mode ({', '.join(degraded_caps)} offline). Evidence and audit preserved."
+    else:
+        overall_status = "healthy"
+        response.status_code = status.HTTP_200_OK
+        summary_msg = "All critical and secondary capabilities are healthy. Zero degradation detected."
+
+    return DegradationHealthResponse(
+        status=overall_status,
+        timestamp=datetime.now(timezone.utc),
+        critical_healthy=critical_ok,
+        capabilities=all_caps,
+        degraded_capabilities=degraded_caps,
+        failure_playbooks=playbooks,
+        fault_injection_active=fault_active,
+        active_fault_rules=active_rules,
+        operator_recommendations=recommendations,
+        summary=summary_msg,
     )

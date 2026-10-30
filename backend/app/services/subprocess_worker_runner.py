@@ -256,6 +256,10 @@ class SubprocessWorkerRunner:
         sanitized_env = build_sanitized_env()
         cmd = list(self.worker_cmd)
 
+        # Prompt 52: Deterministic Fault Injection Hook (Test-Only)
+        from app.core.fault_injection import FaultInjector
+        FaultInjector.maybe_inject("worker:spawn", {"job_id": request.job_id, "adapter_name": request.adapter_name})
+
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -432,6 +436,11 @@ class SubprocessWorkerRunner:
 
         # Parse IPC JSON Response
         try:
+            # Prompt 52: Injected Malformed Response Hook
+            malformed = FaultInjector.maybe_inject("worker:ipc_response", {"job_id": request.job_id})
+            if malformed is not None:
+                stdout_data = malformed.encode("utf-8") if isinstance(malformed, str) else malformed
+
             resp_str = stdout_data.decode("utf-8")
             resp_dict = json.loads(resp_str)
             ipc_resp = WorkerIPCResponse.model_validate(resp_dict)
