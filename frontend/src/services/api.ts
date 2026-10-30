@@ -92,6 +92,7 @@ import type {
   MutationDrillResult,
   PreflightReport,
   RedactedConfigResponse,
+  ConfigDiagnosticResponse,
   UpgradePrecheckResponse,
   RetentionPolicyModel,
   LegalHoldModel,
@@ -1767,6 +1768,10 @@ class ApiService {
     return this.request<RedactedConfigResponse>('/system/deployment/config');
   }
 
+  async getConfigDiagnostics(): Promise<ConfigDiagnosticResponse> {
+    return this.request<ConfigDiagnosticResponse>('/system/deployment/config/diagnostic');
+  }
+
   async checkUpgradeReadiness(): Promise<UpgradePrecheckResponse> {
     return this.request<UpgradePrecheckResponse>('/system/deployment/upgrade-check', {
       method: 'POST',
@@ -2506,6 +2511,13 @@ class ApiService {
     return this.request<ConnectorConfigRead>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  async rotateConnectorCredentials(projectId: string, connectorId: string, settings: Record<string, any>): Promise<ConnectorConfigRead> {
+    return this.request<ConnectorConfigRead>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}/rotate-credentials`, {
+      method: 'POST',
+      body: JSON.stringify({ settings }),
     });
   }
 

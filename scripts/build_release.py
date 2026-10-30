@@ -33,7 +33,7 @@ def main():
     print("=" * 80)
 
     # 1. Secret & sensitive file pre-packaging check
-    print("Step 1: Scanning for forbidden files and unmasked secrets...")
+    print("Step 1: Scanning for forbidden files, unmasked secrets, and dangerous frontend variables...")
     secret_res = supply_chain_security_service.scan_sensitive_artifacts()
     if secret_res.findings:
         crit_findings = [f for f in secret_res.findings if f.severity == "CRITICAL"]
@@ -42,7 +42,15 @@ def main():
             for f in crit_findings[:5]:
                 print(f"   ! {f.rule_name} in {f.file_path}: {f.redacted_match}")
             sys.exit(1)
-    print(" [PASS] Sensitive artifact and secret pre-check passed.")
+
+    vite_violations = supply_chain_security_service.audit_frontend_build_variables()
+    if vite_violations:
+        print(f" [FAIL] Insecure frontend build variables detected ({len(vite_violations)}). Aborting packaging.")
+        for v in vite_violations[:5]:
+            print(f"   ! {v}")
+        sys.exit(1)
+
+    print(" [PASS] Sensitive artifact, secret, and frontend variable pre-check passed.")
 
     # 2. Package release and sign manifest
     print(f"Step 2: Bundling release archive and computing file digests (as_candidate={args.candidate})...")

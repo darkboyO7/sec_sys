@@ -104,7 +104,7 @@ xychart-beta
   - Verification of physical PostgreSQL multi-worker concurrency requires running the staging deployment runbook on a machine with a live PostgreSQL service.
 - **Mitigation & Concrete Next Steps:**
   1. In continuous integration (CI) environments, enable a service container (`services: postgres:16-alpine`).
-  2. Run `alembic upgrade head` against `postgresql://postgres:postgres@localhost:5432/vapt_staging`.
+  2. Run `alembic upgrade head` with your target PostgreSQL connection string (configured via `DATABASE_URL` in `.env.production`).
   3. Execute `pytest backend/tests/test_phase22_postgres_readiness.py` to un-skip the 4 live cluster tests.
 
 ---

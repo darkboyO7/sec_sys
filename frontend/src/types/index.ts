@@ -3551,6 +3551,32 @@ export type ConnectorType =
   | 'GENERIC_WEBHOOK';
 export type NotificationSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 
+// Prompt 45 — Secrets Management & Credential Lifecycle
+export interface ConfigDiagnosticItem {
+  key: string;
+  is_secret: boolean;
+  configured: boolean;
+  status: 'PASS' | 'WARN' | 'FAIL';
+  strength: 'STRONG' | 'ADEQUATE' | 'WEAK' | 'DEFAULT_INSECURE' | 'NOT_APPLICABLE';
+  redacted_value: string;
+  message: string;
+}
+
+export interface ConfigDiagnosticResponse {
+  environment: string;
+  total_settings: number;
+  passed_count: number;
+  warning_count: number;
+  failure_count: number;
+  items: ConfigDiagnosticItem[];
+  evaluated_at: string;
+}
+
+export interface ConnectorCredentialRotateRequest {
+  settings: Record<string, any>;
+}
+
+
 
 
 

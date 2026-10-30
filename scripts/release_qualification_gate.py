@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "backend"))
 PYTHON_EXE = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
 SUMMARY_FILE = REPO_ROOT / "release_qualification_summary.json"
 
@@ -1159,8 +1160,40 @@ def stage_32_reproducible_release_and_upgrade_safety() -> StageResult:
     return res
 
 
-def stage_33_frontend_unit_tests() -> StageResult:
-    res = StageResult(33, "Frontend Unit & Contract Acceptance Tests")
+def stage_33_secrets_management_and_credential_lifecycle() -> StageResult:
+    res = StageResult(33, "Secrets Management, Configuration Validation & Credential Lifecycle")
+    start = time.perf_counter()
+    try:
+        proc = run_command([
+            str(PYTHON_EXE),
+            "-m",
+            "pytest",
+            "tests/test_prompt45_secrets_management_and_credential_lifecycle.py",
+            "-v",
+        ], cwd=REPO_ROOT / "backend")
+
+        if proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Prompt 45 integration suite failed with return code {proc.returncode}:\n{proc.stdout}\n{proc.stderr}")
+            return res
+
+        res.status = "PASSED"
+        res.details["fail_closed_production"] = "Verified strict rejection of default secrets, SQLite, and wildcard CORS in production"
+        res.details["secret_redaction"] = "Verified pattern scrubbing in text, logging filter, exceptions, and nested payloads"
+        res.details["secret_vault_fernet"] = "Verified authenticated symmetric encryption at rest and transparent legacy migration"
+        res.details["connector_lifecycle"] = "Verified credential rotation without leaking plaintext tokens in administrative APIs"
+        res.details["frontend_security"] = "Zero dangerous VITE_* variables in frontend build environment"
+        res.details["summary"] = "All 9 Prompt 45 secrets management, configuration hardening, and credential lifecycle tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_34_frontend_unit_tests() -> StageResult:
+    res = StageResult(34, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
@@ -1178,8 +1211,8 @@ def stage_33_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_34_frontend_production_build() -> StageResult:
-    res = StageResult(34, "Frontend Production Distribution Build")
+def stage_35_frontend_production_build() -> StageResult:
+    res = StageResult(35, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -1202,39 +1235,29 @@ def stage_34_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_35_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(35, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_36_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(36, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
-        disallowed_patterns = [
-            (re.compile(r"BEGIN\s+(RSA|EC|DSA|OPENSSH)\s+PRIVATE\s+KEY"), "Private Key in Plaintext"),
-            (re.compile(r"ghp_[a-zA-Z0-9]{36}"), "GitHub Personal Access Token"),
-            (re.compile(r"eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}"), "Hardcoded JWT Token"),
-        ]
+        from app.services.supply_chain_security_service import SupplyChainSecurityService
+        svc = SupplyChainSecurityService(repo_root=REPO_ROOT)
 
-        found_violations = []
-        scan_dirs = [REPO_ROOT / "backend" / "app", REPO_ROOT / "frontend" / "src"]
-        for sdir in scan_dirs:
-            for root, _, files in os.walk(sdir):
-                for fname in files:
-                    if fname.endswith((".py", ".ts", ".tsx", ".js")):
-                        fpath = Path(root) / fname
-                        try:
-                            content = fpath.read_text(encoding="utf-8", errors="ignore")
-                            for pattern, desc in disallowed_patterns:
-                                if pattern.search(content):
-                                    found_violations.append(f"{desc} in {fpath.relative_to(REPO_ROOT)}")
-                        except Exception:
-                            pass
+        # 1. Active repository secret scan
+        scan_resp = svc.scan_sensitive_artifacts()
+        found_violations = [f"{f.rule_name} ({f.severity}) in {f.file_path}:{f.line_number}" for f in scan_resp.findings]
+
+        # 2. Frontend build variable security audit
+        vite_violations = svc.audit_frontend_build_variables()
+        found_violations.extend(vite_violations)
 
         if found_violations:
             res.status = "FAILED"
             res.errors = found_violations
         else:
             res.status = "PASSED"
-            res.details["scanned_directories"] = [str(d.relative_to(REPO_ROOT)) for d in scan_dirs]
+            res.details["total_scanned_files"] = scan_resp.total_scanned_files
             res.details["violations_count"] = 0
-            res.details["summary"] = "Zero hardcoded private keys or tokens discovered in application source code."
+            res.details["summary"] = "Zero hardcoded private keys, tokens, or dangerous VITE_* variables discovered."
     except Exception as e:
         res.status = "FAILED"
         res.errors.append(str(e))
@@ -1243,8 +1266,8 @@ def stage_35_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_36_release_packaging_inspection() -> StageResult:
-    res = StageResult(36, "Release Packaging & Clean Artifact Inspection")
+def stage_37_release_packaging_inspection() -> StageResult:
+    res = StageResult(37, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1299,7 +1322,7 @@ def stage_36_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 44)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 45)")
     print("=" * 80)
 
     stages = [
@@ -1335,10 +1358,11 @@ def main():
         stage_30_automated_backup_scheduling_and_restoration_assurance,
         stage_31_fullstack_contract_and_workflow_assurance,
         stage_32_reproducible_release_and_upgrade_safety,
-        stage_33_frontend_unit_tests,
-        stage_34_frontend_production_build,
-        stage_35_secret_and_hygiene_scan,
-        stage_36_release_packaging_inspection,
+        stage_33_secrets_management_and_credential_lifecycle,
+        stage_34_frontend_unit_tests,
+        stage_35_frontend_production_build,
+        stage_36_secret_and_hygiene_scan,
+        stage_37_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

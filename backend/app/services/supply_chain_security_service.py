@@ -103,7 +103,13 @@ LOCAL_ADVISORY_DATABASE: List[Dict[str, Any]] = [
 # Sensitive artifact / secret detection patterns
 SECRET_PATTERNS = [
     ("AWS Access Key ID", r"\b(AKIA[0-9A-Z]{16})\b", "CRITICAL"),
-    ("Private Key Block", r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----", "CRITICAL"),
+    ("Private Key Block", r"-----BEGIN (?:[A-Z\s]+)?PRIVATE KEY-----", "CRITICAL"),
+    ("GitHub Personal Access Token", r"\b(gh[pousr]_[a-zA-Z0-9]{36,255})\b", "CRITICAL"),
+    ("Slack API Token", r"\b(xox[baprs]-[a-zA-Z0-9\-]{10,72})\b", "CRITICAL"),
+    ("Google API Key", r"\b(AIza[0-9A-Za-z-_]{35})\b", "HIGH"),
+    ("Hardcoded JWT Token", r"\b(eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})\b", "CRITICAL"),
+    ("Database URL with Password", r"(?:postgresql|mysql)://[^:\s@]+:([^@\s]+)@", "CRITICAL"),
+    ("Exposed Frontend Secret Variable", r"(?i)\bVITE_[a-zA-Z0-9_]*(?:SECRET|KEY|PASSWORD|TOKEN|CREDENTIAL|PRIVATE)[a-zA-Z0-9_]*\s*=\s*['\"]?([^'\"\s\r\n]+)", "CRITICAL"),
     ("Generic High-Entropy Token", r"(?i)\b(?:api[_-]?key|secret[_-]?key|access[_-]?token|bearer)\s*[:=]\s*['\"]([A-Za-z0-9_\-\.]{28,})['\"]", "HIGH"),
     ("Hardcoded Password", r"(?i)\b(?:password|passwd|pwd)\s*[:=]\s*['\"]([^'\"]{8,})['\"]", "MEDIUM"),
 ]
@@ -538,6 +544,9 @@ class SupplyChainSecurityService:
                                 match = re.search(pat, line)
                                 if match:
                                     raw_val = match.group(1) if match.groups() else match.group(0)
+                                    # Ignore redacted placeholders and syntax templates
+                                    if any(p in raw_val.lower() for p in ["redacted", "<password>", "[password]", "your_password"]):
+                                        continue
                                     # Redact
                                     if len(raw_val) > 8:
                                         redacted = raw_val[:4] + "*" * (len(raw_val) - 8) + raw_val[-4:]
@@ -562,6 +571,41 @@ class SupplyChainSecurityService:
             total_findings=len(findings),
             findings=findings,
         )
+
+    def audit_frontend_build_variables(self, frontend_dir: Optional[Path] = None) -> List[str]:
+        """
+        Prompt 45: Verifies that frontend build configurations and environment variables
+        never contain or expose backend secrets, API keys, private tokens, or passwords.
+        Treats every VITE_* variable as potentially public.
+        """
+        fdir = frontend_dir or (self.repo_root / "frontend")
+        violations: List[str] = []
+        if not fdir.exists():
+            return violations
+
+        dangerous_words = {"secret", "password", "token", "key", "credential", "private", "passwd"}
+
+        for fname in os.listdir(str(fdir)):
+            if fname.startswith(".env") or fname in ("vite.config.ts", "vite.config.js"):
+                fpath = fdir / fname
+                try:
+                    content = fpath.read_text(encoding="utf-8", errors="ignore")
+                    for line_no, line in enumerate(content.splitlines(), start=1):
+                        line_stripped = line.strip()
+                        if line_stripped.startswith("#") or not line_stripped:
+                            continue
+                        if "=" in line_stripped:
+                            var_name = line_stripped.split("=", 1)[0].strip()
+                            if var_name.startswith("VITE_"):
+                                var_lower = var_name.lower()
+                                if any(w in var_lower for w in dangerous_words):
+                                    violations.append(
+                                        f"Insecure frontend variable '{var_name}' defined in {fname}:{line_no} exposes sensitive key pattern."
+                                    )
+                except Exception:
+                    pass
+
+        return violations
 
     # --------------------------------------------------------------------------
     # 5. Verifiable Release Packaging & Cryptographic Provenance

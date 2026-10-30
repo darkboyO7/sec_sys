@@ -25,6 +25,8 @@ from app.schemas.deployment import (
     PreflightReport,
     RedactedConfigResponse,
     UpgradePrecheckResponse,
+    ConfigDiagnosticItem,
+    ConfigDiagnosticResponse,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -318,6 +320,37 @@ class StartupPreflightService:
             cryptographic_algorithm=settings.ALGORITHM,
             token_expiry_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
             worker_execution_mode=settings.EXECUTION_MODE,
+        )
+
+    def get_config_diagnostics(self) -> ConfigDiagnosticResponse:
+        """
+        Executes deep evaluation of configuration settings and reports cryptographic posture
+        and missing/insecure parameters without exposing raw secrets.
+        """
+        raw_items = settings.get_config_diagnostics()
+        diag_items = [
+            ConfigDiagnosticItem(
+                key=item["key"],
+                is_secret=item["is_secret"],
+                configured=item["configured"],
+                status=item["status"],
+                strength=item["strength"],
+                redacted_value=item["redacted_value"],
+                message=item["message"],
+            )
+            for item in raw_items
+        ]
+        passed = sum(1 for d in diag_items if d.status == "PASS")
+        warn = sum(1 for d in diag_items if d.status == "WARN")
+        fail = sum(1 for d in diag_items if d.status == "FAIL")
+
+        return ConfigDiagnosticResponse(
+            environment=settings.ENVIRONMENT,
+            total_settings=len(diag_items),
+            passed_count=passed,
+            warning_count=warn,
+            failure_count=fail,
+            items=diag_items,
         )
 
     def check_upgrade_readiness(self, db: Optional[Session] = None) -> UpgradePrecheckResponse:

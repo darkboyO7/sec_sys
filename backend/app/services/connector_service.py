@@ -26,6 +26,7 @@ from app.schemas.connector import (
     ConnectorHealthRead,
     ConnectorSyncTriggerResponse,
 )
+from app.core.secret_vault import SecretVault
 from app.services.integrations.connector_framework import (
     CONNECTOR_REGISTRY,
     BaseConnectorAdapter,
@@ -104,9 +105,9 @@ class ConnectorService:
         if not valid:
             raise ValueError(f"Configuration validation failed: {err}")
 
-        # Store encrypted/raw settings and masked representation
+        # Store authenticated Fernet encrypted settings and masked representation
         masked = mask_sensitive_settings(data.settings)
-        raw_settings_str = json.dumps(data.settings)
+        encrypted_settings_str = SecretVault.encrypt_credentials(data.settings)
 
         config = ConnectorConfiguration(
             project_id=project_id,
@@ -117,7 +118,7 @@ class ConnectorService:
             capabilities=data.capabilities or [c.value for c in adapter.supported_capabilities],
             config_schema_version="1.0.0",
             settings_masked=masked,
-            settings_encrypted=raw_settings_str,
+            settings_encrypted=encrypted_settings_str,
             rate_limit_per_minute=data.rate_limit_per_minute,
             timeout_seconds=data.timeout_seconds,
             max_retries=data.max_retries,
@@ -170,8 +171,39 @@ class ConnectorService:
             if not valid:
                 raise ValueError(f"Configuration validation failed: {err}")
             conn.settings_masked = mask_sensitive_settings(data.settings)
-            conn.settings_encrypted = json.dumps(data.settings)
+            conn.settings_encrypted = SecretVault.encrypt_credentials(data.settings)
 
+        conn.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(conn)
+        return conn
+
+    @classmethod
+    def rotate_connector_credentials(
+        cls,
+        db: Session,
+        project_id: str,
+        connector_id: str,
+        new_settings: Dict[str, Any],
+    ) -> ConnectorConfiguration:
+        """
+        Rotates external credentials without exposing secret values in administrative responses.
+        Validates credentials with provider adapter and re-encrypts at rest using SecretVault.
+        """
+        conn = cls.get_connector(db, project_id, connector_id)
+        if not conn:
+            raise ValueError(f"Connector '{connector_id}' not found")
+
+        adapter = CONNECTOR_REGISTRY.get(conn.provider_type)
+        if not adapter:
+            raise ValueError(f"Provider '{conn.provider_type}' no longer registered")
+
+        valid, err = adapter.validate_configuration(new_settings)
+        if not valid:
+            raise ValueError(f"Credential validation failed during rotation: {err}")
+
+        conn.settings_masked = mask_sensitive_settings(new_settings)
+        conn.settings_encrypted = SecretVault.encrypt_credentials(new_settings)
         conn.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(conn)
@@ -195,8 +227,8 @@ class ConnectorService:
         if not adapter:
             raise ValueError(f"Provider '{conn.provider_type}' not available")
 
-        # Load raw settings for testing
-        raw_settings = json.loads(conn.settings_encrypted) if conn.settings_encrypted else {}
+        # Load decrypted settings for testing
+        raw_settings = SecretVault.decrypt_credentials(conn.settings_encrypted) if conn.settings_encrypted else {}
         health = adapter.test_connectivity(raw_settings)
 
         conn.last_health_status = health.status.value
@@ -249,7 +281,7 @@ class ConnectorService:
         db.commit()
         db.refresh(sync_event)
 
-        raw_settings = json.loads(conn.settings_encrypted) if conn.settings_encrypted else {}
+        raw_settings = SecretVault.decrypt_credentials(conn.settings_encrypted) if conn.settings_encrypted else {}
 
         try:
             # Perform incremental pull using watermark

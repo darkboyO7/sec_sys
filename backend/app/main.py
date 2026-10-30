@@ -20,6 +20,10 @@ from app.services.network_security_service import (
     OversizedResponseError,
     NetworkSecurityTimeoutError,
 )
+from app.core.secret_redaction import (
+    redact_secrets_from_text,
+    install_global_secret_redaction_filter,
+)
 from app.core.logging import (
     setup_structured_logging,
     sanitize_correlation_id,
@@ -160,7 +164,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Ensure SQLite / local DB tables are initialized
+    # Startup: Install secret redaction and initialize DB
+    install_global_secret_redaction_filter()
     logger.info(f"Starting {settings.APP_NAME} in '{settings.ENVIRONMENT}' environment...")
     Base.metadata.create_all(bind=engine)
     logger.info("Database schema initialized and verified.")
@@ -376,11 +381,12 @@ async def global_unhandled_exception_handler(request: Request, exc: Exception):
             headers={"X-Correlation-ID": corr_id, "X-Request-ID": corr_id},
         )
 
-    msg = f"Unhandled error: {str(exc)}"
+    sanitized_err = redact_secrets_from_text(str(exc))
+    msg = f"Unhandled error: {sanitized_err}"
     err = APIErrorResponse(
         error_code=APIErrorCode.INTERNAL_ERROR.value,
         message=msg,
-        detail=msg,
+        detail=sanitized_err,
         request_id=corr_id,
         retryable=False,
     )

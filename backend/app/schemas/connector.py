@@ -117,3 +117,8 @@ class ConnectorSyncEventRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ConnectorCredentialRotateRequest(BaseModel):
+    settings: Dict[str, Any] = Field(..., description="New external integration settings or API credentials to rotate into storage")
+

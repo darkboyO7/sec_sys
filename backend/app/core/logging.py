@@ -10,6 +10,8 @@ import logging
 from contextvars import ContextVar
 from typing import Optional, Any
 
+from app.core.secret_redaction import redact_secrets_from_text, redact_secrets_from_dict
+
 # Context variables for request and job tracing across async tasks and worker threads
 correlation_id_ctx: ContextVar[str] = ContextVar("correlation_id_ctx", default="")
 job_id_ctx: ContextVar[Optional[str]] = ContextVar("job_id_ctx", default=None)
@@ -89,6 +91,9 @@ class SensitiveDataRedactor:
         # 4. Redact key=value style pairs
         text = _SENSITIVE_KV_EQUALS_PATTERN.sub(r"\1=[REDACTED]", text)
 
+        # 5. Apply universal secret redaction (JWTs, tokens, connection strings)
+        text = redact_secrets_from_text(text)
+
         return text
 
     @classmethod
@@ -119,6 +124,16 @@ class CorrelationLogFilter(logging.Filter):
             scrubbed = SensitiveDataRedactor.redact_text(record.msg)
             # Escape control characters/newlines to prevent log forging
             record.msg = SensitiveDataRedactor.sanitize_log_injection(scrubbed)
+
+        # Scrub args
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = redact_secrets_from_dict(record.args)
+            elif isinstance(record.args, (list, tuple)):
+                record.args = tuple(
+                    redact_secrets_from_text(str(a)) if isinstance(a, str) else redact_secrets_from_dict(a) if isinstance(a, dict) else a
+                    for a in record.args
+                )
 
         return True
 

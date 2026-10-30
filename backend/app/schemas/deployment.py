@@ -40,6 +40,26 @@ class PreflightReport(BaseModel):
     evaluated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
+class ConfigDiagnosticItem(BaseModel):
+    key: str
+    is_secret: bool
+    configured: bool
+    status: str
+    strength: str
+    redacted_value: str
+    message: str
+
+
+class ConfigDiagnosticResponse(BaseModel):
+    environment: str
+    total_settings: int
+    passed_count: int
+    warning_count: int
+    failure_count: int
+    items: List[ConfigDiagnosticItem]
+    evaluated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
 class RedactedConfigResponse(BaseModel):
     environment: str
     debug: bool

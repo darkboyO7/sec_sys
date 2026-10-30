@@ -19,6 +19,7 @@ from app.schemas.connector import (
     ConnectorHealthRead,
     ConnectorSyncTriggerResponse,
     ConnectorSyncEventRead,
+    ConnectorCredentialRotateRequest,
 )
 
 router = APIRouter()
@@ -111,6 +112,28 @@ def update_connector(
     verify_project_access(project_id, current_user, db)
     try:
         return ConnectorService.update_connector(db, project_id, connector_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/projects/{project_id}/connectors/{connector_id}/rotate-credentials",
+    response_model=ConnectorConfigRead,
+    status_code=status.HTTP_200_OK,
+    summary="Rotate external integration credentials without leaking plaintext tokens",
+)
+def rotate_connector_credentials(
+    project_id: str,
+    connector_id: str,
+    data: ConnectorCredentialRotateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    verify_project_access(project_id, current_user, db)
+    try:
+        return ConnectorService.rotate_connector_credentials(
+            db, project_id, connector_id, data.settings
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

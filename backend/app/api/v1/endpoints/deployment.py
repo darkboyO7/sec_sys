@@ -13,6 +13,7 @@ from app.schemas.deployment import (
     PreflightReport,
     RedactedConfigResponse,
     UpgradePrecheckResponse,
+    ConfigDiagnosticResponse,
 )
 from app.services.startup_preflight_service import startup_preflight_service
 
@@ -55,6 +56,23 @@ def get_redacted_config(
     tokens, and database connection strings safely redacted.
     """
     return startup_preflight_service.get_redacted_config()
+
+
+@router.get("/config/diagnostic", response_model=ConfigDiagnosticResponse, summary="Inspect Configuration Diagnostics and Cryptographic Health")
+def get_config_diagnostics(
+    current_user: User = Depends(
+        require_system_roles([
+            SystemRole.ADMIN,
+            SystemRole.SECURITY_LEAD,
+            SystemRole.AUDITOR,
+        ])
+    ),
+):
+    """
+    Evaluates individual configuration settings and verifies cryptographic strength
+    and missing/insecure parameters without exposing raw secrets.
+    """
+    return startup_preflight_service.get_config_diagnostics()
 
 
 @router.post("/upgrade-check", response_model=UpgradePrecheckResponse, summary="Verify Schema Upgrade Readiness")
