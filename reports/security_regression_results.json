@@ -1,0 +1,142 @@
+{
+  "suite_id": "reg-suite-prompt47",
+  "generated_at": "2026-10-30T01:46:24.180276+00:00",
+  "total_controls_mapped": 18,
+  "total_tests_executed": 11,
+  "passed_count": 11,
+  "failed_count": 0,
+  "skipped_count": 0,
+  "coverage_pct": 100.0,
+  "mutation_kill_pct": 100.0,
+  "verdict": "QUALIFIED",
+  "tests": [
+    {
+      "test_id": "REG-SEC-01",
+      "control_id": "SEC-CATALOG-01",
+      "category": "GOVERNANCE_INVENTORY",
+      "description": "Security control inventory completeness and machine-readable schema validation",
+      "outcome": "PASSED",
+      "execution_time_ms": 0.9961000178009272,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-02",
+      "control_id": "SEC-AUTH-02",
+      "category": "AUTHENTICATION",
+      "description": "Rejection of missing, tampered, expired, and revoked session tokens",
+      "outcome": "PASSED",
+      "execution_time_ms": 41.32920003030449,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-03",
+      "control_id": "SEC-RBAC-01",
+      "category": "AUTHORIZATION_RBAC",
+      "description": "Enforcement of least privilege and rejection of privileged operations for VIEWER",
+      "outcome": "PASSED",
+      "execution_time_ms": 52.30380001012236,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-04",
+      "control_id": "SEC-TENANT-01",
+      "category": "MULTI_TENANT_ISOLATION",
+      "description": "Multi-tenant isolation and complete boundary encapsulation across projects",
+      "outcome": "PASSED",
+      "execution_time_ms": 49.839000101201236,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-05",
+      "control_id": "SEC-EXCL-01",
+      "category": "EXCLUSIONS_PRECEDENCE",
+      "description": "Exclusion precedence negative tests blocking direct dispatch and auto-expansion",
+      "outcome": "PASSED",
+      "execution_time_ms": 3.148200106807053,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-06",
+      "control_id": "SEC-STATE-01",
+      "category": "WORKFLOW_GOVERNANCE",
+      "description": "Server-side validation preventing illegal finding state transitions and UI bypasses",
+      "outcome": "PASSED",
+      "execution_time_ms": 11.538400081917644,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-07",
+      "control_id": "SEC-EVID-01",
+      "category": "EVIDENCE_INTEGRITY",
+      "description": "Cryptographic evidence SHA-256 byte digest and monotonic audit chain integrity",
+      "outcome": "PASSED",
+      "execution_time_ms": 1.109299948439002,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-08",
+      "control_id": "SEC-INPUT-01",
+      "category": "INPUT_VALIDATION_TRAVERSAL",
+      "description": "Rejection of directory traversal sequences and oversized malformed inputs",
+      "outcome": "PASSED",
+      "execution_time_ms": 22.321099997498095,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-09",
+      "control_id": "SEC-CONCUR-01",
+      "category": "CONCURRENCY_IDEMPOTENCY",
+      "description": "Idempotency enforcement and prevention of race conditions in resource creation",
+      "outcome": "PASSED",
+      "execution_time_ms": 27.486099977977574,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-10",
+      "control_id": "SEC-MUTATION-01",
+      "category": "MUTATION_ASSURANCE",
+      "description": "AST-aware mutation drill achieving 100% kill ratio across defensive controls",
+      "outcome": "PASSED",
+      "execution_time_ms": 0.0548000680282712,
+      "evidence_digest": null,
+      "notes": null
+    },
+    {
+      "test_id": "REG-SEC-11",
+      "control_id": "SEC-SIM-01",
+      "category": "SIMULATION_TRANSPARENCY",
+      "description": "Strict isolation and demarcation of simulated assessment data from production results",
+      "outcome": "PASSED",
+      "execution_time_ms": 6.634299992583692,
+      "evidence_digest": null,
+      "notes": null
+    }
+  ],
+  "limitations": [
+    "Hardware Security Module (HSM) PKCS#11 keys are emulated in software via Fernet symmetric vaults.",
+    "Live internet BGP routing anomalies cannot be simulated in offline sandbox test suites.",
+    "Live external cloud provider IAM privilege escalation is restricted to local mock contracts.",
+    "Raw L2 packet-level flooding and physical hardware tampering checks are unavailable."
+  ],
+  "skipped_checks": [
+    {
+      "check_id": "CHK-HW-HSM-01",
+      "reason": "Hardware cryptographic module not attached in CI/CD environment; software Fernet AES-128 used.",
+      "mitigation": "Automated AES-128-CBC + HMAC-SHA256 authenticated encryption tested in SEC-VAULT-01."
+    },
+    {
+      "check_id": "CHK-NET-BGP-01",
+      "reason": "Upstream AS path hijacking cannot be safely executed against production IP ranges.",
+      "mitigation": "Strict preflight ScopeEngine boundary verification tested in SEC-SCOPE-01."
+    }
+  ]
+}

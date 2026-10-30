@@ -1,0 +1,37 @@
+<USER_REQUEST>
+# PROMPT 48 — Forensic Evidence Preservation, Chain of Custody and Investigation Integrity
+
+Repository: `D:\alt`
+
+## Objective
+Strengthen the trustworthiness, reproducibility, and traceability of evidence collected by the VAPT System.
+
+### Inspect
+Review evidence ingestion, raw and normalized records, digests, audit history, finding updates, report generation, retention, exports, imports, and deletion workflows.
+
+### Implement
+1. Establish a documented evidence lifecycle from collection through normalization, analysis, reporting, archival, and authorized deletion.
+2. Preserve original evidence separately from derived interpretations wherever the existing architecture permits.
+3. Record source identity, collection time, ingestion time, assessment context, adapter version, transformation history, and integrity digest.
+4. Ensure normalization never silently overwrites the original record.
+5. Record who or what performed each privileged evidence operation.
+6. Make verification results explicit: verified, failed, unavailable, or not checked.
+7. Preserve contradictory observations and corrections as additional history rather than silently rewriting earlier evidence.
+8. Ensure report generation and evidence export retain appropriate provenance references.
+9. Restrict evidence access using server-side authorization.
+10. Prevent sensitive evidence from appearing in ordinary logs, notifications, or health endpoints.
+11. Implement safe retention and deletion procedures consistent with the existing data-governance model.
+12. Where cryptographic signatures are needed, use a real signing mechanism and appropriate key management; do not confuse a checksum with proof of origin.
+13. Add a forensic verification command or administrative workflow that can inspect records without modifying them.
+
+### Tests
+Test altered evidence, missing artifacts, incorrect digests, concurrent updates, failed verification, export/import round trips, unauthorized access, and deletion failures.
+
+### Acceptance
+The system must preserve the distinction between original evidence and derived analysis and must never report integrity as verified without performing the relevant check.
+
+Run relevant tests and builds. Report the exact guarantees implemented, limitations, changed files, and migration effects. Do not rewrite historical evidence to make verification pass. Preserve unrelated work and the recovery mirror.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T19:00:48+05:30.
+</ADDITIONAL_METADATA>

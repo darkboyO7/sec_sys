@@ -1,16 +1,16 @@
 {
   "finding_stats_aggregation": {
     "records_tested": 500,
-    "raw_python_scan_ms": 12.21,
-    "optimized_sql_agg_ms": 4.68,
-    "cached_query_ms": 0.0078,
-    "speedup_factor": 1565.6
+    "raw_python_scan_ms": 11.53,
+    "optimized_sql_agg_ms": 3.5,
+    "cached_query_ms": 0.0071,
+    "speedup_factor": 1623.6
   },
   "evidence_deferral": {
     "evidence_count": 20,
     "total_payload_kb": 1000.0,
-    "full_load_ms": 3.35,
-    "metadata_projection_ms": 1.18,
+    "full_load_ms": 2.37,
+    "metadata_projection_ms": 0.85,
     "speedup_factor": 2.8
   },
   "sqlite_wal_concurrency": {
@@ -19,7 +19,7 @@
     "writers": 4,
     "total_reads": 300,
     "total_writes": 40,
-    "duration_seconds": 0.29,
+    "duration_seconds": 0.24,
     "zero_lock_conflicts": true
   },
   "cache_metrics": {

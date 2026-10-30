@@ -1,7 +1,7 @@
 {
-  "drill_id": "drill-2a050ac6",
-  "total_mutations": 10,
-  "killed_count": 10,
+  "drill_id": "drill-fa0b5f87",
+  "total_mutations": 14,
+  "killed_count": 14,
   "survived_count": 0,
   "blocked_count": 0,
   "kill_ratio_pct": 100.0,
@@ -125,10 +125,58 @@
       "observed_failure": "AssertionError: assert res.signature_valid is False failed",
       "status": "KILLED",
       "execution_time_ms": 16.4
+    },
+    {
+      "mutation_id": "MUT-TENANT-01",
+      "control_id": "SEC-TENANT-01",
+      "name": "Bypass Cross-Tenant Project Membership Check",
+      "description": "Mutate object access control to allow users access to projects where they have no membership.",
+      "target_component": "backend/app/api/deps.py:get_project_member_role",
+      "mutation_type": "ALWAYS_TRUE",
+      "expected_killer_test": "test_prompt47_security_regression_and_control_verification.py::test_04_object_level_access_and_cross_project_isolation",
+      "observed_failure": "AssertionError: assert 200 == 403 (Cross-tenant data access permitted)",
+      "status": "KILLED",
+      "execution_time_ms": 10.2
+    },
+    {
+      "mutation_id": "MUT-TOKEN-02",
+      "control_id": "SEC-AUTH-02",
+      "name": "Ignore Token Revocation Timestamp",
+      "description": "Mutate authentication dependency to skip checking `user.token_revoked_before`.",
+      "target_component": "backend/app/api/deps.py:get_current_user",
+      "mutation_type": "REMOVE_VALIDATION",
+      "expected_killer_test": "test_prompt47_security_regression_and_control_verification.py::test_02_api_authentication_failures_and_token_revocation",
+      "observed_failure": "AssertionError: assert 200 == 401 (Revoked session token accepted)",
+      "status": "KILLED",
+      "execution_time_ms": 8.5
+    },
+    {
+      "mutation_id": "MUT-ANTIEXP-01",
+      "control_id": "SEC-SCOPE-02",
+      "name": "Bypass Anti-Expansion Guard on Asset Ingestion",
+      "description": "Mutate attack surface service to directly authorize newly observed external endpoints.",
+      "target_component": "backend/app/services/attack_surface_service.py:ingest_exposure_observation",
+      "mutation_type": "BYPASS_AUTH",
+      "expected_killer_test": "test_prompt47_security_regression_and_control_verification.py::test_05_exclusion_bypass_negative_tests",
+      "observed_failure": "AssertionError: proposal is None (Unauthorized target not routed to inclusion proposal inbox)",
+      "status": "KILLED",
+      "execution_time_ms": 11.6
+    },
+    {
+      "mutation_id": "MUT-TRAVERSAL-01",
+      "control_id": "SEC-INPUT-01",
+      "name": "Bypass Path Traversal Directory Sanitization",
+      "description": "Mutate bundle export extraction to allow directory traversal paths like `../../etc/passwd`.",
+      "target_component": "backend/app/services/bundle_service.py:safe_extract",
+      "mutation_type": "REMOVE_VALIDATION",
+      "expected_killer_test": "test_prompt47_security_regression_and_control_verification.py::test_08_input_validation_path_traversal_and_malformed_payloads",
+      "observed_failure": "AssertionError: PathTraversalSecurityError not raised for malicious archive",
+      "status": "KILLED",
+      "execution_time_ms": 9.1
     }
   ],
   "verdict": "QUALIFIED",
-  "executed_at": "2026-10-30T01:11:50.018680+00:00",
+  "executed_at": "2026-10-30T01:43:30.890393+00:00",
   "details": {
     "mutation_engine": "AST-Aware Synthetic Mutation Runner v1.0",
     "kill_guarantee": "Zero Surviving Security Mutations",
