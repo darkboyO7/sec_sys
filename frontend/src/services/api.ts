@@ -156,6 +156,12 @@ import type {
   ConnectorHealthRead,
   ConnectorSyncTriggerResponse,
   ConnectorSyncEventRead,
+  AttackSurfaceExposure,
+  AssetInclusionProposal,
+  ProposalApprovalRequest,
+  ProposalRejectionRequest,
+  AttackSurfaceTimelineEvent,
+  AttackSurfaceEvidenceSummary,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -2541,6 +2547,66 @@ class ApiService {
 
   async getConnectorSyncHistory(projectId: string, connectorId: string, limit: number = 50): Promise<ConnectorSyncEventRead[]> {
     return this.request<ConnectorSyncEventRead[]>(`/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(connectorId)}/history?limit=${limit}`);
+  }
+
+  // Prompt 46: Authorized Attack-Surface Inventory & Exposure Governance
+  async getAttackSurfaceInventory(
+    projectId: string,
+    params?: {
+      freshness?: string;
+      classification?: string;
+      provenance?: string;
+      simulated?: boolean;
+    }
+  ): Promise<AttackSurfaceExposure[]> {
+    const query = new URLSearchParams();
+    if (params?.freshness) query.append('freshness', params.freshness);
+    if (params?.classification) query.append('classification', params.classification);
+    if (params?.provenance) query.append('provenance', params.provenance);
+    if (params?.simulated !== undefined) query.append('simulated', String(params.simulated));
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return this.request<AttackSurfaceExposure[]>(`/projects/${encodeURIComponent(projectId)}/attack-surface/inventory${qs}`);
+  }
+
+  async getAttackSurfaceTimeline(projectId: string, limit: number = 50): Promise<AttackSurfaceTimelineEvent[]> {
+    return this.request<AttackSurfaceTimelineEvent[]>(`/projects/${encodeURIComponent(projectId)}/attack-surface/timeline?limit=${limit}`);
+  }
+
+  async getAssetExposureEvidence(projectId: string, assetId: string): Promise<AttackSurfaceEvidenceSummary> {
+    return this.request<AttackSurfaceEvidenceSummary>(`/projects/${encodeURIComponent(projectId)}/attack-surface/assets/${encodeURIComponent(assetId)}/evidence`);
+  }
+
+  async listInclusionProposals(projectId: string, status?: string): Promise<AssetInclusionProposal[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<AssetInclusionProposal[]>(`/projects/${encodeURIComponent(projectId)}/attack-surface/proposals${qs}`);
+  }
+
+  async approveInclusionProposal(
+    projectId: string,
+    proposalId: string,
+    data: ProposalApprovalRequest
+  ): Promise<{ proposal: AssetInclusionProposal; scope_target_id: string }> {
+    return this.request<{ proposal: AssetInclusionProposal; scope_target_id: string }>(
+      `/projects/${encodeURIComponent(projectId)}/attack-surface/proposals/${encodeURIComponent(proposalId)}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async rejectInclusionProposal(
+    projectId: string,
+    proposalId: string,
+    data: ProposalRejectionRequest
+  ): Promise<AssetInclusionProposal> {
+    return this.request<AssetInclusionProposal>(
+      `/projects/${encodeURIComponent(projectId)}/attack-surface/proposals/${encodeURIComponent(proposalId)}/reject`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
   }
 }
 

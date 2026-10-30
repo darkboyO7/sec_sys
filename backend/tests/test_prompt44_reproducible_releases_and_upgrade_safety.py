@@ -134,6 +134,8 @@ def test_02_clean_installation_database_migration():
             "scheduler_policies",
             "threat_intelligence_records",
             "connector_configurations",
+            "attack_surface_exposures",
+            "asset_inclusion_proposals",
         }
 
         missing_tables = required_tables - table_names

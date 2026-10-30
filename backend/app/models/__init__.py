@@ -229,6 +229,14 @@ from app.models.connector import (
     ConnectorConfiguration,
     ConnectorSyncEvent,
 )
+from app.models.attack_surface import (
+    ExposureClassification,
+    ObservationProvenanceType,
+    ExposureFreshness,
+    ProposalStatus,
+    AttackSurfaceExposure,
+    AssetInclusionProposal,
+)
 
 __all__ = [
     "Base",
@@ -414,4 +422,10 @@ __all__ = [
     "ImplementationStatus",
     "ConnectorConfiguration",
     "ConnectorSyncEvent",
+    "ExposureClassification",
+    "ObservationProvenanceType",
+    "ExposureFreshness",
+    "ProposalStatus",
+    "AttackSurfaceExposure",
+    "AssetInclusionProposal",
 ]

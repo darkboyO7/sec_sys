@@ -1,0 +1,36 @@
+<USER_REQUEST>
+# PROMPT 47 — Security Regression Suite, Authorization Tests and Control Verification
+
+Repository: `D:\alt`
+
+## Objective
+Create a durable security regression suite that detects when changes weaken authorization, evidence integrity, scope enforcement, or operational safety.
+
+### Inspect
+Inventory authentication, RBAC, scope checks, evidence storage, assessment workers, API mutations, remediation approvals, imports, exports, and existing test infrastructure.
+
+### Implement
+1. Create a security-control inventory mapping each critical control to its implementation and automated tests.
+2. Add API-level tests for authentication failures, authorization failures, object-level access, and cross-workspace isolation where applicable.
+3. Add negative tests proving exclusions cannot be bypassed through alternative endpoints, retries, background workers, or imported records.
+4. Test that frontend restrictions are backed by server-side authorization.
+5. Test evidence immutability, digest verification, and audit-chain continuity where supported.
+6. Test malformed inputs, oversized payloads, path traversal, unsafe URLs, and invalid state transitions.
+7. Add concurrency tests for duplicate jobs, conflicting updates, and approval races.
+8. Introduce mutation testing for selected high-risk policy functions if the existing tooling supports it.
+9. Add deterministic fixtures for simulated assessments and controlled local test targets.
+10. Integrate the security regression suite into the existing release gate.
+11. Produce machine-readable test results and a human-readable control coverage report.
+12. Ensure skipped tests and unavailable checks are explicitly reported.
+
+### Constraints
+Do not test against unauthorized real systems. Do not add destructive production tests or use real credentials. Do not modify implementation code merely to satisfy an incorrect test; verify the intended security policy first.
+
+### Acceptance
+Every critical security invariant should have a clear automated test or a documented reason it cannot yet be tested. The release process must fail on actual critical regression failures.
+
+Run the suite and report exact results, coverage limitations, mutation-test outcomes if used, and all modified files. Do not claim comprehensive security coverage solely because tests pass.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T19:00:42+05:30.
+</ADDITIONAL_METADATA>

@@ -1,0 +1,34 @@
+# PROMPT 46 – Authorized Attack-Surface Inventory and Exposure Governance
+
+Repository: `D:\alt`
+
+## Objective
+Improve visibility into the externally observable attack surface of explicitly authorized assets while maintaining strict assessment boundaries.
+
+### Inspect
+Review existing asset discovery, DNS and TLS observations, service identification, scope authorization, exclusions, evidence provenance, monitoring, and asset identity resolution.
+
+### Implement
+1. Create or extend an exposure inventory that records authorized assets, observed services, relevant hostnames, certificates, exposure classifications, timestamps, and evidence references where supported.
+2. Distinguish verified observations, imported observations, simulated results, and inferred relationships.
+3. Track observation freshness and historical changes.
+4. Detect meaningful changes such as a newly observed service, changed certificate, changed hostname association, or disappearance of a previously observed endpoint.
+5. Distinguish disappearance of an observation from proof that a service was removed.
+6. Revalidate authorization and exclusions immediately before every active assessment operation.
+7. Prevent discoveries from automatically expanding the authorized scope.
+8. Add explicit approval workflows for proposing newly discovered assets for inclusion.
+9. Integrate changes with existing risk scoring, alerts, reporting, and scheduling.
+10. Provide an exposure timeline and an asset-level evidence view.
+11. Support deduplication without erasing historical identity or provenance.
+12. Add APIs and a frontend view using existing conventions.
+
+### Safety
+Use existing approved passive adapters and controlled fixtures. Do not introduce unrestricted port scanning, raw-socket sweeps, brute forcing, exploit execution, or disruptive probes. Do not contact arbitrary discovered destinations.
+
+### Tests
+Test excluded targets, scope revocation, DNS changes, reused IP addresses, duplicate observations, stale evidence, simulated-versus-live labeling, and unauthorized asset inclusion.
+
+### Acceptance
+Every exposure record must identify its source, freshness, authorization context, and uncertainty. No observation may silently authorize further testing.
+
+Run regression tests and builds. Report implemented adapters honestly and list unsupported data sources. Preserve unrelated work and the recovery mirror.

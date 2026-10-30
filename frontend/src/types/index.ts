@@ -3576,6 +3576,98 @@ export interface ConnectorCredentialRotateRequest {
   settings: Record<string, any>;
 }
 
+// Prompt 46 — Authorized Attack-Surface Inventory and Exposure Governance
+export type ExposureClassification = 'INTERNET_FACING' | 'INTERNAL_FACING' | 'DMZ' | 'UNKNOWN';
+
+export type ObservationProvenanceType =
+  | 'VERIFIED_OBSERVATION'
+  | 'PASSIVE_CERTIFICATE_TRANSPARENCY'
+  | 'DNS_RECORDS'
+  | 'EXTERNAL_TELEMETRY'
+  | 'PROPOSED_DISCOVERY'
+  | 'HISTORICAL_OBSERVATION';
+
+export type ExposureFreshness =
+  | 'FRESH'
+  | 'STALE'
+  | 'UNVERIFIED_ABSENT'
+  | 'CONFIRMED_DECOMMISSIONED';
+
+export type AttackSurfaceProposalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXCLUDED';
+
+export interface AttackSurfaceExposure {
+  id: string;
+  project_id: string;
+  asset_id: string;
+  canonical_identifier: string;
+  service_name: string;
+  port: number;
+  protocol: string;
+  transport_security: string;
+  exposure_classification: ExposureClassification;
+  provenance_type: ObservationProvenanceType;
+  freshness: ExposureFreshness;
+  certificate_details: Record<string, any>;
+  relevant_hostnames: string[];
+  evidence_hashes: string[];
+  attributes: Record<string, any>;
+  observation_count: number;
+  consecutive_absences: number;
+  is_simulated: boolean;
+  first_observed_at: string;
+  last_observed_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetInclusionProposal {
+  id: string;
+  project_id: string;
+  target_type: 'DOMAIN' | 'IP' | 'CIDR' | 'URL';
+  target_value: string;
+  discovery_source: string;
+  provenance_type: ObservationProvenanceType;
+  status: AttackSurfaceProposalStatus;
+  rationale: string;
+  discovered_at: string;
+  evidence_hash?: string | null;
+  is_simulated: boolean;
+  reviewed_by_id?: string | null;
+  reviewed_at?: string | null;
+  approval_notes?: string | null;
+  resulting_scope_target_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProposalApprovalRequest {
+  approval_notes: string;
+  authorized_evidence: string;
+}
+
+export interface ProposalRejectionRequest {
+  reason: string;
+  add_to_exclusion?: boolean;
+}
+
+export interface AttackSurfaceTimelineEvent {
+  timestamp: string;
+  event_type: string;
+  description: string;
+  port: number;
+  protocol: string;
+  details?: Record<string, any>;
+}
+
+export interface AttackSurfaceEvidenceSummary {
+  asset_id: string;
+  canonical_identifier: string;
+  total_exposures: number;
+  exposures: AttackSurfaceExposure[];
+  distinct_evidence_hashes: string[];
+}
+
+
 
 
 

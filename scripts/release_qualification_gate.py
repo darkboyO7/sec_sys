@@ -1192,8 +1192,41 @@ def stage_33_secrets_management_and_credential_lifecycle() -> StageResult:
     return res
 
 
-def stage_34_frontend_unit_tests() -> StageResult:
-    res = StageResult(34, "Frontend Unit & Contract Acceptance Tests")
+def stage_34_attack_surface_and_exposure_governance() -> StageResult:
+    res = StageResult(34, "Authorized Attack-Surface Inventory & Exposure Governance")
+    start = time.perf_counter()
+    try:
+        proc = run_command([
+            str(PYTHON_EXE),
+            "-m",
+            "pytest",
+            "tests/test_prompt46_attack_surface_and_exposure_governance.py",
+            "-v",
+        ], cwd=REPO_ROOT / "backend")
+
+        if proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Prompt 46 integration suite failed with return code {proc.returncode}:\n{proc.stdout}\n{proc.stderr}")
+            return res
+
+        res.status = "PASSED"
+        res.details["preflight_scope_enforcement"] = "Strict authorization boundary verification on all asset observations"
+        res.details["anti_expansion_guard"] = "Automatic redirection of unauthorized targets to AssetInclusionProposal inbox"
+        res.details["provenance_tracking"] = "Segregation of verified observations, CT logs, DNS records, and telemetry"
+        res.details["nondestructive_dedup"] = "Observation counts, freshness states, and cryptographic evidence digests preserved"
+        res.details["freshness_and_absence"] = "Distinction between consecutive scan absence and confirmed decommissioning"
+        res.details["operator_approval_workflow"] = "Formal approval creates ScopeTarget, Asset entity, and audit records"
+        res.details["summary"] = "All 9 Prompt 46 attack surface and exposure governance integration tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_35_frontend_unit_tests() -> StageResult:
+    res = StageResult(35, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
@@ -1211,8 +1244,8 @@ def stage_34_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_35_frontend_production_build() -> StageResult:
-    res = StageResult(35, "Frontend Production Distribution Build")
+def stage_36_frontend_production_build() -> StageResult:
+    res = StageResult(36, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -1235,8 +1268,8 @@ def stage_35_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_36_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(36, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_37_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(37, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         from app.services.supply_chain_security_service import SupplyChainSecurityService
@@ -1266,8 +1299,8 @@ def stage_36_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_37_release_packaging_inspection() -> StageResult:
-    res = StageResult(37, "Release Packaging & Clean Artifact Inspection")
+def stage_38_release_packaging_inspection() -> StageResult:
+    res = StageResult(38, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1322,7 +1355,7 @@ def stage_37_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 45)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 46)")
     print("=" * 80)
 
     stages = [
@@ -1359,10 +1392,11 @@ def main():
         stage_31_fullstack_contract_and_workflow_assurance,
         stage_32_reproducible_release_and_upgrade_safety,
         stage_33_secrets_management_and_credential_lifecycle,
-        stage_34_frontend_unit_tests,
-        stage_35_frontend_production_build,
-        stage_36_secret_and_hygiene_scan,
-        stage_37_release_packaging_inspection,
+        stage_34_attack_surface_and_exposure_governance,
+        stage_35_frontend_unit_tests,
+        stage_36_frontend_production_build,
+        stage_37_secret_and_hygiene_scan,
+        stage_38_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []
