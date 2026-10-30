@@ -48,6 +48,7 @@ from app.api.v1.endpoints import (
     incident,
     connectors,
     attack_surface,
+    forensic_evidence,
 )
 
 api_router = APIRouter()
@@ -100,3 +101,4 @@ api_router.include_router(model_experiment.router, tags=["Controlled Experiments
 api_router.include_router(incident.router, tags=["Incident Investigation & Case Management"])
 api_router.include_router(connectors.router, tags=["Secure Integration Framework & Connectors"])
 api_router.include_router(attack_surface.router, tags=["Authorized Attack Surface & Exposure Governance"])
+api_router.include_router(forensic_evidence.router, tags=["Forensic Evidence Preservation & Chain of Custody"])

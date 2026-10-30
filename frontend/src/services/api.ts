@@ -162,9 +162,18 @@ import type {
   ProposalRejectionRequest,
   AttackSurfaceTimelineEvent,
   AttackSurfaceEvidenceSummary,
+  ForensicEvidenceRecord,
+  EvidenceIngestRequest,
+  EvidenceNormalizeRequest,
+  EvidenceContradictionRequest,
+  ForensicVerificationReportItem,
+  ForensicVerificationReport,
+  EvidenceExportBundle,
+  EvidenceImportResult,
 } from '../types';
+import { envConfig } from '../config/environment';
 
-const API_BASE = '/api/v1';
+const API_BASE = envConfig.apiBaseUrl;
 
 class ApiService {
   private token: string | null = null;
@@ -2605,6 +2614,104 @@ class ApiService {
       {
         method: 'POST',
         body: JSON.stringify(data),
+      }
+    );
+  }
+
+  // --- Forensic Evidence Preservation & Chain of Custody (Prompt 48) ---
+
+  async ingestForensicEvidence(data: EvidenceIngestRequest): Promise<ForensicEvidenceRecord> {
+    return this.request<ForensicEvidenceRecord>('/forensic-evidence/records', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listForensicEvidence(
+    projectId: string,
+    params?: { lifecycle_state?: string; is_contradictory?: boolean }
+  ): Promise<ForensicEvidenceRecord[]> {
+    const query = new URLSearchParams();
+    query.append('project_id', projectId);
+    if (params?.lifecycle_state) query.append('lifecycle_state', params.lifecycle_state);
+    if (params?.is_contradictory !== undefined) query.append('is_contradictory', String(params.is_contradictory));
+    return this.request<ForensicEvidenceRecord[]>(`/forensic-evidence/records?${query.toString()}`);
+  }
+
+  async getForensicEvidence(evidenceId: string): Promise<ForensicEvidenceRecord> {
+    return this.request<ForensicEvidenceRecord>(`/forensic-evidence/records/${encodeURIComponent(evidenceId)}`);
+  }
+
+  async normalizeForensicEvidence(
+    evidenceId: string,
+    data: EvidenceNormalizeRequest
+  ): Promise<ForensicEvidenceRecord> {
+    return this.request<ForensicEvidenceRecord>(
+      `/forensic-evidence/records/${encodeURIComponent(evidenceId)}/normalize`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async recordEvidenceContradiction(
+    evidenceId: string,
+    data: EvidenceContradictionRequest
+  ): Promise<ForensicEvidenceRecord> {
+    return this.request<ForensicEvidenceRecord>(
+      `/forensic-evidence/records/${encodeURIComponent(evidenceId)}/contradiction`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async verifyForensicEvidence(
+    evidenceId: string,
+    data?: { verify_raw_digest?: boolean; verify_origin_signature?: boolean; verify_custody_chain?: boolean }
+  ): Promise<ForensicVerificationReportItem> {
+    return this.request<ForensicVerificationReportItem>(
+      `/forensic-evidence/records/${encodeURIComponent(evidenceId)}/verify`,
+      {
+        method: 'POST',
+        body: data ? JSON.stringify(data) : undefined,
+      }
+    );
+  }
+
+  async verifyBatchForensicEvidence(projectId?: string): Promise<ForensicVerificationReport> {
+    const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<ForensicVerificationReport>(`/forensic-evidence/verify-batch${qs}`, {
+      method: 'POST',
+    });
+  }
+
+  async exportForensicEvidence(projectId: string): Promise<EvidenceExportBundle> {
+    return this.request<EvidenceExportBundle>(
+      `/forensic-evidence/export?project_id=${encodeURIComponent(projectId)}`,
+      {
+        method: 'POST',
+      }
+    );
+  }
+
+  async importForensicEvidence(
+    bundle: EvidenceExportBundle,
+    targetProjectId: string
+  ): Promise<EvidenceImportResult> {
+    return this.request<EvidenceImportResult>('/forensic-evidence/import', {
+      method: 'POST',
+      body: JSON.stringify({ bundle, target_project_id: targetProjectId }),
+    });
+  }
+
+  async deleteForensicEvidence(evidenceId: string, justification: string): Promise<ForensicEvidenceRecord> {
+    return this.request<ForensicEvidenceRecord>(
+      `/forensic-evidence/records/${encodeURIComponent(evidenceId)}?justification=${encodeURIComponent(justification)}`,
+      {
+        method: 'DELETE',
       }
     );
   }

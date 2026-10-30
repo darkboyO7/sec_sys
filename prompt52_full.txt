@@ -1,0 +1,35 @@
+# PROMPT 52 — Fault Injection, Graceful Degradation and Recovery Verification
+
+Repository: `D:\alt`
+
+## Objective
+Verify that the VAPT System remains safe and understandable when databases, workers, adapters, providers, and background tasks fail.
+
+### Inspect
+Review error handling, worker lifecycle, database transactions, event delivery, retries, health endpoints, evidence persistence, startup, and recovery logic.
+
+### Implement
+1. Define critical system capabilities and their failure dependencies.
+2. Introduce deterministic fault-injection hooks for tests only.
+3. Test database interruption, worker termination, adapter timeout, provider outage, disk-write failure, malformed responses, and interrupted background jobs.
+4. Ensure critical evidence and audit records are not silently discarded when secondary services fail.
+5. Prevent retries from creating duplicate assessments, notifications, or remediation actions.
+6. Apply bounded timeouts, retry budgets, and backoff.
+7. Separate readiness, liveness, dependency health, and degraded functionality.
+8. Ensure health reporting does not expose secrets or internal sensitive data.
+9. Recover incomplete jobs through existing persistent mechanisms.
+10. Prevent automatic recovery from weakening scope restrictions, authorization, or approval requirements.
+11. Add operator-readable failure classifications and recovery instructions.
+12. Verify that the application reports partial success and incomplete work honestly.
+13. Ensure fault injection cannot accidentally activate in a normal deployment.
+14. Document which failures require manual intervention.
+
+### Tests
+Use controlled test fixtures to interrupt operations at important transaction boundaries. Verify persistence, idempotency, recovery, and truthful job status.
+
+Do not deliberately corrupt the user's live database, delete real evidence, or interrupt unrelated processes.
+
+### Acceptance
+Critical failures must be detectable, recovery must be bounded and auditable, and incomplete operations must never be presented as successful completion.
+
+Run relevant regression tests and builds. Report injected failure scenarios, recovery outcomes, remaining single points of failure, and exact test results.

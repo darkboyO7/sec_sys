@@ -1,0 +1,31 @@
+# PROMPT 50 — Accessible Security Operations Interface and Workflow Usability
+
+Repository: `D:\alt`
+
+## Objective
+Improve the existing VAPT dashboard so operators can interpret findings and complete security workflows accurately, including keyboard and assistive-technology users.
+
+### Inspect
+Review existing routes, navigation, design system, forms, data tables, charts, alert views, asset pages, remediation workflows, evidence displays, and frontend test tooling.
+
+### Implement
+1. Audit key workflows for keyboard accessibility, semantic structure, focus management, accessible names, and meaningful error announcements.
+2. Ensure severity, status, authorization, and health are not communicated through color alone.
+3. Improve table headings, pagination, filter labels, sorting announcements, and empty states.
+4. Ensure forms explain validation errors and preserve safe user input when appropriate.
+5. Make destructive or privileged actions clear and require appropriate confirmation.
+6. Prevent duplicate submissions and accurately represent pending server operations.
+7. Improve responsive layouts for the existing supported screen sizes.
+8. Add useful loading, failure, permission-denied, and retry states.
+9. Ensure charts have text alternatives or equivalent tabular summaries.
+10. Improve evidence and finding details so source, freshness, confidence, and limitations are easy to distinguish.
+11. Use consistent terminology for simulated results, live observations, unresolved findings, and verified remediation.
+12. Avoid large design rewrites that break existing workflows.
+
+### Tests
+Add accessibility checks and targeted interaction tests for keyboard navigation, focus behavior, validation, filters, charts, and privileged-action confirmation. Manually inspect any important issues that automated checks cannot reliably detect.
+
+### Acceptance
+The interface must accurately reflect backend state and improve accessibility without weakening authorization or hiding operational failures.
+
+Run frontend tests, type checks, and production builds. Report verified accessibility improvements and remaining issues; do not claim formal accessibility certification without an appropriate assessment.

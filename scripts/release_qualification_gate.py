@@ -1261,8 +1261,82 @@ def stage_35_security_regression_and_control_verification() -> StageResult:
     return res
 
 
-def stage_36_frontend_unit_tests() -> StageResult:
-    res = StageResult(36, "Frontend Unit & Contract Acceptance Tests")
+def stage_36_forensic_evidence_preservation_and_chain_of_custody() -> StageResult:
+    res = StageResult(36, "Forensic Evidence Preservation, Chain of Custody & Investigation Integrity")
+    start = time.perf_counter()
+    try:
+        proc = run_command([
+            str(PYTHON_EXE),
+            "-m",
+            "pytest",
+            "tests/test_prompt48_forensic_evidence_preservation.py",
+            "-v",
+        ], cwd=REPO_ROOT / "backend")
+
+        if proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Prompt 48 forensic evidence test suite failed with code {proc.returncode}:\n{proc.stdout}\n{proc.stderr}")
+            return res
+
+        cli_proc = run_command([
+            str(PYTHON_EXE),
+            "scripts/verify_forensic_evidence.py",
+            "--json",
+        ], cwd=REPO_ROOT)
+
+        if cli_proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Forensic verification CLI tool failed with code {cli_proc.returncode}:\n{cli_proc.stdout}\n{cli_proc.stderr}")
+            return res
+
+        res.status = "PASSED"
+        res.details["raw_payload_preservation"] = "Untouched raw records strictly separated from derived normalized interpretations"
+        res.details["cryptographic_origin"] = "Asymmetric Ed25519 digital signatures verified distinct from checksums"
+        res.details["merkle_custody_chain"] = "Monotonic hash chaining across all evidence lifecycle transitions verified"
+        res.details["contradiction_preservation"] = "Contradictory observations stored as linked history without overwriting prior evidence"
+        res.details["read_only_cli"] = "Zero-mutation forensic verification CLI verified"
+        res.details["summary"] = "All 12 Prompt 48 forensic evidence preservation tests and read-only verification CLI passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_37_environment_separation_and_deployment_profiles() -> StageResult:
+    res = StageResult(37, "Environment Separation, Deployment Profiles & Safe Runtime Configuration")
+    start = time.perf_counter()
+    try:
+        proc = run_command([
+            str(PYTHON_EXE),
+            "-m",
+            "pytest",
+            "tests/test_prompt49_environment_separation_and_profiles.py",
+            "-v",
+        ], cwd=REPO_ROOT / "backend")
+
+        if proc.returncode != 0:
+            res.status = "FAILED"
+            res.errors.append(f"Prompt 49 environment separation tests failed with code {proc.returncode}:\n{proc.stdout}\n{proc.stderr}")
+            return res
+
+        res.status = "PASSED"
+        res.details["profile_taxonomy"] = "Explicit profiles verified: development, testing, staging, production"
+        res.details["production_hardening"] = "Strict fail-closed validation of secrets, DEBUG, SQLite, and CORS verified"
+        res.details["test_isolation"] = "Automatic redirection to isolated test database verified (never mutating vapt.db)"
+        res.details["readiness_probes"] = "Component-level readiness and profile compliance verified"
+        res.details["summary"] = "All 12 Prompt 49 environment separation and profile tests passed."
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
+def stage_38_frontend_unit_tests() -> StageResult:
+    res = StageResult(38, "Frontend Unit & Contract Acceptance Tests")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "test", "--", "--run"], cwd=REPO_ROOT / "frontend")
@@ -1280,8 +1354,8 @@ def stage_36_frontend_unit_tests() -> StageResult:
     return res
 
 
-def stage_37_frontend_production_build() -> StageResult:
-    res = StageResult(37, "Frontend Production Distribution Build")
+def stage_39_frontend_production_build() -> StageResult:
+    res = StageResult(39, "Frontend Production Distribution Build")
     start = time.perf_counter()
     try:
         proc = run_command(["npm.cmd", "run", "build"], cwd=REPO_ROOT / "frontend")
@@ -1304,8 +1378,8 @@ def stage_37_frontend_production_build() -> StageResult:
     return res
 
 
-def stage_38_secret_and_hygiene_scan() -> StageResult:
-    res = StageResult(38, "Secret, Credential & Sensitive Data Hygiene Scan")
+def stage_40_secret_and_hygiene_scan() -> StageResult:
+    res = StageResult(40, "Secret, Credential & Sensitive Data Hygiene Scan")
     start = time.perf_counter()
     try:
         from app.services.supply_chain_security_service import SupplyChainSecurityService
@@ -1335,8 +1409,8 @@ def stage_38_secret_and_hygiene_scan() -> StageResult:
     return res
 
 
-def stage_39_release_packaging_inspection() -> StageResult:
-    res = StageResult(39, "Release Packaging & Clean Artifact Inspection")
+def stage_41_release_packaging_inspection() -> StageResult:
+    res = StageResult(41, "Release Packaging & Clean Artifact Inspection")
     start = time.perf_counter()
     try:
         # Verify that excluded release artifacts (e.g. node_modules, .venv, test sqlite DBs) are NOT bundled
@@ -1391,7 +1465,7 @@ def stage_39_release_packaging_inspection() -> StageResult:
 
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 47)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 49)")
     print("=" * 80)
 
     stages = [
@@ -1430,10 +1504,12 @@ def main():
         stage_33_secrets_management_and_credential_lifecycle,
         stage_34_attack_surface_and_exposure_governance,
         stage_35_security_regression_and_control_verification,
-        stage_36_frontend_unit_tests,
-        stage_37_frontend_production_build,
-        stage_38_secret_and_hygiene_scan,
-        stage_39_release_packaging_inspection,
+        stage_36_forensic_evidence_preservation_and_chain_of_custody,
+        stage_37_environment_separation_and_deployment_profiles,
+        stage_38_frontend_unit_tests,
+        stage_39_frontend_production_build,
+        stage_40_secret_and_hygiene_scan,
+        stage_41_release_packaging_inspection,
     ]
 
     results: List[StageResult] = []

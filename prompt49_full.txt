@@ -1,0 +1,36 @@
+<USER_REQUEST>
+# PROMPT 49 — Environment Separation, Deployment Profiles and Safe Runtime Configuration
+
+Repository: `D:\alt`
+
+## Objective
+Make local development, automated testing, staging, and production-like operation distinguishable and safely configurable.
+
+### Inspect
+Review startup scripts, configuration loading, frontend build settings, backend settings, database paths, debug flags, CORS, authentication, logging, worker execution, and release packaging.
+
+### Implement
+1. Define explicit environment profiles supported by the current architecture.
+2. Separate development conveniences from production security requirements.
+3. Validate settings at startup and produce actionable, secret-free error messages.
+4. Prevent debug mode, permissive CORS, test credentials, development authentication shortcuts, and verbose sensitive error responses from being enabled accidentally in production-like deployments.
+5. Separate test databases and evidence directories from ordinary application data.
+6. Ensure scripts use predictable paths and do not depend on undocumented machine-specific directories.
+7. Verify the frontend points to the intended backend environment.
+8. Avoid embedding private backend configuration into frontend bundles.
+9. Make startup and health checks report actual component readiness.
+10. Add a safe configuration template containing placeholders, never real secrets.
+11. Document environment-specific database, backup, logging, and worker behavior.
+12. Preserve Windows compatibility without introducing a mandatory WSL dependency.
+
+### Tests
+Test invalid profile combinations, missing configuration, unsafe production defaults, accidental use of the development database, mismatched frontend API configuration, and startup from a clean supported environment.
+
+### Acceptance
+A production-like deployment must not silently inherit unsafe development settings, and test execution must not mutate the user's working database.
+
+Run the relevant tests and production build. Report the profiles supported, settings enforced, deployment limitations, and actual validation results. Preserve unrelated changes and do not modify the recovery mirror.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-10-28T19:00:53+05:30.
+</ADDITIONAL_METADATA>

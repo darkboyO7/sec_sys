@@ -3667,6 +3667,148 @@ export interface AttackSurfaceEvidenceSummary {
   distinct_evidence_hashes: string[];
 }
 
+export type ForensicEvidenceLifecycleState =
+  | 'COLLECTED'
+  | 'INGESTED'
+  | 'NORMALIZED'
+  | 'ANALYZED'
+  | 'REPORTED'
+  | 'ARCHIVED'
+  | 'AUTHORIZED_DELETED';
+
+export type ForensicVerificationOutcome = 'VERIFIED' | 'FAILED' | 'UNAVAILABLE' | 'NOT_CHECKED';
+
+export type ForensicContradictionStatus = 'SUPPORTING' | 'CONTRADICTORY' | 'CORRECTION' | 'SUPERSEDED';
+
+export interface EvidenceCustodyEvent {
+  id: string;
+  evidence_id: string;
+  event_type: string;
+  actor_id: string;
+  actor_role: string;
+  timestamp: string;
+  action_details: Record<string, any>;
+  prev_custody_hash: string;
+  custody_hash: string;
+}
+
+export interface ForensicEvidenceRecord {
+  id: string;
+  finding_id?: string | null;
+  job_id?: string | null;
+  project_id: string;
+  evidence_type: string;
+  raw_payload: string;
+  raw_digest_sha256: string;
+  normalized_payload?: Record<string, any> | null;
+  normalized_digest_sha256?: string | null;
+  source_identity: string;
+  adapter_version: string;
+  collection_time: string;
+  ingestion_time: string;
+  assessment_context: Record<string, any>;
+  transformation_history: Array<{
+    step: string;
+    transformer?: string;
+    version?: string;
+    reason?: string;
+    timestamp: string;
+    actor: string;
+  }>;
+  origin_signature: string;
+  signing_key_id: string;
+  signature_algorithm: string;
+  lifecycle_state: ForensicEvidenceLifecycleState;
+  last_verification_status: ForensicVerificationOutcome;
+  last_verified_at?: string | null;
+  last_verified_by?: string | null;
+  verification_details?: Record<string, any> | null;
+  contradiction_status: ForensicContradictionStatus;
+  superseded_by_id?: string | null;
+  prior_evidence_id?: string | null;
+  is_contradictory: boolean;
+  contradiction_notes?: string | null;
+  classification: string;
+  is_redacted: boolean;
+  is_archived: boolean;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+  custody_events?: EvidenceCustodyEvent[];
+}
+
+export interface EvidenceIngestRequest {
+  project_id: string;
+  finding_id?: string | null;
+  job_id?: string | null;
+  evidence_type: string;
+  raw_payload: string;
+  source_identity: string;
+  adapter_version: string;
+  collection_time: string;
+  assessment_context?: Record<string, any>;
+  signing_key_id?: string;
+  classification?: string;
+}
+
+export interface EvidenceNormalizeRequest {
+  normalized_payload: Record<string, any>;
+  transformer_identity: string;
+  adapter_version: string;
+  reason: string;
+}
+
+export interface EvidenceContradictionRequest {
+  contradictory_payload: string;
+  source_identity: string;
+  adapter_version: string;
+  collection_time: string;
+  notes: string;
+  supersedes_previous?: boolean;
+  assessment_context?: Record<string, any>;
+  signing_key_id?: string;
+}
+
+export interface ForensicVerificationReportItem {
+  evidence_id: string;
+  status: ForensicVerificationOutcome;
+  raw_digest_match: boolean;
+  signature_valid: boolean;
+  custody_chain_valid: boolean;
+  artifacts_present: boolean;
+  contradiction_status: ForensicContradictionStatus;
+  discrepancies: string[];
+}
+
+export interface ForensicVerificationReport {
+  timestamp: string;
+  total_records: number;
+  verified_count: number;
+  failed_count: number;
+  unavailable_count: number;
+  not_checked_count: number;
+  items: ForensicVerificationReportItem[];
+}
+
+export interface EvidenceExportBundle {
+  export_version: string;
+  exported_at: string;
+  exported_by: string;
+  record_count: number;
+  records: Record<string, any>[];
+  custody_events: Record<string, any>[];
+  bundle_digest_sha256: string;
+  bundle_signature: string;
+  signing_key_id: string;
+}
+
+export interface EvidenceImportResult {
+  imported_count: number;
+  verification_passed: boolean;
+  evidence_ids: string[];
+  warnings: string[];
+}
+
 
 
 

@@ -4,19 +4,33 @@ from typing import Generator
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.engine import make_url
-from app.core.config import settings
+from app.core.config import settings, Settings
+
+
+def get_effective_database_url(s: Settings = settings) -> str:
+    """Returns the effective database URL, redirecting working DB in testing profile (Prompt 49)."""
+    url = s.DATABASE_URL
+    if s.ENVIRONMENT == "testing" and "vapt.db" in url and not url.endswith("vapt_test.db"):
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        test_db_file = (backend_dir / "data" / "vapt_test.db").resolve().as_posix()
+        return f"sqlite:///{test_db_file}"
+    return url
+
+
+# Prompt 49: Guard against test execution mutating the user's working database
+effective_db_url = get_effective_database_url(settings)
 
 # Ensure sqlite data directory exists if local sqlite path is used
-if settings.DATABASE_URL.startswith("sqlite"):
+if effective_db_url.startswith("sqlite"):
     # Strip prefix to extract path
-    db_path = settings.DATABASE_URL.replace("sqlite:///", "").replace("sqlite://", "")
+    db_path = effective_db_url.replace("sqlite:///", "").replace("sqlite://", "")
     if db_path != ":memory:":
         parent_dir = Path(db_path).parent
         if parent_dir and not parent_dir.exists():
             parent_dir.mkdir(parents=True, exist_ok=True)
 
 
-def get_engine_kwargs(db_url: str = settings.DATABASE_URL) -> dict:
+def get_engine_kwargs(db_url: str = effective_db_url) -> dict:
     """Return engine configuration arguments based on dialect."""
     kwargs = {
         "pool_pre_ping": True,
@@ -32,7 +46,7 @@ def get_engine_kwargs(db_url: str = settings.DATABASE_URL) -> dict:
     return kwargs
 
 
-def get_masked_database_url(url: str = settings.DATABASE_URL) -> str:
+def get_masked_database_url(url: str = effective_db_url) -> str:
     """Return database URL with sensitive credentials redacted."""
     try:
         parsed = make_url(url)
@@ -41,14 +55,14 @@ def get_masked_database_url(url: str = settings.DATABASE_URL) -> str:
         return "<redacted>"
 
 
-engine_kwargs = get_engine_kwargs(settings.DATABASE_URL)
+engine_kwargs = get_engine_kwargs(effective_db_url)
 engine = create_engine(
-    settings.DATABASE_URL,
+    effective_db_url,
     **engine_kwargs,
 )
 
 # Apply SQLite specific pragmas for WAL mode and Foreign Key enforcement
-if settings.DATABASE_URL.startswith("sqlite"):
+if effective_db_url.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()

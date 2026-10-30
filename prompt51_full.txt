@@ -1,0 +1,31 @@
+# PROMPT 51 — Explainable Security Recommendations and Remediation Prioritization
+
+Repository: `D:\alt`
+
+## Objective
+Provide practical, evidence-backed recommendations that help users prioritize and resolve security findings without fabricating certainty or automatically executing risky actions.
+
+### Inspect
+Review findings, asset criticality, risk scoring, vulnerability intelligence, remediation guidance, approval workflows, retesting, and outcome tracking.
+
+### Implement
+1. Build a recommendation service that uses actual findings, affected assets, verified evidence, exposure, available remediation guidance, and existing risk policies.
+2. Separate technical severity, business priority, confidence, remediation urgency, and estimated effort.
+3. Explain each recommendation with source evidence and the factors that influenced its ranking.
+4. Distinguish verified remediation instructions from general guidance and unverified suggestions.
+5. Identify missing prerequisites, potential compatibility concerns, dependencies, and rollback considerations where known.
+6. Reuse existing approved remediation templates and workflows.
+7. Never invent a vendor command, configuration key, affected version, or successful remediation result.
+8. Require the existing approval process for security-sensitive actions.
+9. Do not automatically run generated commands or allow model output to bypass scope controls.
+10. Link recommendations to independent retesting and verified outcomes.
+11. Record recommendation versions and feedback without silently rewriting historical decisions.
+12. Measure recommendation usefulness only from actual review and outcome data.
+
+### Tests
+Test missing evidence, conflicting recommendations, unsupported products, malformed model output, authorization failures, unapproved remediation, and incorrect claims of successful resolution.
+
+### Acceptance
+Every recommendation must disclose its basis and uncertainty. AI-generated content must remain advisory and cannot override deterministic security policies or required approvals.
+
+Integrate with the existing UI and APIs. Run tests and builds, report actual evidence sources and limitations, and do not fabricate recommendation-quality metrics.

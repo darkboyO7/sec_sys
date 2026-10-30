@@ -19,6 +19,9 @@ class ReadinessCheck(BaseModel):
     database: bool
     migrations: bool
     storage_writable: bool
+    evidence_writable: bool = True
+    profile: str = "development"
+    profile_valid: bool = True
     details: Dict[str, Any]
 
 
@@ -45,4 +48,3 @@ class DependencyHealthResponse(BaseModel):
     timestamp: datetime
     dependencies: Dict[str, DependencyItemCheck]
     summary: str
-

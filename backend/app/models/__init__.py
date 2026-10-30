@@ -237,6 +237,14 @@ from app.models.attack_surface import (
     AttackSurfaceExposure,
     AssetInclusionProposal,
 )
+from app.models.forensic_evidence import (
+    EvidenceLifecycleState,
+    VerificationOutcome,
+    ContradictionStatus,
+    CustodyEventType,
+    ForensicEvidenceRecord,
+    EvidenceCustodyEvent,
+)
 
 __all__ = [
     "Base",
@@ -428,4 +436,10 @@ __all__ = [
     "ProposalStatus",
     "AttackSurfaceExposure",
     "AssetInclusionProposal",
+    "EvidenceLifecycleState",
+    "VerificationOutcome",
+    "ContradictionStatus",
+    "CustodyEventType",
+    "ForensicEvidenceRecord",
+    "EvidenceCustodyEvent",
 ]

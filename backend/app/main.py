@@ -366,7 +366,7 @@ async def global_unhandled_exception_handler(request: Request, exc: Exception):
             headers={"X-Correlation-ID": corr_id, "X-Request-ID": corr_id, "Retry-After": "1"},
         )
 
-    if settings.ENVIRONMENT == "production":
+    if settings.ENVIRONMENT in ("production", "staging") or not settings.DEBUG:
         msg = "An internal error occurred. Please contact the administrator."
         err = APIErrorResponse(
             error_code=APIErrorCode.INTERNAL_ERROR.value,

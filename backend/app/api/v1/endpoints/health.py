@@ -78,7 +78,36 @@ def readiness_check(db: Session = Depends(get_db)):
     except Exception:
         details["storage"] = "storage_unwritable"
 
-    is_ready = db_ok and migrations_ok and storage_ok
+    # 4. Check Evidence Storage writability (Prompt 49)
+    evidence_ok = False
+    try:
+        ev_dir = settings.get_evidence_path()
+        ev_file = ev_dir / "_readiness_ev_test.tmp"
+        ev_file.write_text("ok", encoding="utf-8")
+        if ev_file.exists():
+            ev_file.unlink()
+        evidence_ok = True
+        details["evidence_storage"] = "writable"
+    except Exception:
+        details["evidence_storage"] = "evidence_storage_unwritable"
+
+    # 5. Check Profile and Configuration Compliance (Prompt 49)
+    profile_ok = True
+    active_profile = settings.ENVIRONMENT.lower()
+    try:
+        diagnostics = settings.get_config_diagnostics()
+        failed_diags = [d for d in diagnostics if d.get("status") == "FAIL"]
+        if failed_diags:
+            profile_ok = False
+            details["profile_errors"] = [d["message"] for d in failed_diags]
+            details["profile_compliance"] = "non_compliant"
+        else:
+            details["profile_compliance"] = "compliant"
+    except Exception as e:
+        profile_ok = False
+        details["profile_compliance"] = f"evaluation_failed: {str(e)}"
+
+    is_ready = db_ok and migrations_ok and storage_ok and evidence_ok and profile_ok
     status_code = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
     response_data = ReadinessResponse(
@@ -89,6 +118,9 @@ def readiness_check(db: Session = Depends(get_db)):
             database=db_ok,
             migrations=migrations_ok,
             storage_writable=storage_ok,
+            evidence_writable=evidence_ok,
+            profile=active_profile,
+            profile_valid=profile_ok,
             details=details,
         ),
     )

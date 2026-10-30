@@ -66,6 +66,30 @@ class Settings(BaseSettings):
     WORKER_TIMEOUT_GRACE_PERIOD_SECONDS: int = 3
     WORKER_MAX_IPC_PAYLOAD_BYTES: int = 10485760  # 10MB
 
+    # Prompt 49: Evidence Directory Separation
+    EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "evidence").resolve().as_posix())
+    TEST_EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "test_evidence").resolve().as_posix())
+
+    @field_validator("ENVIRONMENT")
+    @classmethod
+    def validate_environment(cls, v: str) -> str:
+        norm = v.strip().lower()
+        valid = {e.value for e in EnvironmentType}
+        if norm not in valid:
+            raise ValueError(
+                f"Invalid ENVIRONMENT profile '{v}'. Must be one of: {', '.join(sorted(valid))}."
+            )
+        return norm
+
+    def get_evidence_path(self) -> Path:
+        """Returns the appropriate evidence storage directory based on active environment profile."""
+        if self.ENVIRONMENT == EnvironmentType.TESTING.value:
+            p = Path(self.TEST_EVIDENCE_DIR)
+        else:
+            p = Path(self.EVIDENCE_DIR)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
