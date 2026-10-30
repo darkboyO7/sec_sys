@@ -164,25 +164,34 @@ export const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <nav className="border-b border-cyber-750 bg-cyber-850/60 px-6 overflow-x-auto scrollbar-thin">
-      <div className="flex gap-1.5 min-w-max">
+    <nav
+      aria-label="Main Operations Navigation"
+      className="border-b border-cyber-750 bg-cyber-850/60 px-6 overflow-x-auto scrollbar-thin"
+    >
+      <div role="tablist" aria-orientation="horizontal" className="flex gap-1.5 min-w-max">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={isActive}
+              aria-controls={`view-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 py-3 px-3 text-xs font-semibold border-b-2 transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-accent-cyan ${
                 isActive
                   ? 'border-accent-cyan text-accent-cyan bg-cyber-800/40'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-cyber-600'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{tab.label}</span>
               {tab.badge !== undefined && (
                 <span
+                  aria-label={`${tab.badge} items`}
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                     isActive ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-cyber-750 text-slate-400'
                   }`}

@@ -25,6 +25,7 @@ import type {
   FindingLifecycleStatus,
   FindingSeverity,
 } from '../types';
+import { SeverityBadge, ObservationChip } from '../components/SeverityBadge';
 
 interface FindingLifecycleViewProps {
   currentProject: Project | null;
@@ -294,9 +295,10 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
       <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-4">
         <form onSubmit={handleSearchSubmit} className="flex-1 w-full flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" aria-hidden="true" />
             <input
               type="text"
+              aria-label="Search security findings by title, CVE, or target"
               placeholder="Search by title, vulnerability ID (CVE/CWE), or target..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -305,7 +307,8 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
           </div>
           <button
             type="submit"
-            className="px-3.5 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700"
+            aria-label="Submit search query"
+            className="px-3.5 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
           >
             Search
           </button>
@@ -314,8 +317,9 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           {/* Status Filter */}
           <div className="flex items-center space-x-1.5">
-            <Filter className="w-3.5 h-3.5 text-zinc-400" />
+            <Filter className="w-3.5 h-3.5 text-zinc-400" aria-hidden="true" />
             <select
+              aria-label="Filter findings by lifecycle status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="text-xs bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-300 focus:outline-none focus:border-cyan-500"
@@ -331,6 +335,7 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
 
           {/* Severity Filter */}
           <select
+            aria-label="Filter findings by severity level"
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
             className="text-xs bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-300 focus:outline-none focus:border-cyan-500"
@@ -347,12 +352,13 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
           <label className="flex items-center space-x-2 text-xs text-zinc-300 cursor-pointer select-none">
             <input
               type="checkbox"
+              aria-label="Filter for findings with contradictory observations only"
               checked={onlyContradictions}
               onChange={(e) => setOnlyContradictions(e.target.checked)}
               className="rounded bg-zinc-950 border-zinc-700 text-cyan-600 focus:ring-0"
             />
             <span className="flex items-center space-x-1">
-              <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-400" aria-hidden="true" />
               <span>Contradictions only</span>
             </span>
           </label>
@@ -381,17 +387,17 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
           </p>
         </div>
       ) : (
-        <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+        <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden" role="region" aria-label="Security Findings Table">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm" aria-label="Security Findings">
               <thead className="bg-zinc-950/60 border-b border-zinc-800 text-xs text-zinc-400 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Severity</th>
-                  <th className="py-3 px-4">Vulnerability & Identifier</th>
-                  <th className="py-3 px-4">Target Asset</th>
-                  <th className="py-3 px-4">Lifecycle State</th>
-                  <th className="py-3 px-4">Observations</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th scope="col" className="py-3 px-4">Severity</th>
+                  <th scope="col" className="py-3 px-4">Vulnerability & Identifier</th>
+                  <th scope="col" className="py-3 px-4">Target Asset</th>
+                  <th scope="col" className="py-3 px-4">Lifecycle State</th>
+                  <th scope="col" className="py-3 px-4">Observations</th>
+                  <th scope="col" className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60">
@@ -402,23 +408,12 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
                     text: 'text-zinc-400',
                     border: 'border-zinc-500/30',
                   };
-                  const sevMeta = SEVERITY_CONFIG[f.severity] || {
-                    label: f.severity,
-                    bg: 'bg-zinc-500/10',
-                    text: 'text-zinc-400',
-                    border: 'border-zinc-500/30',
-                  };
 
                   return (
                     <tr key={f.id} className="hover:bg-zinc-800/30 transition">
-                      {/* Severity */}
+                      {/* Severity: Not color alone */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${sevMeta.bg} ${sevMeta.text} ${sevMeta.border}`}
-                        >
-                          {sevMeta.label}
-                          {f.cvss_score && <span className="ml-1 opacity-70">({f.cvss_score.toFixed(1)})</span>}
-                        </span>
+                        <SeverityBadge severity={f.severity} cvssScore={f.cvss_score} />
                       </td>
 
                       {/* Title & Identifiers */}
@@ -426,18 +421,10 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
                         <div className="font-medium text-zinc-200 flex items-center gap-2">
                           <span>{f.title}</span>
                           {f.has_contradictions && (
-                            <span
-                              className="px-1.5 py-0.5 text-[10px] font-semibold bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded inline-flex items-center gap-1"
-                              title="Contradictory evidence or confidence divergence observed across scans"
-                            >
-                              <AlertTriangle className="w-2.5 h-2.5" />
-                              Contradiction
-                            </span>
+                            <ObservationChip type="CONTRADICTORY" />
                           )}
                           {f.is_simulated && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-zinc-800 text-zinc-400 rounded">
-                              Simulated
-                            </span>
+                            <ObservationChip type="SIMULATED" />
                           )}
                         </div>
                         {f.vuln_id && (
@@ -471,9 +458,10 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
                       <td className="py-3.5 px-4 whitespace-nowrap text-right">
                         <button
                           onClick={() => handleOpenDetail(f.id)}
-                          className="inline-flex items-center space-x-1 px-3 py-1 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition"
+                          aria-label={`Inspect details and transition state for finding ${f.title}`}
+                          className="inline-flex items-center space-x-1 px-3 py-1 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         >
-                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                          <Eye className="w-3.5 h-3.5 text-cyan-400" aria-hidden="true" />
                           <span>Inspect / Transition</span>
                         </button>
                       </td>
@@ -488,13 +476,18 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
 
       {/* Finding Detail & State Machine Transition Drawer / Modal */}
       {selectedFindingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl text-zinc-200 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto" role="presentation">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="finding-detail-modal-title"
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl text-zinc-200 space-y-6"
+          >
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-zinc-800 pb-4">
               <div>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-xl font-bold text-zinc-100">
+                  <h2 id="finding-detail-modal-title" className="text-xl font-bold text-zinc-100">
                     {findingDetail ? findingDetail.title : 'Loading finding details...'}
                   </h2>
                 </div>
@@ -509,8 +502,10 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
                 )}
               </div>
               <button
+                type="button"
                 onClick={handleCloseDetail}
-                className="text-zinc-400 hover:text-zinc-100 text-sm font-semibold px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700"
+                aria-label="Close finding details dialog"
+                className="text-zinc-400 hover:text-zinc-100 text-sm font-semibold px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 ✕ Close
               </button>
@@ -540,15 +535,9 @@ export const FindingLifecycleView: React.FC<FindingLifecycleViewProps> = ({ curr
 
                   <div>
                     <span className="text-[11px] text-zinc-500 uppercase tracking-wider block">Severity</span>
-                    <span
-                      className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                        SEVERITY_CONFIG[findingDetail.severity]?.bg
-                      } ${SEVERITY_CONFIG[findingDetail.severity]?.text} ${
-                        SEVERITY_CONFIG[findingDetail.severity]?.border
-                      }`}
-                    >
-                      {SEVERITY_CONFIG[findingDetail.severity]?.label}
-                    </span>
+                    <div className="mt-1">
+                      <SeverityBadge severity={findingDetail.severity} cvssScore={findingDetail.cvss_score} />
+                    </div>
                   </div>
 
                   <div>
