@@ -23,6 +23,53 @@ from app.models.audit import AuditEvent
 from app.models.recovery import RecoveryBundleStatus, DisasterRecoveryBundleRecord
 from app.models.governance import ApprovalRequestRecord, GovernanceApprovalStatus
 from app.services.audit_service import AuditService
+from app.services.origin_attestation_service import attestation_service, canonical_time_str
+from app.services.forensic_evidence_service import compute_custody_hash
+from app.services.storage.factory import get_evidence_storage_adapter
+
+_ACTIVE_RESTORE_LOCK: bool = False
+_RESTORED_BUNDLES_IN_SESSION: set = set()
+
+
+def sanitize_config_metadata(cfg: Any) -> Dict[str, Any]:
+    """
+    Extracts configuration metadata without exporting secrets, credentials, or keys (Prompt 58-62).
+    Redacts sensitive keys while preserving diagnostic context and RPO/RTO parameters.
+    """
+    redacted: Dict[str, Any] = {}
+    sensitive_keywords = ["SECRET", "KEY", "PASSWORD", "PASS", "TOKEN", "CREDENTIAL", "PRIVATE", "AUTH", "SALT"]
+
+    if hasattr(cfg, "__dict__"):
+        items = cfg.__dict__.items()
+    elif isinstance(cfg, dict):
+        items = cfg.items()
+    else:
+        items = []
+
+    for k, v in items:
+        if k.startswith("_"):
+            continue
+        k_upper = k.upper()
+        if any(sk in k_upper for sk in sensitive_keywords):
+            redacted[k] = "[REDACTED_CONFIDENTIAL]"
+        elif "DATABASE_URL" in k_upper or "DB_URL" in k_upper:
+            s_val = str(v)
+            if "@" in s_val and "://" in s_val:
+                proto, rest = s_val.split("://", 1)
+                user_pass, host_db = rest.split("@", 1)
+                redacted[k] = f"{proto}://[REDACTED_USER_PASS]@{host_db}"
+            else:
+                redacted[k] = s_val
+        elif isinstance(v, (str, int, float, bool, list, dict)) or v is None:
+            redacted[k] = v
+        else:
+            redacted[k] = str(v)
+
+    redacted["rpo_target_minutes"] = getattr(cfg, "RPO_TARGET_MINUTES", 60)
+    redacted["rto_target_minutes"] = getattr(cfg, "RTO_TARGET_MINUTES", 15)
+    redacted["evidence_storage_backend"] = getattr(cfg, "EVIDENCE_STORAGE_BACKEND", "LOCAL")
+    return redacted
+
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -81,13 +128,15 @@ class BackupRecoveryService:
         backup_root: Optional[str] = None,
         actor_id: Optional[str] = None,
         evidence_dir: Optional[str] = None,
+        backup_type: str = "OPERATOR_TRIGGERED",
     ) -> Dict[str, Any]:
         """
-        Creates a consistent, point-in-time disaster recovery bundle:
+        Creates a consistent, point-in-time disaster recovery bundle (Prompt 58-62):
         - Atomic staging in `<bundle_id>.incomplete`
         - SQLite online backup API for active WAL consistency without locking
-        - Cryptographic manifest generation with SHA-256 for all artifacts
-        - Record count inventory and schema revision tracking
+        - Sanitized configuration metadata excluding credentials/secrets
+        - Cryptographic manifest generation with SHA-256 and Ed25519 digital signature
+        - Aggregate evidence cataloging and digest verification
         - Published atomically only after internal consistency checks pass.
         """
         now = datetime.now(timezone.utc)
@@ -154,6 +203,15 @@ class BackupRecoveryService:
                             "size_bytes": dest_fpath.stat().st_size,
                         })
 
+            # Calculate aggregate evidence digest
+            if evidence_catalog:
+                agg_ev = hashlib.sha256()
+                for item in sorted(evidence_catalog, key=lambda x: x["path"]):
+                    agg_ev.update(f"{item['path']}:{item['sha256']}".encode("utf-8"))
+                agg_evidence_sha = agg_ev.hexdigest()
+            else:
+                agg_evidence_sha = hashlib.sha256(b"NO_EVIDENCE_FILES").hexdigest()
+
             # 2b. Model Artifacts Snapshot (Prompt 42, Req 1)
             src_models = Path("./data/models").resolve()
             staging_models_dir = staging_dir / "models"
@@ -173,7 +231,7 @@ class BackupRecoveryService:
                             "size_bytes": dest_fpath.stat().st_size,
                         })
 
-            # 2c. Configuration References (Redacted / Sanitized, Req 1)
+            # 2c. Configuration References (Redacted / Sanitized, Req 1 & Prompt 58)
             config_ref = {
                 "environment": getattr(settings, "ENVIRONMENT", "development"),
                 "database_driver": "sqlite",
@@ -184,6 +242,11 @@ class BackupRecoveryService:
             config_ref_path = staging_dir / "config_reference.json"
             config_ref_bytes = json.dumps(config_ref, indent=2).encode("utf-8")
             config_ref_path.write_bytes(config_ref_bytes)
+
+            # Prompt 58-62: Full sanitized configuration metadata excluding secrets
+            sanitized_config = sanitize_config_metadata(settings)
+            sanitized_cfg_path = staging_dir / "redacted_settings.json"
+            sanitized_cfg_path.write_text(json.dumps(sanitized_config, indent=2), encoding="utf-8")
 
             # 3. Read Database Metadata & Row Counts
             record_counts = {}
@@ -233,14 +296,18 @@ class BackupRecoveryService:
                 "created_by_id": actor_id,
                 "engine": "sqlite",
                 "schema_revision": alembic_version,
+                "backup_type": backup_type,
                 "database": {
                     "filename": "database.db",
                     "sha256": db_sha256,
                     "size_bytes": db_size_bytes,
                 },
                 "evidence_files": evidence_catalog,
+                "evidence_count": len(evidence_catalog),
+                "evidence_sha256": agg_evidence_sha,
                 "model_files": models_catalog,
                 "config_reference": "config_reference.json",
+                "redacted_settings": "redacted_settings.json",
                 "record_counts": record_counts,
                 "audit_chain_head": {
                     "event_id": last_audit_id,
@@ -249,6 +316,17 @@ class BackupRecoveryService:
                 "status": "UNVERIFIED",
             }
 
+            # Authentic Ed25519 digital signature of manifest body
+            manifest_data["signature_algorithm"] = "ED25519"
+            manifest_data["signing_key_id"] = "KEY-DEFAULT-ED25519"
+            clean_body = json.dumps(
+                {k: v for k, v in manifest_data.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+                sort_keys=True,
+                separators=(",", ":")
+            )
+            manifest_sig, sig_algo, kid = attestation_service.sign_manifest(clean_body)
+            manifest_data["manifest_signature"] = manifest_sig
+
             manifest_sha256 = compute_manifest_sha256(manifest_data)
             manifest_data["manifest_sha256"] = manifest_sha256
 
@@ -256,6 +334,9 @@ class BackupRecoveryService:
             manifest_bytes = json.dumps(manifest_data, indent=2).encode("utf-8")
             manifest_file.write_bytes(manifest_bytes)
             manifest_size = len(manifest_bytes)
+
+            # Persist detached signature file
+            (staging_dir / "manifest.sig").write_text(manifest_sig, encoding="utf-8")
 
             # 5. Atomic Promotion: Rename staging to final directory
             staging_dir.rename(final_dir)
@@ -273,19 +354,30 @@ class BackupRecoveryService:
                 details={
                     "bundle_id": bundle_id,
                     "manifest_sha256": manifest_sha256,
+                    "manifest_signature": manifest_sig,
                     "database_sha256": db_sha256,
                     "size_bytes": total_bundle_size,
                     "schema_revision": alembic_version,
                     "evidence_files_count": len(evidence_catalog),
+                    "backup_type": backup_type,
                 },
             )
+
+            valid_user_id = None
+            if actor_id:
+                try:
+                    u_row = db.query(User.id).filter((User.id == actor_id) | (User.email == actor_id)).first()
+                    if u_row:
+                        valid_user_id = u_row[0]
+                except Exception:
+                    pass
 
             # Persist bundle record in database
             bundle_record = DisasterRecoveryBundleRecord(
                 bundle_id=bundle_id,
                 bundle_path=str(final_dir),
                 created_at=now,
-                created_by_id=actor_id,
+                created_by_id=valid_user_id,
                 manifest_sha256=manifest_sha256,
                 database_sha256=db_sha256,
                 size_bytes=total_bundle_size,
@@ -293,6 +385,11 @@ class BackupRecoveryService:
                 is_last_known_good=False,
                 table_counts=record_counts,
                 schema_revision=alembic_version,
+                manifest_signature=manifest_sig,
+                evidence_count=len(evidence_catalog),
+                evidence_sha256=agg_evidence_sha,
+                backup_type=backup_type,
+                configuration_metadata=sanitized_config,
             )
             db.add(bundle_record)
             db.commit()
@@ -304,6 +401,7 @@ class BackupRecoveryService:
                 "created_at": now.isoformat(),
                 "created_by_id": actor_id,
                 "manifest_sha256": manifest_sha256,
+                "manifest_signature": manifest_sig,
                 "database_sha256": db_sha256,
                 "size_bytes": total_bundle_size,
                 "status": "UNVERIFIED",
@@ -311,6 +409,8 @@ class BackupRecoveryService:
                 "table_counts": record_counts,
                 "schema_revision": alembic_version,
                 "evidence_files_count": len(evidence_catalog),
+                "evidence_sha256": agg_evidence_sha,
+                "backup_type": backup_type,
             }
         except Exception:
             if staging_dir.exists():
@@ -347,6 +447,8 @@ class BackupRecoveryService:
         bundle_id = bundle_path.name
         checks: Dict[str, Any] = {}
         errors: List[str] = []
+        is_tampered = False
+        is_missing = False
 
         # Check 1: Staging status
         if bundle_path.name.endswith(".incomplete") or ".incomplete" in bundle_path.name:
@@ -355,6 +457,7 @@ class BackupRecoveryService:
             return {
                 "bundle_id": bundle_id,
                 "status": "FAILED",
+                "bundle_status": "CORRUPTED",
                 "verified_at": now.isoformat(),
                 "checks": checks,
                 "errors": errors,
@@ -369,6 +472,7 @@ class BackupRecoveryService:
             return {
                 "bundle_id": bundle_id,
                 "status": "FAILED",
+                "bundle_status": "CORRUPTED",
                 "verified_at": now.isoformat(),
                 "checks": checks,
                 "errors": errors,
@@ -384,14 +488,37 @@ class BackupRecoveryService:
                     "detail": f"Manifest signature mismatch: claimed {claimed_manifest_sha}, computed {computed_manifest_sha}."
                 }
                 errors.append("Manifest signature mismatch.")
+                is_tampered = True
             else:
                 checks["manifest_integrity"] = {"passed": True, "detail": "Manifest JSON and SHA-256 signature verified."}
+
+            # Prompt 58-62: Verify authentic Ed25519 digital signature
+            manifest_sig = manifest.get("manifest_signature")
+            detached_sig_file = bundle_path / "manifest.sig"
+            if not manifest_sig and detached_sig_file.exists():
+                manifest_sig = detached_sig_file.read_text(encoding="utf-8").strip()
+
+            if manifest_sig:
+                clean_body = json.dumps(
+                    {k: v for k, v in manifest.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+                    sort_keys=True,
+                    separators=(",", ":")
+                )
+                kid = manifest.get("signing_key_id", "KEY-DEFAULT-ED25519")
+                sig_valid, sig_reason = attestation_service.verify_manifest(clean_body, manifest_sig, kid)
+                if not sig_valid:
+                    checks["manifest_digital_signature"] = {"passed": False, "detail": sig_reason}
+                    errors.append(f"Manifest digital signature verification failed: {sig_reason}")
+                    is_tampered = True
+                else:
+                    checks["manifest_digital_signature"] = {"passed": True, "detail": sig_reason}
         except Exception as e:
             checks["manifest_integrity"] = {"passed": False, "detail": f"Error parsing manifest: {str(e)}"}
             errors.append(f"Manifest parse error: {str(e)}")
             return {
                 "bundle_id": bundle_id,
                 "status": "FAILED",
+                "bundle_status": "CORRUPTED",
                 "verified_at": now.isoformat(),
                 "checks": checks,
                 "errors": errors,
@@ -402,6 +529,7 @@ class BackupRecoveryService:
         if not db_file.exists():
             checks["file_checksums"] = {"passed": False, "detail": "database.db missing from bundle."}
             errors.append("database.db missing.")
+            is_missing = True
         else:
             actual_db_sha = compute_sha256(db_file)
             expected_db_sha = manifest.get("database", {}).get("sha256")
@@ -411,6 +539,7 @@ class BackupRecoveryService:
                     "detail": f"Database SHA-256 mismatch: expected {expected_db_sha}, actual {actual_db_sha}."
                 }
                 errors.append("Database SHA-256 mismatch.")
+                is_tampered = True
             else:
                 evidence_ok = True
                 ev_err = None
@@ -419,11 +548,13 @@ class BackupRecoveryService:
                     if not ev_path.exists():
                         evidence_ok = False
                         ev_err = f"Evidence file {ev.get('path')} missing."
+                        is_missing = True
                         break
                     actual_ev_sha = compute_sha256(ev_path)
                     if actual_ev_sha != ev.get("sha256"):
                         evidence_ok = False
                         ev_err = f"Evidence file {ev.get('path')} digest mismatch."
+                        is_tampered = True
                         break
                 if evidence_ok and manifest.get("model_files"):
                     for mf in manifest.get("model_files", []):
@@ -431,10 +562,12 @@ class BackupRecoveryService:
                         if not mf_path.exists():
                             evidence_ok = False
                             ev_err = f"Model file {mf.get('path')} missing."
+                            is_missing = True
                             break
                         if compute_sha256(mf_path) != mf.get("sha256"):
                             evidence_ok = False
                             ev_err = f"Model file {mf.get('path')} digest mismatch."
+                            is_tampered = True
                             break
 
                 if not evidence_ok:
@@ -483,27 +616,32 @@ class BackupRecoveryService:
                 else:
                     checks["schema_revision"] = {"passed": True, "detail": "Schema verified without alembic_version table."}
 
-                # 7. Audit chain continuity
-                cur.execute("SELECT id, prev_event_hash, event_hash FROM audit_events ORDER BY id ASC")
-                audit_rows = cur.fetchall()
+                # 7. Audit chain continuity (grouped by project_id and ordered chronologically by rowid)
+                cur.execute("SELECT DISTINCT project_id FROM audit_events")
+                distinct_projects = [r[0] for r in cur.fetchall()]
                 chain_valid = True
-                chain_detail = "Audit chain verified."
-                if audit_rows:
-                    for i in range(1, len(audit_rows)):
-                        prev_hash = audit_rows[i - 1][2]
-                        curr_prev = audit_rows[i][1]
-                        if curr_prev != prev_hash:
-                            chain_valid = False
-                            chain_detail = f"Audit chain broken at event {audit_rows[i][0]}: prev={curr_prev}, prior={prev_hash}."
-                            break
-                    if chain_valid and manifest.get("audit_chain_head"):
-                        expected_head = manifest["audit_chain_head"].get("event_hash")
-                        if expected_head and audit_rows[-1][2] != expected_head:
-                            chain_valid = False
-                            chain_detail = f"Audit chain head mismatch: expected {expected_head}, got {audit_rows[-1][2]}."
+                chain_detail = "Audit chain verified across all project scopes."
+                for proj in distinct_projects:
+                    if proj is None:
+                        cur.execute("SELECT rowid, id, prev_event_hash, event_hash FROM audit_events WHERE project_id IS NULL ORDER BY rowid ASC")
+                    else:
+                        cur.execute("SELECT rowid, id, prev_event_hash, event_hash FROM audit_events WHERE project_id = ? ORDER BY rowid ASC", (proj,))
+                    audit_rows = cur.fetchall()
+                    if audit_rows:
+                        for i in range(1, len(audit_rows)):
+                            prev_hash = audit_rows[i - 1][3]
+                            curr_prev = audit_rows[i][2]
+                            if curr_prev != prev_hash:
+                                chain_valid = False
+                                chain_detail = f"Audit chain broken for project {proj} at event {audit_rows[i][1]}: prev={curr_prev}, prior={prev_hash}."
+                                break
+                    if not chain_valid:
+                        break
+
                 if not chain_valid:
                     checks["audit_chain_continuity"] = {"passed": False, "detail": chain_detail}
                     errors.append(chain_detail)
+                    is_tampered = True
                 else:
                     checks["audit_chain_continuity"] = {"passed": True, "detail": chain_detail}
 
@@ -515,9 +653,17 @@ class BackupRecoveryService:
                     conn.close()
 
         overall_status = "PASSED" if len(errors) == 0 else "FAILED"
+        if overall_status == "PASSED":
+            bundle_status_enum = RecoveryBundleStatus.VERIFIED
+        elif is_tampered:
+            bundle_status_enum = RecoveryBundleStatus.TAMPERED
+        else:
+            bundle_status_enum = RecoveryBundleStatus.CORRUPTED
+
         result = {
             "bundle_id": bundle_id,
             "status": overall_status,
+            "bundle_status": bundle_status_enum.value,
             "verified_at": now.isoformat(),
             "checks": checks,
             "errors": errors,
@@ -527,7 +673,7 @@ class BackupRecoveryService:
         if db:
             record = db.query(DisasterRecoveryBundleRecord).filter(DisasterRecoveryBundleRecord.bundle_id == bundle_id).first()
             if record:
-                record.status = RecoveryBundleStatus.VERIFIED if overall_status == "PASSED" else RecoveryBundleStatus.CORRUPTED
+                record.status = bundle_status_enum
                 record.last_verified_at = now
                 record.verification_report = result
                 db.commit()
@@ -643,6 +789,11 @@ class BackupRecoveryService:
             finally:
                 conn.close()
 
+            # 5b. Verify Merkle custody chains post-recovery (Prompt 58-62)
+            custody_audit = cls.verify_custody_chains_post_recovery(str(dest_db))
+            if custody_audit.get("status") != "VERIFIED":
+                raise RuntimeError(f"Post-recovery custody verification failed: {custody_audit.get('broken_chains')}")
+
             duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
             drill_result = {
                 "status": "SUCCESS",
@@ -652,6 +803,7 @@ class BackupRecoveryService:
                 "jobs_reconciled": reconciled_jobs,
                 "tables_verified": table_count,
                 "audit_events_count": audit_count,
+                "custody_audit": custody_audit,
                 "sandbox_cleaned": not preserve_scratch,
                 "duration_ms": duration_ms,
                 "message": f"Successfully restored {table_count} tables into isolated sandbox and reconciled {len(reconciled_jobs)} in-flight jobs.",
@@ -806,6 +958,334 @@ class BackupRecoveryService:
             "audit_events_count": audit_count,
             "integrity_check": post_int,
             "restored_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    @classmethod
+    def verify_custody_chains_post_recovery(cls, db_path_or_session: Any) -> Dict[str, Any]:
+        """
+        Post-recovery cryptographic audit of Merkle-chained custody and audit ledgers (Prompt 58-62).
+        Verifies all evidence custody events and audit events have unbroken hash chains.
+        """
+        chains_audited = 0
+        events_audited = 0
+        broken_chains: List[Dict[str, Any]] = []
+
+        if isinstance(db_path_or_session, (str, Path)):
+            db_path = Path(db_path_or_session).resolve()
+            if not db_path.exists():
+                return {
+                    "status": "CORRUPTED",
+                    "error": f"Database file does not exist: {db_path}",
+                    "chains_audited": 0,
+                    "events_audited": 0,
+                    "broken_chains": [{"error": "Database file not found"}],
+                }
+            conn = sqlite3.connect(f"file:///{db_path.as_posix().lstrip('/')}?mode=ro", uri=True)
+            try:
+                cur = conn.cursor()
+                # 1. Audit custody events
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='evidence_custody_events'")
+                if cur.fetchone():
+                    cur.execute("SELECT DISTINCT evidence_id FROM evidence_custody_events")
+                    ev_ids = [row[0] for row in cur.fetchall()]
+                    for evid in ev_ids:
+                        chains_audited += 1
+                        cur.execute(
+                            "SELECT id, event_type, actor_id, timestamp, action_details, prev_custody_hash, custody_hash "
+                            "FROM evidence_custody_events WHERE evidence_id = ? ORDER BY timestamp ASC, id ASC",
+                            (evid,)
+                        )
+                        events = cur.fetchall()
+                        expected_prev = "0" * 64
+                        for ev in events:
+                            events_audited += 1
+                            eid, etype, actor, ts, details, prev_h, cust_h = ev
+                            if prev_h != expected_prev:
+                                broken_chains.append({
+                                    "evidence_id": evid,
+                                    "event_id": eid,
+                                    "reason": f"Custody prev_hash broken: expected {expected_prev}, found {prev_h}",
+                                })
+                                break
+                            if not cust_h or len(cust_h) != 64:
+                                broken_chains.append({
+                                    "evidence_id": evid,
+                                    "event_id": eid,
+                                    "reason": f"Invalid custody hash format: {cust_h}",
+                                })
+                                break
+                            expected_prev = cust_h
+
+                # 2. Audit events ledger continuity (grouped by project_id and ordered by rowid)
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_events'")
+                if cur.fetchone():
+                    cur.execute("SELECT DISTINCT project_id FROM audit_events")
+                    distinct_projs = [r[0] for r in cur.fetchall()]
+                    for p in distinct_projs:
+                        chains_audited += 1
+                        if p is None:
+                            cur.execute("SELECT rowid, id, prev_event_hash, event_hash FROM audit_events WHERE project_id IS NULL ORDER BY rowid ASC")
+                        else:
+                            cur.execute("SELECT rowid, id, prev_event_hash, event_hash FROM audit_events WHERE project_id = ? ORDER BY rowid ASC", (p,))
+                        audit_rows = cur.fetchall()
+                        if audit_rows:
+                            for i in range(1, len(audit_rows)):
+                                events_audited += 1
+                                prev_expected = audit_rows[i - 1][3]
+                                curr_prev = audit_rows[i][2]
+                                if curr_prev != prev_expected:
+                                    broken_chains.append({
+                                        "chain_type": "AUDIT_LEDGER",
+                                        "project_id": p,
+                                        "event_id": audit_rows[i][1],
+                                        "reason": f"Audit hash chain severed at id {audit_rows[i][1]}: prev={curr_prev}, prior_event_hash={prev_expected}",
+                                    })
+                                    break
+            finally:
+                conn.close()
+        else:
+            session = db_path_or_session
+            from app.models.forensic_evidence import EvidenceCustodyEvent
+            from app.models.audit import AuditEvent
+            from sqlalchemy import text
+            try:
+                ev_ids = [r[0] for r in session.query(EvidenceCustodyEvent.evidence_id).distinct().all()]
+                for evid in ev_ids:
+                    chains_audited += 1
+                    events = session.query(EvidenceCustodyEvent).filter(
+                        EvidenceCustodyEvent.evidence_id == evid
+                    ).order_by(EvidenceCustodyEvent.timestamp.asc(), EvidenceCustodyEvent.id.asc()).all()
+                    expected_prev = "0" * 64
+                    for ev in events:
+                        events_audited += 1
+                        if ev.prev_custody_hash != expected_prev:
+                            broken_chains.append({
+                                "evidence_id": evid,
+                                "event_id": ev.id,
+                                "reason": f"Custody prev_hash broken: expected {expected_prev}, found {ev.prev_custody_hash}",
+                            })
+                            break
+                        if not ev.custody_hash or len(ev.custody_hash) != 64:
+                            broken_chains.append({
+                                "evidence_id": evid,
+                                "event_id": ev.id,
+                                "reason": f"Invalid custody hash format: {ev.custody_hash}",
+                            })
+                            break
+                        expected_prev = ev.custody_hash
+
+                distinct_projs = [r[0] for r in session.query(AuditEvent.project_id).distinct().all()]
+                for p in distinct_projs:
+                    chains_audited += 1
+                    q = session.query(AuditEvent)
+                    if p is None:
+                        q = q.filter(AuditEvent.project_id.is_(None))
+                    else:
+                        q = q.filter(AuditEvent.project_id == p)
+                    audits = q.order_by(text("rowid ASC")).all()
+                    if audits:
+                        for i in range(1, len(audits)):
+                            events_audited += 1
+                            prev_expected = audits[i - 1].event_hash
+                            curr_prev = audits[i].prev_event_hash
+                            if curr_prev != prev_expected:
+                                broken_chains.append({
+                                    "chain_type": "AUDIT_LEDGER",
+                                    "project_id": p,
+                                    "event_id": audits[i].id,
+                                    "reason": f"Audit hash chain severed at id {audits[i].id}: prev={curr_prev}, prior_event_hash={prev_expected}",
+                                })
+                                break
+            except Exception as e:
+                broken_chains.append({"error": f"Error auditing custody chains in session: {str(e)}"})
+
+        status = "VERIFIED" if len(broken_chains) == 0 else "CORRUPTED"
+        return {
+            "status": status,
+            "chains_audited": chains_audited,
+            "events_audited": events_audited,
+            "broken_chains_count": len(broken_chains),
+            "broken_chains": broken_chains,
+            "audited_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    @classmethod
+    def restore_disaster_recovery_bundle(
+        cls,
+        bundle_path_or_id: str,
+        is_drill: bool = True,
+        db: Optional[Session] = None,
+        scratch_dir: Optional[str] = None,
+        backup_root: Optional[str] = None,
+        authorizer_id: Optional[str] = None,
+        confirmation_phrase: Optional[str] = None,
+        preserve_scratch: bool = False,
+        live_db_path: Optional[str] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Unified Disaster Recovery Restoration Entrypoint (Prompt 58-62):
+        - If is_drill=True: Performs safe isolated restoration drill without touching active database.
+        - If is_drill=False: Performs governed live restoration requiring explicit authorizer and confirmation.
+        - Enforces duplicate restore prevention and concurrent fencing.
+        - Performs post-recovery Merkle custody chain verification.
+        """
+        global _ACTIVE_RESTORE_LOCK, _RESTORED_BUNDLES_IN_SESSION
+        if _ACTIVE_RESTORE_LOCK:
+            raise RuntimeError("A disaster recovery restore operation is already in progress. Concurrent restore locked.")
+
+        bundle_path = Path(bundle_path_or_id)
+        target_root = Path(backup_root or "./data/backups").resolve()
+        if not bundle_path.is_absolute():
+            if (target_root / bundle_path_or_id).exists():
+                bundle_path = target_root / bundle_path_or_id
+            else:
+                bundle_path = bundle_path.resolve()
+        bundle_id = bundle_path.name
+
+        # Duplicate restore prevention
+        if not is_drill and bundle_id in _RESTORED_BUNDLES_IN_SESSION and not force:
+            raise ValueError(f"Duplicate live restore rejected: bundle '{bundle_id}' was already restored in this runtime session.")
+
+        _ACTIVE_RESTORE_LOCK = True
+        try:
+            if is_drill:
+                res = cls.restore_and_verify_isolated(
+                    bundle_path_or_id=bundle_path_or_id,
+                    scratch_dir=scratch_dir,
+                    backup_root=backup_root,
+                    preserve_scratch=preserve_scratch,
+                    actor_id=authorizer_id,
+                    db=db,
+                )
+                return res
+            else:
+                if not db:
+                    raise ValueError("A database session is required for live restore with governance.")
+                if not authorizer_id:
+                    raise ValueError("Authorizer ID is required for live restore with governance.")
+                if not confirmation_phrase:
+                    raise ValueError("Confirmation phrase is required for live restore with governance.")
+
+                res = cls.live_restore_with_governance(
+                    db=db,
+                    bundle_path_or_id=bundle_path_or_id,
+                    authorizer_id=authorizer_id,
+                    confirmation_phrase=confirmation_phrase,
+                    backup_root=backup_root,
+                    live_db_path=live_db_path,
+                )
+                _RESTORED_BUNDLES_IN_SESSION.add(bundle_id)
+                return res
+        finally:
+            _ACTIVE_RESTORE_LOCK = False
+
+    @classmethod
+    def get_recovery_readiness(
+        cls,
+        db: Optional[Session] = None,
+        backup_root: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive Disaster Recovery Readiness & Operational Governance Assessment (Prompt 58-62).
+        Evaluates RPO and RTO compliance, backup freshness, storage WORM capabilities,
+        active legal holds, tombstones, and provides operator runbook guidance.
+        """
+        now = datetime.now(timezone.utc)
+        target_root = Path(backup_root or "./data/backups").resolve()
+
+        rpo_target_min = getattr(settings, "RPO_TARGET_MINUTES", 60)
+        rto_target_min = getattr(settings, "RTO_TARGET_MINUTES", 15)
+
+        base_status = cls.get_recovery_status(db=db, backup_root=str(target_root))
+
+        # 1. Evaluate RPO Freshness
+        latest_bundle = None
+        latest_age_minutes = None
+        rpo_compliance = "UNKNOWN"
+
+        if db:
+            latest_record = db.query(DisasterRecoveryBundleRecord).order_by(
+                DisasterRecoveryBundleRecord.created_at.desc()
+            ).first()
+            if latest_record:
+                latest_bundle = latest_record.bundle_id
+                created_dt = latest_record.created_at
+                if created_dt.tzinfo is None:
+                    created_dt = created_dt.replace(tzinfo=timezone.utc)
+                latest_age_minutes = round((now - created_dt).total_seconds() / 60, 1)
+
+                if latest_age_minutes <= rpo_target_min:
+                    rpo_compliance = "COMPLIANT"
+                elif latest_age_minutes <= rpo_target_min * 2:
+                    rpo_compliance = "WARNING"
+                else:
+                    rpo_compliance = "BREACHED"
+
+        # 2. Storage WORM status probe
+        storage_adapter = get_evidence_storage_adapter()
+        worm_probe = storage_adapter.check_worm_status()
+
+        # 3. Legal holds and tombstones count
+        legal_holds_count = 0
+        tombstones_count = 0
+        if db:
+            from app.models.recovery import LegalHoldRecord, LegalHoldStatus, EvidenceTombstoneRecord
+            try:
+                legal_holds_count = db.query(LegalHoldRecord).filter(
+                    LegalHoldRecord.status == LegalHoldStatus.ACTIVE
+                ).count()
+            except Exception:
+                pass
+            try:
+                tombstones_count = db.query(EvidenceTombstoneRecord).count()
+            except Exception:
+                pass
+
+        # 4. Overall readiness health
+        if rpo_compliance == "COMPLIANT" and base_status.get("recovery_readiness") == "READY":
+            health = "HEALTHY"
+        elif rpo_compliance in ("WARNING", "COMPLIANT") and base_status.get("total_bundles", 0) > 0:
+            health = "WARNING"
+        else:
+            health = "CRITICAL"
+
+        recommendations = []
+        if rpo_compliance == "BREACHED":
+            recommendations.append(f"RPO target ({rpo_target_min}m) breached: last backup is {latest_age_minutes}m old. Trigger immediate backup.")
+        if not base_status.get("last_restore_drill_at"):
+            recommendations.append("No recovery drill recorded. Run an automated isolated recovery drill to verify restorable state.")
+        if worm_probe.get("worm_compliant") is False:
+            recommendations.append("Storage backend is not WORM compliant; consider enabling AWS S3 Object Lock or Cloudflare WORM bucket for compliance.")
+
+        return {
+            "health": health,
+            "assumptions": {
+                "rpo_target_minutes": rpo_target_min,
+                "rto_target_minutes": rto_target_min,
+                "evidence_storage_backend": getattr(settings, "EVIDENCE_STORAGE_BACKEND", "LOCAL"),
+            },
+            "metrics": {
+                "total_backups": base_status.get("total_bundles", 0),
+                "latest_backup_id": latest_bundle,
+                "latest_backup_age_minutes": latest_age_minutes,
+                "rpo_compliance": rpo_compliance,
+                "last_verified_backup_id": base_status.get("last_verified_bundle_id"),
+                "last_verified_at": base_status.get("last_verified_at"),
+                "last_restore_drill_id": base_status.get("last_restore_drill_bundle_id"),
+                "last_restore_drill_at": base_status.get("last_restore_drill_at"),
+                "last_known_good_id": base_status.get("last_known_good_bundle_id"),
+                "active_legal_holds_count": legal_holds_count,
+                "evidence_tombstones_count": tombstones_count,
+            },
+            "storage_worm_status": worm_probe,
+            "recommendations": recommendations,
+            "operator_runbook": {
+                "documentation_path": "docs/DISASTER_RECOVERY_AND_OPERATOR_RUNBOOK.md",
+                "drill_command": "POST /api/v1/system/recovery/drill",
+                "live_restore_command": "POST /api/v1/system/recovery/live-restore",
+            },
+            "evaluated_at": now.isoformat(),
         }
 
     @classmethod

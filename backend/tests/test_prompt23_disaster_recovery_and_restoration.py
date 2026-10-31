@@ -259,6 +259,16 @@ def test_06_corrupted_sqlite_pages_detected(db: Session, admin_user: User, tmp_p
     manifest_file = bundle_path / "backup_manifest.json"
     m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
     m_data["database"]["sha256"] = new_db_sha
+    if "manifest_signature" in m_data:
+        from app.services.origin_attestation_service import attestation_service
+        clean_body = json.dumps(
+            {k: v for k, v in m_data.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+            sort_keys=True,
+            separators=(",", ":")
+        )
+        sig, _, _ = attestation_service.sign_manifest(clean_body)
+        m_data["manifest_signature"] = sig
+        (bundle_path / "manifest.sig").write_text(sig, encoding="utf-8")
     m_data["manifest_sha256"] = compute_manifest_sha256(m_data)
     manifest_file.write_text(json.dumps(m_data, indent=2), encoding="utf-8")
 
@@ -306,6 +316,16 @@ def test_07_broken_foreign_keys_detected(db: Session, admin_user: User, tmp_path
     manifest_file = bundle_path / "backup_manifest.json"
     m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
     m_data["database"]["sha256"] = new_db_sha
+    if "manifest_signature" in m_data:
+        from app.services.origin_attestation_service import attestation_service
+        clean_body = json.dumps(
+            {k: v for k, v in m_data.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+            sort_keys=True,
+            separators=(",", ":")
+        )
+        sig, _, _ = attestation_service.sign_manifest(clean_body)
+        m_data["manifest_signature"] = sig
+        (bundle_path / "manifest.sig").write_text(sig, encoding="utf-8")
     m_data["manifest_sha256"] = compute_manifest_sha256(m_data)
     manifest_file.write_text(json.dumps(m_data, indent=2), encoding="utf-8")
 
@@ -491,6 +511,16 @@ def test_10_isolated_restore_drill_reconciles_inflight_jobs(
     manifest_file = bundle_path / "backup_manifest.json"
     m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
     m_data["database"]["sha256"] = new_db_sha
+    if "manifest_signature" in m_data:
+        from app.services.origin_attestation_service import attestation_service
+        clean_body = json.dumps(
+            {k: v for k, v in m_data.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+            sort_keys=True,
+            separators=(",", ":")
+        )
+        sig, _, _ = attestation_service.sign_manifest(clean_body)
+        m_data["manifest_signature"] = sig
+        (bundle_path / "manifest.sig").write_text(sig, encoding="utf-8")
     m_data["manifest_sha256"] = compute_manifest_sha256(m_data)
     manifest_file.write_text(json.dumps(m_data, indent=2), encoding="utf-8")
 
@@ -603,6 +633,16 @@ def test_11_governance_and_sod_preserved_on_restoration(
     manifest_file = bundle_path / "backup_manifest.json"
     m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
     m_data["database"]["sha256"] = new_db_sha
+    if "manifest_signature" in m_data:
+        from app.services.origin_attestation_service import attestation_service
+        clean_body = json.dumps(
+            {k: v for k, v in m_data.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+            sort_keys=True,
+            separators=(",", ":")
+        )
+        sig, _, _ = attestation_service.sign_manifest(clean_body)
+        m_data["manifest_signature"] = sig
+        (bundle_path / "manifest.sig").write_text(sig, encoding="utf-8")
     m_data["manifest_sha256"] = compute_manifest_sha256(m_data)
     manifest_file.write_text(json.dumps(m_data, indent=2), encoding="utf-8")
 

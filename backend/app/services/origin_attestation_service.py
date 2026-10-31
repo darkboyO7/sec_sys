@@ -160,5 +160,76 @@ class OriginAttestationService:
         with open(pub_path, "wb") as f:
             f.write(public_key_pem)
 
+    def sign_manifest(self, manifest_canonical_json: str, key_id: str = "KEY-DEFAULT-ED25519") -> Tuple[str, str, str]:
+        """
+        Signs a disaster recovery bundle manifest using authentic asymmetric Ed25519 digital signature.
+        Returns: (signature_hex, algorithm, key_id)
+        """
+        priv_key, _ = self._get_or_create_keypair(key_id)
+        digest = hashlib.sha256(manifest_canonical_json.encode("utf-8")).hexdigest()
+        statement = f"MANIFEST_ATTESTATION:v1|digest={digest}"
+        signature = priv_key.sign(statement.encode("utf-8"))
+        return signature.hex(), "ED25519", key_id
+
+    def verify_manifest(self, manifest_canonical_json: str, signature_hex: str, key_id: str = "KEY-DEFAULT-ED25519") -> Tuple[bool, str]:
+        """
+        Verifies a disaster recovery bundle manifest Ed25519 digital signature.
+        Returns: (is_valid, reason)
+        """
+        pub_key = self._public_keys.get(key_id)
+        if not pub_key:
+            pub_path = self.key_store_dir / f"{key_id}.pub"
+            if pub_path.exists():
+                with open(pub_path, "rb") as f:
+                    pub_key = serialization.load_pem_public_key(f.read())
+                self._public_keys[key_id] = pub_key
+            else:
+                return False, f"Untrusted or unknown signing key ID: {key_id}"
+
+        digest = hashlib.sha256(manifest_canonical_json.encode("utf-8")).hexdigest()
+        statement = f"MANIFEST_ATTESTATION:v1|digest={digest}"
+        try:
+            sig_bytes = bytes.fromhex(signature_hex)
+            pub_key.verify(sig_bytes, statement.encode("utf-8"))
+            return True, "Authentic cryptographic manifest signature verified"
+        except (InvalidSignature, ValueError) as e:
+            return False, f"Cryptographic manifest signature verification failed: {str(e)}"
+
+    def sign_tombstone(self, evidence_id: str, original_digest: str, actor_id: str, timestamp_val: Any, key_id: str = "KEY-DEFAULT-ED25519") -> Tuple[str, str, str]:
+        """
+        Signs an evidence deletion tombstone using authentic asymmetric Ed25519 digital signature.
+        Returns: (signature_hex, algorithm, key_id)
+        """
+        priv_key, _ = self._get_or_create_keypair(key_id)
+        time_str = canonical_time_str(timestamp_val)
+        statement = f"TOMBSTONE_ATTESTATION:v1|evidence_id={evidence_id}|digest={original_digest}|actor={actor_id}|time={time_str}"
+        signature = priv_key.sign(statement.encode("utf-8"))
+        return signature.hex(), "ED25519", key_id
+
+    def verify_tombstone(self, evidence_id: str, original_digest: str, actor_id: str, timestamp_val: Any, signature_hex: str, key_id: str = "KEY-DEFAULT-ED25519") -> Tuple[bool, str]:
+        """
+        Verifies an evidence deletion tombstone Ed25519 digital signature.
+        Returns: (is_valid, reason)
+        """
+        pub_key = self._public_keys.get(key_id)
+        if not pub_key:
+            pub_path = self.key_store_dir / f"{key_id}.pub"
+            if pub_path.exists():
+                with open(pub_path, "rb") as f:
+                    pub_key = serialization.load_pem_public_key(f.read())
+                self._public_keys[key_id] = pub_key
+            else:
+                return False, f"Untrusted or unknown signing key ID: {key_id}"
+
+        time_str = canonical_time_str(timestamp_val)
+        statement = f"TOMBSTONE_ATTESTATION:v1|evidence_id={evidence_id}|digest={original_digest}|actor={actor_id}|time={time_str}"
+        try:
+            sig_bytes = bytes.fromhex(signature_hex)
+            pub_key.verify(sig_bytes, statement.encode("utf-8"))
+            return True, "Authentic cryptographic tombstone signature verified"
+        except (InvalidSignature, ValueError) as e:
+            return False, f"Cryptographic tombstone signature verification failed: {str(e)}"
+
+
 
 attestation_service = OriginAttestationService()

@@ -14,7 +14,8 @@ export type AssessmentStatus =
   | 'PARTIAL'
   | 'FAILED'
   | 'REJECTED'
-  | 'TIMED_OUT';
+  | 'TIMED_OUT'
+  | 'DEAD_LETTER';
 export type FindingSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 export type FindingConfidence = 'CERTAIN' | 'FIRM' | 'TENTATIVE';
 
@@ -3597,7 +3598,7 @@ export interface ConnectorSyncEventRead {
 
 // Prompt 43: Full-Stack Contract Integrity & Domain Enums
 export type ScheduleRunStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'SKIPPED_DISK_LOW';
-export type RecoveryBundleStatus = 'UNVERIFIED' | 'VERIFIED' | 'CORRUPTED' | 'RESTORE_VERIFIED';
+export type RecoveryBundleStatus = 'UNVERIFIED' | 'VERIFIED' | 'CORRUPTED' | 'RESTORE_VERIFIED' | 'TAMPERED';
 export type ThreatIntelSource = 'CISA_KEV' | 'NVD_CVE' | 'EPSS' | 'VENDOR_ADVISORY' | 'LOCAL_FIXTURE';
 export type ExperimentStatus = 'DRAFT' | 'RUNNING' | 'COMPLETED' | 'CANCELLED' | 'INCONCLUSIVE';
 export type ExperimentDecision =

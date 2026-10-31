@@ -41,7 +41,15 @@ from app.schemas.forensic_evidence import (
     EvidenceImportResult,
 )
 from app.services.origin_attestation_service import attestation_service, canonical_time_str
-from app.services.evidence_lifecycle_service import SECRET_REDACTION_PATTERNS, HOLDS_FILE, TOMBSTONE_FILE
+from app.services.evidence_lifecycle_service import (
+    SECRET_REDACTION_PATTERNS,
+    HOLDS_FILE,
+    TOMBSTONE_FILE,
+    evidence_lifecycle_service,
+    DataClassification,
+)
+from app.services.storage.factory import get_evidence_storage_adapter
+
 
 
 def compute_custody_hash(prev_hash: str, event_type: str, actor_id: str, timestamp_val: Any, details_json: str) -> str:
@@ -702,24 +710,45 @@ class ForensicEvidenceService:
         justification: str,
     ) -> ForensicEvidenceRecord:
         """
-        Executes safe deletion enforcing legal hold checks and recording cryptographic tombstones.
+        Executes safe deletion enforcing role authorization, legal hold checks,
+        and recording cryptographic tombstones with authentic digital signatures.
         """
+        # Strict role-based authorization check
+        normalized_role = str(actor_role).upper()
+        if normalized_role not in ("ADMIN", "SECURITY_LEAD", "SYSTEM", "LEAD"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Actor role '{actor_role}' is not authorized to delete forensic evidence. Requires ADMIN or SECURITY_LEAD.",
+            )
+
         record = db.query(ForensicEvidenceRecord).filter(ForensicEvidenceRecord.id == evidence_id).first()
         if not record:
             raise HTTPException(status_code=404, detail=f"Evidence {evidence_id} not found")
 
-        # Check for active legal holds
+        # Check for active legal holds in database and file
+        held, hold_msg = evidence_lifecycle_service.is_held("EVIDENCE", record.id, db=db)
+        if not held and record.finding_id:
+            held, hold_msg = evidence_lifecycle_service.is_held("FINDING", record.finding_id, db=db)
+        if not held and record.project_id:
+            held, hold_msg = evidence_lifecycle_service.is_held("PROJECT", record.project_id, db=db)
+
+        if held:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Evidence {evidence_id} is protected under active legal hold: {hold_msg}",
+            )
+
         if HOLDS_FILE.exists():
             try:
                 with open(HOLDS_FILE, "r", encoding="utf-8") as f:
                     holds_data = json.load(f)
-                    for hold in holds_data.get("holds", []):
+                    for hold in (holds_data.get("holds", []) if isinstance(holds_data, dict) else holds_data):
                         if hold.get("status") == "ACTIVE":
-                            target_ref = hold.get("target_reference", "")
+                            target_ref = hold.get("target_reference") or hold.get("target_id", "")
                             if target_ref in (record.id, record.project_id, "ALL_PROJECTS"):
                                 raise HTTPException(
                                     status_code=status.HTTP_409_CONFLICT,
-                                    detail=f"Evidence {evidence_id} is protected under active legal hold: {hold.get('hold_id')} ({hold.get('title')})",
+                                    detail=f"Evidence {evidence_id} is protected under active legal hold: {hold.get('hold_id')}",
                                 )
             except HTTPException:
                 raise
@@ -733,22 +762,21 @@ class ForensicEvidenceService:
         record.deleted_by = actor_id
         record.updated_at = now
 
-        # Record deletion suppression tombstone
-        tombstone_entry = {
-            "evidence_id": record.id,
-            "raw_digest_sha256": record.raw_digest_sha256,
-            "deleted_at": now.isoformat(),
-            "deleted_by": actor_id,
-            "justification": justification,
-        }
+        # Record deletion suppression tombstone with Ed25519 signature
+        tombstone = evidence_lifecycle_service.create_tombstone(
+            evidence_id=record.id,
+            original_hash=record.raw_digest_sha256,
+            classification=DataClassification.RAW_EVIDENCE,
+            policy_id="AUTHORIZED_DELETION",
+            deleted_by_id=actor_id,
+            reason=justification,
+            db=db,
+        )
+
+        # Notify storage adapter to tombstone/delete physical object
         try:
-            tombstones = []
-            if TOMBSTONE_FILE.exists():
-                with open(TOMBSTONE_FILE, "r", encoding="utf-8") as f:
-                    tombstones = json.load(f)
-            tombstones.append(tombstone_entry)
-            with open(TOMBSTONE_FILE, "w", encoding="utf-8") as f:
-                json.dump(tombstones, f, indent=2)
+            adapter = get_evidence_storage_adapter()
+            adapter.delete_evidence(f"evidence/{record.id}", tombstone.tombstone_digest)
         except Exception:
             pass
 
@@ -760,7 +788,7 @@ class ForensicEvidenceService:
             .first()
         )
         prev_hash = last_event.custody_hash if last_event else "0" * 64
-        details_str = json.dumps({"action": "DELETION_AUTHORIZED", "justification": justification}, sort_keys=True)
+        details_str = json.dumps({"action": "DELETION_AUTHORIZED", "justification": justification, "tombstone_id": tombstone.tombstone_id}, sort_keys=True)
         custody_hash = compute_custody_hash(prev_hash, CustodyEventType.DELETION_AUTHORIZED.value, actor_id, now, details_str)
 
         custody_event = EvidenceCustodyEvent(
@@ -770,7 +798,7 @@ class ForensicEvidenceService:
             actor_id=actor_id,
             actor_role=actor_role,
             timestamp=now,
-            action_details={"action": "DELETION_AUTHORIZED", "justification": justification},
+            action_details={"action": "DELETION_AUTHORIZED", "justification": justification, "tombstone_id": tombstone.tombstone_id},
             prev_custody_hash=prev_hash,
             custody_hash=custody_hash,
         )

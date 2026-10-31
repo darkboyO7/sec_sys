@@ -333,6 +333,16 @@ def test_07_isolated_restoration_drill_reconciles_inflight_jobs(db: Session, adm
     manifest_file = bundle_path / "backup_manifest.json"
     m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
     m_data["database"]["sha256"] = new_db_sha
+    if "manifest_signature" in m_data:
+        from app.services.origin_attestation_service import attestation_service
+        clean_body = json.dumps(
+            {k: v for k, v in m_data.items() if k not in ("manifest_sha256", "manifest_signature", "manifest_sig")},
+            sort_keys=True,
+            separators=(",", ":")
+        )
+        sig, _, _ = attestation_service.sign_manifest(clean_body)
+        m_data["manifest_signature"] = sig
+        (bundle_path / "manifest.sig").write_text(sig, encoding="utf-8")
     m_data["manifest_sha256"] = compute_manifest_sha256(m_data)
     manifest_file.write_text(json.dumps(m_data, indent=2), encoding="utf-8")
 

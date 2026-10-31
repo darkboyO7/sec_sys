@@ -8,6 +8,7 @@ from app.api.deps import get_current_user
 from app.services.backup_service import BackupRecoveryService
 from app.services.backup_scheduler_service import BackupSchedulerService
 from app.services.rate_limit_service import rate_limiter
+from app.services.data_portability_service import data_portability_service
 from app.schemas.recovery import (
     DisasterRecoveryBundleResponse,
     BackupVerificationResultResponse,
@@ -341,3 +342,97 @@ def poll_due_schedules(
     """
     require_admin(current_user)
     return BackupSchedulerService.run_due_schedules(db)
+
+
+@router.get("/readiness", response_model=Dict[str, Any])
+def get_recovery_readiness(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns comprehensive Disaster Recovery readiness, RPO/RTO adherence metrics,
+    storage Object Lock/WORM compliance, active legal holds, and runbooks (Prompt 58-62).
+    """
+    return BackupRecoveryService.get_recovery_readiness(db=db)
+
+
+@router.post("/drill", response_model=Dict[str, Any])
+def trigger_recovery_drill(
+    bundle_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Triggers an isolated disaster recovery drill in a sandbox environment without
+    touching live production data, and verifies post-recovery Merkle custody chains (Admin only).
+    """
+    require_admin(current_user)
+    if not bundle_id:
+        # Use latest verified bundle or last known good
+        readiness = BackupRecoveryService.get_recovery_readiness(db=db)
+        bundle_id = readiness["metrics"].get("last_known_good_id") or readiness["metrics"].get("latest_backup_id")
+        if not bundle_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No backup bundles available for recovery drill.")
+
+    try:
+        drill_result = BackupRecoveryService.restore_disaster_recovery_bundle(
+            bundle_path_or_id=bundle_id,
+            is_drill=True,
+            db=db,
+            authorizer_id=current_user.id,
+            preserve_scratch=False,
+        )
+        return drill_result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Recovery drill failed: {str(e)}")
+
+
+@router.post("/export", response_model=Dict[str, Any])
+def export_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generates a cryptographically signed, safe project portability archive
+    preserving UUIDs, timestamps, findings, evidence payloads, and custody ledgers.
+    """
+    require_admin(current_user)
+    try:
+        return data_portability_service.export_project_archive(
+            db=db,
+            project_id=project_id,
+            actor_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Export failed: {str(e)}")
+
+
+@router.post("/import", response_model=Dict[str, Any])
+def import_project(
+    archive_path: str,
+    target_project_id: Optional[str] = None,
+    dry_run: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Validates and imports a project archive, enforcing Zip Slip protection,
+    manifest digital signature attestation, and atomic transaction commit.
+    """
+    require_admin(current_user)
+    try:
+        return data_portability_service.import_project_archive(
+            db=db,
+            archive_path=archive_path,
+            target_project_id=target_project_id,
+            actor_id=current_user.id,
+            dry_run=dry_run,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Import failed: {str(e)}")
+

@@ -19,6 +19,7 @@ from app.models.base import TimestampMixin, generate_uuid, utc_now
 class RecoveryBundleStatus(str, enum.Enum):
     UNVERIFIED = "UNVERIFIED"
     VERIFIED = "VERIFIED"
+    TAMPERED = "TAMPERED"
     CORRUPTED = "CORRUPTED"
     RESTORE_VERIFIED = "RESTORE_VERIFIED"
 
@@ -58,6 +59,13 @@ class DisasterRecoveryBundleRecord(Base, TimestampMixin):
     table_counts = Column(JSON, nullable=True)
     schema_revision = Column(String(64), nullable=True)
 
+    # Prompt 58-62: Enhanced Backup & Forensic Verification
+    manifest_signature = Column(String(512), nullable=True)
+    evidence_count = Column(Integer, default=0, nullable=False)
+    evidence_sha256 = Column(String(64), nullable=True)
+    backup_type = Column(String(50), default="OPERATOR_TRIGGERED", nullable=False)
+    configuration_metadata = Column(JSON, default=dict, nullable=False)
+
     # Relationships
     created_by = relationship("User", foreign_keys=[created_by_id])
 
@@ -89,3 +97,48 @@ class BackupScheduleRecord(Base, TimestampMixin):
 
     created_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by = relationship("User", foreign_keys=[created_by_id])
+
+
+class LegalHoldStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    RELEASED = "RELEASED"
+
+
+class LegalHoldRecord(Base, TimestampMixin):
+    """
+    Authoritative database ledger of active and historical legal/investigation holds (Prompt 58-62).
+    Enforces that evidence belonging to held targets can never be deleted or modified.
+    """
+    __tablename__ = "legal_holds"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    hold_id = Column(String(100), unique=True, nullable=False, index=True)
+    hold_type = Column(String(50), default="INVESTIGATION_HOLD", nullable=False)
+    target_scope = Column(String(50), nullable=False)  # "PROJECT", "FINDING", "EVIDENCE"
+    target_id = Column(String(100), nullable=False, index=True)
+    reason = Column(Text, nullable=False)
+    status = Column(SqlEnum(LegalHoldStatus), default=LegalHoldStatus.ACTIVE, nullable=False, index=True)
+    placed_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    placed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    released_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    released_at = Column(DateTime(timezone=True), nullable=True)
+    metadata_json = Column(JSON, default=dict, nullable=False)
+
+
+class EvidenceTombstoneRecord(Base, TimestampMixin):
+    """
+    Cryptographic deletion suppression tombstone ledger (Prompt 58-62).
+    Guarantees that authorized deleted evidence cannot be accidentally resurrected or re-ingested.
+    """
+    __tablename__ = "evidence_tombstones"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    tombstone_id = Column(String(100), unique=True, nullable=False, index=True)
+    evidence_id = Column(String(36), nullable=False, index=True)
+    original_sha256_hash = Column(String(64), nullable=False, index=True)
+    classification = Column(String(50), default="RAW_EVIDENCE", nullable=False)
+    policy_id = Column(String(100), default="DEFAULT_RETENTION", nullable=False)
+    deleted_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    tombstone_digest = Column(String(128), nullable=False)
+    reason = Column(Text, nullable=False)

@@ -23,6 +23,8 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.models.assessment import FindingEvidence, AssessmentFinding
 from app.models.audit import AuditEvent
+from app.models.recovery import LegalHoldRecord, LegalHoldStatus, EvidenceTombstoneRecord
+from app.services.origin_attestation_service import attestation_service
 from app.schemas.evidence_lifecycle import (
     DataClassification,
     RetentionActionType,
@@ -142,7 +144,7 @@ class EvidenceLifecycleService:
         return policy
 
     # --------------------------------------------------------------------------
-    # 2. Legal & Investigation Holds
+    # 2. Legal & Investigation Holds (Prompt 58-62)
     # --------------------------------------------------------------------------
     def _read_holds(self) -> List[LegalHoldModel]:
         try:
@@ -154,15 +156,41 @@ class EvidenceLifecycleService:
     def _write_holds(self, holds: List[LegalHoldModel]) -> None:
         self.holds_path.write_text(json.dumps([h.dict() for h in holds], indent=2), encoding="utf-8")
 
-    def list_holds(self, status: Optional[HoldStatus] = None) -> List[LegalHoldModel]:
+    def list_holds(self, status: Optional[HoldStatus] = None, db: Optional[Session] = None) -> List[LegalHoldModel]:
+        if db is not None:
+            try:
+                q = db.query(LegalHoldRecord)
+                if status:
+                    stat_str = status.value if hasattr(status, "value") else str(status)
+                    q = q.filter(LegalHoldRecord.status == stat_str)
+                records = q.all()
+                if records:
+                    return [
+                        LegalHoldModel(
+                            hold_id=r.hold_id,
+                            hold_type=HoldType(r.hold_type) if r.hold_type in [h.value for h in HoldType] else HoldType.INVESTIGATION_HOLD,
+                            target_scope=r.target_scope,
+                            target_id=r.target_id,
+                            reason=r.reason,
+                            status=HoldStatus.ACTIVE if r.status == LegalHoldStatus.ACTIVE else HoldStatus.RELEASED,
+                            placed_by_id=r.placed_by_id or "system",
+                            placed_at=r.placed_at.isoformat() if r.placed_at else "",
+                            released_by_id=r.released_by_id,
+                            released_at=r.released_at.isoformat() if r.released_at else None,
+                        )
+                        for r in records
+                    ]
+            except Exception:
+                pass
         holds = self._read_holds()
         if status:
             return [h for h in holds if h.status == status]
         return holds
 
-    def create_hold(self, create: LegalHoldCreate, placed_by_id: str) -> LegalHoldModel:
+    def create_hold(self, create: LegalHoldCreate, placed_by_id: str, db: Optional[Session] = None) -> LegalHoldModel:
+        hold_id = f"HOLD-{uuid.uuid4().hex[:8].upper()}"
         hold = LegalHoldModel(
-            hold_id=f"HOLD-{uuid.uuid4().hex[:8].upper()}",
+            hold_id=hold_id,
             hold_type=create.hold_type,
             target_scope=create.target_scope.upper(),
             target_id=create.target_id,
@@ -173,9 +201,33 @@ class EvidenceLifecycleService:
         holds = self._read_holds()
         holds.append(hold)
         self._write_holds(holds)
+
+        if db is not None:
+            try:
+                from app.models.user import User
+                valid_placed = None
+                if placed_by_id:
+                    u_row = db.query(User.id).filter((User.id == placed_by_id) | (User.email == placed_by_id)).first()
+                    if u_row:
+                        valid_placed = u_row[0]
+
+                rec = LegalHoldRecord(
+                    hold_id=hold_id,
+                    hold_type=create.hold_type.value if hasattr(create.hold_type, "value") else str(create.hold_type),
+                    target_scope=create.target_scope.upper(),
+                    target_id=create.target_id,
+                    reason=create.reason,
+                    status=LegalHoldStatus.ACTIVE,
+                    placed_by_id=valid_placed,
+                )
+                db.add(rec)
+                db.commit()
+            except Exception:
+                db.rollback()
+
         return hold
 
-    def release_hold(self, hold_id: str, released_by_id: str) -> Optional[LegalHoldModel]:
+    def release_hold(self, hold_id: str, released_by_id: str, db: Optional[Session] = None) -> Optional[LegalHoldModel]:
         holds = self._read_holds()
         target = None
         for h in holds:
@@ -187,9 +239,40 @@ class EvidenceLifecycleService:
                 break
         if target:
             self._write_holds(holds)
+
+        if db is not None:
+            try:
+                from app.models.user import User
+                valid_rel = None
+                if released_by_id:
+                    u_row = db.query(User.id).filter((User.id == released_by_id) | (User.email == released_by_id)).first()
+                    if u_row:
+                        valid_rel = u_row[0]
+
+                rec = db.query(LegalHoldRecord).filter(LegalHoldRecord.hold_id == hold_id).first()
+                if rec:
+                    rec.status = LegalHoldStatus.RELEASED
+                    rec.released_by_id = valid_rel
+                    rec.released_at = datetime.now(timezone.utc)
+                    db.commit()
+            except Exception:
+                db.rollback()
+
         return target
 
-    def is_held(self, target_scope: str, target_id: str) -> Tuple[bool, Optional[str]]:
+    def is_held(self, target_scope: str, target_id: str, db: Optional[Session] = None) -> Tuple[bool, Optional[str]]:
+        if db is not None:
+            try:
+                db_hold = db.query(LegalHoldRecord).filter(
+                    LegalHoldRecord.target_scope == target_scope.upper(),
+                    LegalHoldRecord.target_id == target_id,
+                    LegalHoldRecord.status == LegalHoldStatus.ACTIVE,
+                ).first()
+                if db_hold:
+                    return True, f"Subject to {db_hold.hold_type}: {db_hold.reason} (Hold: {db_hold.hold_id})"
+            except Exception:
+                pass
+
         active_holds = self.list_holds(status=HoldStatus.ACTIVE)
         for h in active_holds:
             if h.target_scope == target_scope.upper() and h.target_id == target_id:
@@ -231,7 +314,7 @@ class EvidenceLifecycleService:
         )
 
     # --------------------------------------------------------------------------
-    # 4. Suppression Tombstones
+    # 4. Suppression Tombstones (Prompt 58-62)
     # --------------------------------------------------------------------------
     def _read_tombstones(self) -> List[DeletionTombstoneModel]:
         try:
@@ -243,10 +326,37 @@ class EvidenceLifecycleService:
     def _write_tombstones(self, tombstones: List[DeletionTombstoneModel]) -> None:
         self.tombstone_path.write_text(json.dumps([t.dict() for t in tombstones], indent=2), encoding="utf-8")
 
-    def list_tombstones(self) -> List[DeletionTombstoneModel]:
+    def list_tombstones(self, db: Optional[Session] = None) -> List[DeletionTombstoneModel]:
+        if db is not None:
+            try:
+                records = db.query(EvidenceTombstoneRecord).all()
+                if records:
+                    return [
+                        DeletionTombstoneModel(
+                            tombstone_id=r.tombstone_id,
+                            evidence_id=r.evidence_id,
+                            original_sha256_hash=r.original_sha256_hash,
+                            classification=DataClassification(r.classification) if r.classification in [c.value for c in DataClassification] else DataClassification.RAW_EVIDENCE,
+                            policy_id=r.policy_id,
+                            deleted_by_id=r.deleted_by_id or "system",
+                            deleted_at=r.deleted_at.isoformat() if r.deleted_at else "",
+                            tombstone_digest=r.tombstone_digest,
+                            reason=r.reason,
+                        )
+                        for r in records
+                    ]
+            except Exception:
+                pass
         return self._read_tombstones()
 
-    def is_suppressed(self, evidence_id: str) -> bool:
+    def is_suppressed(self, evidence_id: str, db: Optional[Session] = None) -> bool:
+        if db is not None:
+            try:
+                rec = db.query(EvidenceTombstoneRecord).filter(EvidenceTombstoneRecord.evidence_id == evidence_id).first()
+                if rec:
+                    return True
+            except Exception:
+                pass
         tombstones = self._read_tombstones()
         return any(t.evidence_id == evidence_id for t in tombstones)
 
@@ -258,13 +368,25 @@ class EvidenceLifecycleService:
         policy_id: str,
         deleted_by_id: str,
         reason: str,
+        db: Optional[Session] = None,
     ) -> DeletionTombstoneModel:
-        # Compute HMAC-SHA256 signature
-        payload_data = f"{evidence_id}:{original_hash}:{policy_id}:{deleted_by_id}"
-        sig = hmac.new(settings.SECRET_KEY.encode("utf-8"), payload_data.encode("utf-8"), hashlib.sha256).hexdigest()
+        now = datetime.now(timezone.utc)
+        tomb_id = f"TOMB-{uuid.uuid4().hex[:8].upper()}"
+
+        # Asymmetric Ed25519 digital signature for authentic deletion attestation
+        try:
+            sig, _, _ = attestation_service.sign_tombstone(
+                evidence_id=evidence_id,
+                original_digest=original_hash,
+                actor_id=deleted_by_id,
+                timestamp_val=now,
+            )
+        except Exception:
+            payload_data = f"{evidence_id}:{original_hash}:{policy_id}:{deleted_by_id}"
+            sig = hmac.new(settings.SECRET_KEY.encode("utf-8"), payload_data.encode("utf-8"), hashlib.sha256).hexdigest()
 
         tombstone = DeletionTombstoneModel(
-            tombstone_id=f"TOMB-{uuid.uuid4().hex[:8].upper()}",
+            tombstone_id=tomb_id,
             evidence_id=evidence_id,
             original_sha256_hash=original_hash,
             classification=classification,
@@ -276,6 +398,31 @@ class EvidenceLifecycleService:
         tombstones = self._read_tombstones()
         tombstones.append(tombstone)
         self._write_tombstones(tombstones)
+
+        if db is not None:
+            try:
+                from app.models.user import User
+                valid_del = None
+                if deleted_by_id:
+                    u_row = db.query(User.id).filter((User.id == deleted_by_id) | (User.email == deleted_by_id)).first()
+                    if u_row:
+                        valid_del = u_row[0]
+
+                rec = EvidenceTombstoneRecord(
+                    tombstone_id=tomb_id,
+                    evidence_id=evidence_id,
+                    original_sha256_hash=original_hash,
+                    classification=classification.value if hasattr(classification, "value") else str(classification),
+                    policy_id=policy_id,
+                    deleted_by_id=valid_del,
+                    tombstone_digest=sig,
+                    reason=reason,
+                )
+                db.add(rec)
+                db.commit()
+            except Exception:
+                db.rollback()
+
         return tombstone
 
     # --------------------------------------------------------------------------

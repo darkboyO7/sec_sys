@@ -167,6 +167,9 @@ from app.models.governance import (
 from app.models.recovery import (
     RecoveryBundleStatus,
     DisasterRecoveryBundleRecord,
+    LegalHoldStatus,
+    LegalHoldRecord,
+    EvidenceTombstoneRecord,
 )
 from app.models.compliance import (
     ComplianceEvaluationStatus,
@@ -460,4 +463,7 @@ __all__ = [
     "WorkerNode",
     "WorkerType",
     "WorkerStatus",
+    "LegalHoldStatus",
+    "LegalHoldRecord",
+    "EvidenceTombstoneRecord",
 ]

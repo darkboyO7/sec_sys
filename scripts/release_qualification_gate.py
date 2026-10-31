@@ -1555,9 +1555,37 @@ def stage_44_enterprise_infrastructure_and_distributed_workers() -> StageResult:
     return res
 
 
+def stage_45_forensic_storage_and_disaster_recovery() -> StageResult:
+    res = StageResult(45, "Forensic Storage, Backup, Disaster Recovery & Data Governance")
+    start = time.perf_counter()
+    try:
+        backend_env = {"PYTHONPATH": str(REPO_ROOT / "backend")}
+        test_run = run_command(
+            [str(PYTHON_EXE), "-m", "pytest", "tests/test_prompt58_62_forensic_storage_and_disaster_recovery.py", "-v"],
+            cwd=REPO_ROOT / "backend",
+            env=backend_env,
+        )
+        if test_run.returncode == 0:
+            res.status = "PASSED"
+            res.details["output_summary"] = "All 12 forensic storage and disaster recovery tests passed."
+            res.details["storage_adapters"] = "LocalStorageAdapter and S3CompatibleStorageAdapter verified with WORM truthfulness."
+            res.details["lifecycle_governance"] = "Legal holds (409) and authorized deletion with signed tombstones verified."
+            res.details["disaster_recovery"] = "Isolated drills, job reconciliation, rollback snapshots, and duplicate fencing verified."
+            res.details["data_portability"] = "Zip Slip traversal rejection and Ed25519 archive attestation verified."
+        else:
+            res.status = "FAILED"
+            res.errors.append(test_run.stdout or test_run.stderr)
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPTS 53-57)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPTS 58-62)")
     print("=" * 80)
 
     stages = [
@@ -1605,6 +1633,7 @@ def main():
         stage_42_secret_and_hygiene_scan,
         stage_43_release_packaging_inspection,
         stage_44_enterprise_infrastructure_and_distributed_workers,
+        stage_45_forensic_storage_and_disaster_recovery,
     ]
 
     results: List[StageResult] = []

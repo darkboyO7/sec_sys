@@ -82,6 +82,20 @@ class Settings(BaseSettings):
     EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "evidence").resolve().as_posix())
     TEST_EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "test_evidence").resolve().as_posix())
 
+    # Prompts 58-62: Forensic Storage, Backup, Disaster Recovery & Data Governance
+    EVIDENCE_STORAGE_BACKEND: str = "LOCAL"  # "LOCAL", "S3", "MINIO"
+    EVIDENCE_S3_ENDPOINT_URL: Optional[str] = None
+    EVIDENCE_S3_BUCKET_NAME: str = "vapt-forensic-evidence"
+    EVIDENCE_S3_REGION: str = "us-east-1"
+    EVIDENCE_S3_ACCESS_KEY_ID: Optional[str] = None
+    EVIDENCE_S3_SECRET_ACCESS_KEY: Optional[str] = None
+    EVIDENCE_S3_OBJECT_LOCK_ENABLED: bool = False
+    EVIDENCE_S3_WORM_RETENTION_DAYS: int = 90
+    BACKUP_STORAGE_DIR: str = str((_BACKEND_DIR / "data" / "backups").resolve().as_posix())
+    BACKUP_RETENTION_DAYS: int = 30
+    RPO_TARGET_MINUTES: int = 60
+    RTO_TARGET_MINUTES: int = 15
+
     # Prompt 52: Fault Injection Controls (Strictly test-only)
     FAULT_INJECTION_ENABLED: bool = False
 
