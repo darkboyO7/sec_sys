@@ -42,6 +42,14 @@ coverage.xml
 vapt.db
 vapt_test.db
 data/
+backups/
+recovery/
+recovery_mirror/
+.recovery_mirror/
+*.bak
+*.tmp
+*.vapt_archive.zip
+*.tar.gz
 
 # Environment and secrets
 .env
