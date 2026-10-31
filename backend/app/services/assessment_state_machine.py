@@ -17,6 +17,7 @@ LEGAL_TRANSITIONS: Dict[AssessmentStatus, Set[AssessmentStatus]] = {
         AssessmentStatus.CANCELLED,
         AssessmentStatus.FAILED,
         AssessmentStatus.REJECTED,
+        AssessmentStatus.DEAD_LETTER,
     },
     AssessmentStatus.PREFLIGHT: {
         AssessmentStatus.READY,
@@ -25,12 +26,14 @@ LEGAL_TRANSITIONS: Dict[AssessmentStatus, Set[AssessmentStatus]] = {
         AssessmentStatus.CANCELLED,
         AssessmentStatus.FAILED,
         AssessmentStatus.REJECTED,
+        AssessmentStatus.DEAD_LETTER,
     },
     AssessmentStatus.READY: {
         AssessmentStatus.RUNNING,
         AssessmentStatus.CANCELLATION_REQUESTED,
         AssessmentStatus.CANCELLED,
         AssessmentStatus.FAILED,
+        AssessmentStatus.DEAD_LETTER,
     },
     AssessmentStatus.RUNNING: {
         AssessmentStatus.COMPLETED,
@@ -39,19 +42,22 @@ LEGAL_TRANSITIONS: Dict[AssessmentStatus, Set[AssessmentStatus]] = {
         AssessmentStatus.CANCELLATION_REQUESTED,
         AssessmentStatus.CANCELLED,
         AssessmentStatus.TIMED_OUT,
+        AssessmentStatus.DEAD_LETTER,
     },
     AssessmentStatus.CANCELLATION_REQUESTED: {
         AssessmentStatus.CANCELLED,
         AssessmentStatus.COMPLETED,
         AssessmentStatus.PARTIAL,
         AssessmentStatus.FAILED,
+        AssessmentStatus.DEAD_LETTER,
     },
     AssessmentStatus.COMPLETED: set(),  # Terminal state
-    AssessmentStatus.FAILED: set(),     # Terminal state (requires new job or explicit retry)
+    AssessmentStatus.FAILED: {AssessmentStatus.QUEUED, AssessmentStatus.DEAD_LETTER},     # Terminal state (requires new job or explicit retry)
     AssessmentStatus.CANCELLED: set(),  # Terminal state
     AssessmentStatus.REJECTED: set(),   # Terminal state (preflight policy/scope denial)
-    AssessmentStatus.TIMED_OUT: set(),  # Terminal state
+    AssessmentStatus.TIMED_OUT: {AssessmentStatus.QUEUED, AssessmentStatus.DEAD_LETTER},  # Terminal state
     AssessmentStatus.PARTIAL: set(),    # Terminal state
+    AssessmentStatus.DEAD_LETTER: {AssessmentStatus.QUEUED},  # Terminal DLQ state (allows replay)
 }
 
 TERMINAL_STATUSES: Set[AssessmentStatus] = {
@@ -61,6 +67,7 @@ TERMINAL_STATUSES: Set[AssessmentStatus] = {
     AssessmentStatus.REJECTED,
     AssessmentStatus.TIMED_OUT,
     AssessmentStatus.PARTIAL,
+    AssessmentStatus.DEAD_LETTER,
 }
 
 

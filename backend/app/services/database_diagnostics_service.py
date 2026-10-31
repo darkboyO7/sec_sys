@@ -1,7 +1,7 @@
 """
 Database and Storage Diagnostic Service for VAPT Platform.
-Verifies database concurrency configurations (SQLite WAL pragmas, busy timeouts),
-storage disk capacity and writability, schema tables, and backup verification status.
+Verifies database concurrency configurations (SQLite WAL pragmas, PostgreSQL pool metrics),
+storage disk capacity and writability, schema tables, connection pool status, and backup verification status.
 """
 
 import os
@@ -20,18 +20,19 @@ from app.models.base import utc_now
 
 class DatabaseDiagnosticsService:
     """
-    Executes non-mutating operational diagnostics on database and local persistence.
+    Executes non-mutating operational diagnostics on database, connection pool, and local persistence.
     """
 
     @classmethod
     def run_diagnostics(cls, db: Session) -> Dict[str, Any]:
         """
-        Gathers comprehensive diagnostics for database, storage, schema, and backups.
+        Gathers comprehensive diagnostics for database, storage, schema, connection pool, and backups.
         """
         now = utc_now()
         is_sqlite = "sqlite" in settings.DATABASE_URL.lower()
 
         db_diag = cls._check_database_pragmas(db, is_sqlite)
+        pool_diag = cls._check_connection_pool()
         storage_diag = cls._check_storage_capacity()
         schema_diag = cls._check_schema_status(db)
         backup_diag = cls._check_backup_status(db)
@@ -50,14 +51,46 @@ class DatabaseDiagnosticsService:
             "healthy": all_ok and not storage_warning,
             "status": "HEALTHY" if all_ok and not storage_warning else ("DEGRADED" if all_ok else "UNHEALTHY"),
             "database": db_diag,
+            "pool": pool_diag,
             "storage": storage_diag,
             "schema": schema_diag,
             "backups": backup_diag,
         }
 
     @classmethod
+    def _check_connection_pool(cls) -> Dict[str, Any]:
+        """Inspects SQLAlchemy connection pool metrics."""
+        try:
+            pool = getattr(engine, "pool", None)
+            if not pool:
+                return {"type": "unknown", "status": "no_pool"}
+
+            pool_class = pool.__class__.__name__
+            pool_info: Dict[str, Any] = {
+                "pool_class": pool_class,
+                "pre_ping": getattr(pool, "_pre_ping", True),
+                "recycle_seconds": getattr(pool, "_recycle", None),
+            }
+
+            # QueuePool (PostgreSQL) metrics
+            if hasattr(pool, "size"):
+                pool_info["configured_size"] = pool.size()
+            if hasattr(pool, "checkedin"):
+                pool_info["checked_in"] = pool.checkedin()
+            if hasattr(pool, "checkedout"):
+                pool_info["checked_out"] = pool.checkedout()
+            if hasattr(pool, "overflow"):
+                pool_info["overflow"] = pool.overflow()
+            if hasattr(pool, "timeout"):
+                pool_info["timeout"] = pool.timeout()
+
+            return pool_info
+        except Exception as e:
+            return {"error": str(e), "pool_class": "unreachable"}
+
+    @classmethod
     def _check_database_pragmas(cls, db: Session, is_sqlite: bool) -> Dict[str, Any]:
-        """Inspects SQLite WAL mode, busy timeout, and engine responsiveness."""
+        """Inspects SQLite WAL mode, busy timeout, or PostgreSQL server version & connection status."""
         t0 = time.perf_counter()
         diag: Dict[str, Any] = {
             "engine": "sqlite" if is_sqlite else "postgresql",
@@ -87,11 +120,21 @@ class DatabaseDiagnosticsService:
                 diag["wal_enabled"] = str(journal_mode).lower() in ("wal", "memory")
             else:
                 diag["wal_enabled"] = True
-                diag["pragmas"] = {"note": "PostgreSQL managed WAL"}
+                try:
+                    version = db.execute(text("SELECT version();")).scalar()
+                    diag["server_version"] = str(version)
+                except Exception:
+                    diag["server_version"] = "PostgreSQL"
+                try:
+                    iso = db.execute(text("SHOW transaction_isolation;")).scalar()
+                    diag["isolation_level"] = str(iso)
+                except Exception:
+                    pass
+                diag["pragmas"] = {"note": "PostgreSQL managed WAL & multi-version concurrency control (MVCC)"}
 
         except Exception as e:
             diag["healthy"] = False
-            diag["error"] = "Database connection or pragma query failed."
+            diag["error"] = f"Database probe query failed: {str(e)}"
 
         return diag
 

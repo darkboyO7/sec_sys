@@ -501,7 +501,8 @@ class AssessmentExecutionEngine:
                     raise wte
 
             if getattr(settings, "EXECUTION_MODE", "SUBPROCESS") == "SUBPROCESS":
-                runner = SubprocessWorkerRunner()
+                from app.worker.engine_factory import get_worker_engine
+                engine = get_worker_engine()
                 ipc_req = WorkerIPCRequest(
                     job_id=job.id,
                     project_id=job.project_id,
@@ -526,7 +527,7 @@ class AssessmentExecutionEngine:
                     except Exception:
                         pass
 
-                result = runner.run_job(
+                result = engine.execute_job(
                     request=ipc_req,
                     cancellation_check=check_cancellation,
                     on_spawn=on_worker_spawn,
@@ -713,6 +714,18 @@ class AssessmentExecutionEngine:
                 final_status = AssessmentStatus.PARTIAL
                 error_msg = f"Partial failure: {'; '.join(result.errors)}"
                 failure_cat = result.failure_category or "PARTIAL_MODULE_FAILURE"
+            elif job.retry_count >= job.max_retries and result.failure_category in (
+                "WORKER_SPAWN_FAILED",
+                "WORKER_PROCESS_TIMEOUT",
+                "CORRUPT_IPC_RESPONSE",
+                "WORKER_PAYLOAD_EXCEEDED",
+                "ADAPTER_EXECUTION_FAILURE",
+            ):
+                final_status = AssessmentStatus.DEAD_LETTER
+                error_msg = f"Assessment transitioned to DEAD_LETTER after {job.retry_count} retries: {'; '.join(result.errors)}"
+                failure_cat = result.failure_category or "DEAD_LETTER_EXHAUSTED"
+                job.dead_letter_reason = error_msg
+                job.dead_letter_at = now
             else:
                 final_status = AssessmentStatus.FAILED
                 error_msg = f"Assessment failed: {'; '.join(result.errors)}"

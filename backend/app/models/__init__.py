@@ -197,6 +197,11 @@ from app.models.threat_intel import (
     ThreatIntelligenceRecord,
     ThreatCorrelationRecord,
 )
+from app.models.worker_node import (
+    WorkerNode,
+    WorkerType,
+    WorkerStatus,
+)
 from app.models.authorization import (
     TokenRevocationRecord,
     AccessDenialAuditRecord,
@@ -452,4 +457,7 @@ __all__ = [
     "CustodyEventType",
     "ForensicEvidenceRecord",
     "EvidenceCustodyEvent",
+    "WorkerNode",
+    "WorkerType",
+    "WorkerStatus",
 ]

@@ -17,6 +17,7 @@ class AssessmentStatus(str, enum.Enum):
     FAILED = "FAILED"
     REJECTED = "REJECTED"
     TIMED_OUT = "TIMED_OUT"
+    DEAD_LETTER = "DEAD_LETTER"
 
 
 class FindingSeverity(str, enum.Enum):
@@ -77,6 +78,8 @@ class AssessmentJob(Base, TimestampMixin):
 
     failure_category = Column(String(100), nullable=True, index=True)
     error_message = Column(Text, nullable=True)
+    dead_letter_reason = Column(Text, nullable=True)
+    dead_letter_at = Column(DateTime(timezone=True), nullable=True)
     is_simulated = Column(Boolean, default=True, nullable=False)  # Crucial transparency: flags synthetic/fixture execution
     created_by_id = Column(String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
 

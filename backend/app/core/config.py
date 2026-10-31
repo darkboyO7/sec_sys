@@ -66,6 +66,18 @@ class Settings(BaseSettings):
     WORKER_TIMEOUT_GRACE_PERIOD_SECONDS: int = 3
     WORKER_MAX_IPC_PAYLOAD_BYTES: int = 10485760  # 10MB
 
+    # Enterprise Scalability & Distributed Execution (Prompts 53-57)
+    WORKER_BACKEND: str = "LOCAL"  # "LOCAL", "DISTRIBUTED", "HYBRID"
+    WORKER_BROKER_URL: Optional[str] = None  # Optional redis:// or amqp:// URL
+    WORKER_HEARTBEAT_INTERVAL_SECONDS: int = 10
+    WORKER_HEARTBEAT_TIMEOUT_SECONDS: int = 30
+    WORKER_MAX_CONCURRENT_JOBS: int = 8
+    WORKER_MAX_CONCURRENT_JOBS_PER_PROJECT: int = 4
+    WORKER_MAX_QUEUE_DEPTH: int = 50
+    WORKER_JOB_MAX_RETRIES: int = 3
+    WORKER_REGISTRATION_SECRET: Optional[str] = None
+    BACKPRESSURE_REJECT_ON_OVERLOAD: bool = True
+
     # Prompt 49: Evidence Directory Separation
     EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "evidence").resolve().as_posix())
     TEST_EVIDENCE_DIR: str = str((_BACKEND_DIR / "data" / "test_evidence").resolve().as_posix())
@@ -181,6 +193,13 @@ class Settings(BaseSettings):
                 if not match or not match.group(2).strip():
                     raise ValueError(
                         f"DATABASE_URL is missing a non-empty database password in {env_lower} mode."
+                    )
+
+            # Validate Distributed Worker Authentication Secret (Prompt 53-57)
+            if self.WORKER_BACKEND.upper() in ("DISTRIBUTED", "HYBRID"):
+                if not self.WORKER_REGISTRATION_SECRET or len(self.WORKER_REGISTRATION_SECRET) < 32:
+                    raise ValueError(
+                        f"WORKER_REGISTRATION_SECRET must be configured with at least 32 characters in {env_lower} mode when using distributed workers."
                     )
 
         return self

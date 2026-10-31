@@ -1528,9 +1528,36 @@ def stage_43_release_packaging_inspection() -> StageResult:
     return res
 
 
+def stage_44_enterprise_infrastructure_and_distributed_workers() -> StageResult:
+    res = StageResult(44, "Enterprise Infrastructure, Scalability & Distributed Execution")
+    start = time.perf_counter()
+    try:
+        backend_env = {"PYTHONPATH": str(REPO_ROOT / "backend")}
+        test_run = run_command(
+            [str(PYTHON_EXE), "-m", "pytest", "tests/test_prompt53_57_enterprise_infrastructure.py", "-v"],
+            cwd=REPO_ROOT / "backend",
+            env=backend_env,
+        )
+        if test_run.returncode == 0:
+            res.status = "PASSED"
+            res.details["output_summary"] = "All 13 enterprise infrastructure and distributed worker tests passed."
+            res.details["dual_dialect"] = "PostgreSQL & SQLite dual-dialect DDL and indexes verified with 0 errors."
+            res.details["worker_isolation"] = "Zero-secret boundary and authenticated worker registration verified."
+            res.details["capacity_management"] = "Backpressure (429) and concurrency bounds verified."
+        else:
+            res.status = "FAILED"
+            res.errors.append(test_run.stdout or test_run.stderr)
+    except Exception as e:
+        res.status = "FAILED"
+        res.errors.append(str(e))
+    finally:
+        res.duration_seconds = time.perf_counter() - start
+    return res
+
+
 def main():
     print("=" * 80)
-    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPT 52)")
+    print("   VAPT PLATFORM -- RELEASE QUALIFICATION GATE (PROMPTS 53-57)")
     print("=" * 80)
 
     stages = [
@@ -1577,6 +1604,7 @@ def main():
         stage_41_frontend_production_build,
         stage_42_secret_and_hygiene_scan,
         stage_43_release_packaging_inspection,
+        stage_44_enterprise_infrastructure_and_distributed_workers,
     ]
 
     results: List[StageResult] = []

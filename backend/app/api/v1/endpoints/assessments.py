@@ -195,6 +195,17 @@ def create_assessment_job(
                 )
             return existing_job
 
+    # 6.5. Concurrency & Queue Overload Admission Control (Prompt 53-57)
+    from app.services.capacity_management_service import capacity_management_service, CapacityOverloadError, WorkloadPriority
+    try:
+        capacity_management_service.check_admission(db, project_id=project_id, priority=WorkloadPriority.NORMAL)
+    except CapacityOverloadError as coe:
+        raise HTTPException(
+            status_code=coe.status_code,
+            detail=coe.message,
+            headers={"Retry-After": str(coe.retry_after)},
+        )
+
     # 7. Compute immutable scope snapshot & digest
     policy_ver = job_in.policy_version or "2026.1"
     scope_snapshot, scope_snapshot_digest = AssessmentExecutionEngine.compute_scope_snapshot_and_digest(
