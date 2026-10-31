@@ -2,10 +2,12 @@ from typing import List
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.config import settings
-from app.models.user import User, SystemRole
+from app.models.base import generate_uuid, utc_now
+from app.models.user import User, SystemRole, SystemBootstrapState
 from app.schemas.auth import UserCreate, UserResponse, LoginRequest, TokenResponse, AdminUserCreate
 from app.services.audit_service import AuditService
 from app.services.rate_limit_service import rate_limiter
@@ -23,20 +25,25 @@ def register_user(
     db: Session = Depends(get_db),
 ):
     """
-    Register a new user account with strict privilege escalation defense.
-    - First user in an empty database is assigned ADMIN role for one-time bootstrap.
-    - All subsequent public registrations are strictly assigned unprivileged SECURITY_TESTER role.
-    - Unauthenticated callers can NEVER self-assign ADMIN, SECURITY_LEAD, or AUDITOR.
+    Register a new user account with strict privilege escalation defense and race-safe bootstrap.
+    - Initial administrator bootstrap is protected by a database-enforced singleton lock (SystemBootstrapState).
+    - Concurrent bootstrap attempts are physically serialized at the database level; losers safely fall back.
+    - Public registration never accepts or assigns privileged roles (ADMIN, SECURITY_LEAD, AUDITOR).
+    - Unauthenticated privilege escalation attempts are logged to the audit ledger and blocked.
+    - Duplicate email registrations are handled race-safely via database unique constraints.
     """
     client_ip = get_client_ip(request)
-    existing_user = db.query(User).filter(User.email == user_in.email.lower()).first()
+    email_clean = user_in.email.lower().strip()
+
+    # 1. Early check for existing registered email
+    existing_user = db.query(User).filter(User.email == email_clean).first()
     if existing_user:
         AuditService.record_event(
             db=db,
             action="AUTH_REGISTER_FAIL",
             target_type="user",
             outcome="FAILURE",
-            actor_email=user_in.email.lower(),
+            actor_email=email_clean,
             ip_address=client_ip,
             details={"reason": "Email already registered"},
         )
@@ -45,40 +52,100 @@ def register_user(
             detail="A user with this email address already exists",
         )
 
-    # Concurrency-protected bootstrap admin check
-    user_count = db.query(User).count()
-    is_bootstrap = (user_count == 0)
+    # 2. Strict Privilege Escalation Defense: Log unauthorized role requests
+    if user_in.system_role in PRIVILEGED_SYSTEM_ROLES:
+        AuditService.record_event(
+            db=db,
+            action="AUTH_PRIVILEGE_ESCALATION_ATTEMPT",
+            target_type="user",
+            outcome="DENIED",
+            actor_email=email_clean,
+            ip_address=client_ip,
+            details={
+                "requested_role": user_in.system_role.value if user_in.system_role else None,
+                "reason": "Unauthenticated registration cannot request privileged role",
+            },
+        )
 
-    if is_bootstrap:
-        assigned_role = SystemRole.ADMIN
-    else:
-        # Strict server-side enforcement: public registration cannot assign privileged roles
-        if user_in.system_role in PRIVILEGED_SYSTEM_ROLES:
-            AuditService.record_event(
-                db=db,
-                action="AUTH_PRIVILEGE_ESCALATION_ATTEMPT",
-                target_type="user",
-                outcome="DENIED",
-                actor_email=user_in.email.lower(),
-                ip_address=client_ip,
-                details={
-                    "requested_role": user_in.system_role.value if user_in.system_role else None,
-                    "reason": "Unauthenticated registration cannot request privileged role",
-                },
-            )
-        # Default unprivileged role
+    # 3. Race-safe atomic bootstrap lock
+    # Check if bootstrap has already occurred
+    bootstrap_state = db.query(SystemBootstrapState).filter(SystemBootstrapState.id == 1).first()
+    is_bootstrap_admin = False
+    new_user = None
+
+    if not bootstrap_state:
+        # Check if database has zero users (fresh deployment)
+        user_count = db.query(User).count()
+        if user_count == 0:
+            # Attempt atomic insert of bootstrap singleton record alongside initial admin user
+            try:
+                with db.begin_nested():
+                    new_user_id = generate_uuid()
+                    new_user = User(
+                        id=new_user_id,
+                        email=email_clean,
+                        hashed_password=hash_password(user_in.password),
+                        full_name=user_in.full_name.strip(),
+                        system_role=SystemRole.ADMIN,
+                        is_active=True,
+                    )
+                    db.add(new_user)
+                    b_state = SystemBootstrapState(
+                        id=1,
+                        is_bootstrapped=True,
+                        bootstrap_user_id=new_user_id,
+                        bootstrapped_at=utc_now(),
+                    )
+                    db.add(b_state)
+                    db.flush()
+                is_bootstrap_admin = True
+            except IntegrityError:
+                # Concurrent request won the bootstrap race or email collided
+                db.rollback()
+                if db.query(User).filter(User.email == email_clean).first():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="A user with this email address already exists",
+                    )
+                is_bootstrap_admin = False
+                new_user = None
+        else:
+            # Existing installation with users: permanently close bootstrap
+            try:
+                with db.begin_nested():
+                    b_state = SystemBootstrapState(
+                        id=1,
+                        is_bootstrapped=True,
+                        bootstrap_user_id="LEGACY_INSTALLATION",
+                        bootstrapped_at=utc_now(),
+                    )
+                    db.add(b_state)
+                    db.flush()
+            except IntegrityError:
+                pass
+            is_bootstrap_admin = False
+
+    if not is_bootstrap_admin:
+        # Standard unprivileged user registration
         assigned_role = SystemRole.SECURITY_TESTER
+        new_user = User(
+            email=email_clean,
+            hashed_password=hash_password(user_in.password),
+            full_name=user_in.full_name.strip(),
+            system_role=assigned_role,
+            is_active=True,
+        )
+        db.add(new_user)
 
-    new_user = User(
-        email=user_in.email.lower(),
-        hashed_password=hash_password(user_in.password),
-        full_name=user_in.full_name.strip(),
-        system_role=assigned_role,
-        is_active=True,
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.commit()
+        db.refresh(new_user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email address already exists",
+        )
 
     AuditService.record_event(
         db=db,
@@ -89,7 +156,7 @@ def register_user(
         actor_email=new_user.email,
         outcome="SUCCESS",
         ip_address=client_ip,
-        details={"assigned_role": assigned_role.value, "is_bootstrap_admin": is_bootstrap},
+        details={"assigned_role": new_user.system_role.value, "is_bootstrap_admin": is_bootstrap_admin},
     )
 
     return new_user
@@ -193,9 +260,16 @@ def get_current_user_profile(
 @router.get("/users", response_model=List[UserResponse])
 def list_organization_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_system_roles([
+        SystemRole.ADMIN,
+        SystemRole.SECURITY_LEAD,
+        SystemRole.AUDITOR,
+    ])),
 ):
-    """Retrieve registered users in organization for access governance."""
+    """
+    Retrieve registered users in organization for access governance.
+    Strictly role-gated to administrative, security lead, and auditor personnel.
+    """
     users = db.query(User).filter(User.is_active == True).order_by(User.full_name).all()
     return users
 
@@ -227,8 +301,15 @@ def create_privileged_user(
         is_active=user_in.is_active,
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.commit()
+        db.refresh(new_user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email address already exists",
+        )
 
     AuditService.record_event(
         db=db,

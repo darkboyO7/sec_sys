@@ -5,10 +5,17 @@ from typing import Any, Dict, Optional, Tuple, List
 from datetime import datetime, timezone, timedelta
 import logging
 from sqlalchemy.orm import Session
-from app.models.audit import AuditEvent
+from sqlalchemy.exc import IntegrityError
+from app.models.audit import AuditEvent, AuditChainHead
 from app.core.config import settings
 
 logger = logging.getLogger("vapt.audit")
+
+
+class AuditPersistenceError(RuntimeError):
+    """Raised when audit event serialization or persistence fails under strict audit policy."""
+    pass
+
 
 SENSITIVE_KEYS = {
     "password", "secret", "token", "access_token", "refresh_token",
@@ -83,45 +90,86 @@ class AuditService:
         ip_address: Optional[str] = None,
     ) -> AuditEvent:
         """
-        Record an immutable audit log entry.
-        Fails closed or logs fatal error if audit persistence fails.
-        Enforces monotonic timestamps and serialized hash-chain calculation.
+        Record an immutable audit log entry with multi-process serialized hash-chaining.
+        Uses partition chain head records (AuditChainHead) to serialize concurrent writers,
+        preventing chain forks even when the audit ledger starts out empty.
+        Fails closed on any serialization or persistence error under strict audit policy.
         """
         clean_details = sanitize_audit_details(details or {})
         now = datetime.now(timezone.utc)
         proj_str = str(project_id) if project_id is not None else None
         target_id_str = str(target_id) if target_id is not None else None
+        partition_key = proj_str or "__GLOBAL__"
 
         with cls._chain_lock:
-            # Fetch previous audit event in chain for this project (or globally)
-            # Transactional database coordination: supports with_for_update on PostgreSQL
             try:
-                query = db.query(AuditEvent)
-                if proj_str:
-                    query = query.filter(AuditEvent.project_id == proj_str)
-                else:
-                    query = query.filter(AuditEvent.project_id.is_(None))
-
-                # Apply row-level locking where dialect supports it (PostgreSQL)
                 bind = db.get_bind()
-                if bind and bind.dialect.name == "postgresql":
-                    query = query.with_for_update()
+                is_pg = bind and getattr(bind.dialect, "name", "") == "postgresql"
 
-                last_event = query.order_by(AuditEvent.timestamp.desc(), AuditEvent.id.desc()).first()
-                prev_hash = last_event.event_hash if last_event else None
-                last_seq = last_event.sequence_number if (last_event and last_event.sequence_number is not None) else 0
+                # 1. Fetch partition chain head with row-level lock on PostgreSQL
+                query = db.query(AuditChainHead).filter(AuditChainHead.partition_key == partition_key)
+                if is_pg:
+                    query = query.with_for_update()
+                head = query.first()
+
+                if not head:
+                    # Head record does not exist yet: check historical records for this partition
+                    hist_query = db.query(AuditEvent)
+                    if proj_str:
+                        hist_query = hist_query.filter(AuditEvent.project_id == proj_str)
+                    else:
+                        hist_query = hist_query.filter(AuditEvent.project_id.is_(None))
+
+                    latest_hist = hist_query.order_by(
+                        AuditEvent.sequence_number.desc().nullslast(),
+                        AuditEvent.timestamp.desc(),
+                        AuditEvent.id.desc(),
+                    ).first()
+
+                    init_seq = latest_hist.sequence_number if (latest_hist and latest_hist.sequence_number is not None) else 0
+                    init_hash = latest_hist.event_hash if latest_hist else None
+                    init_ts = latest_hist.timestamp if latest_hist else None
+
+                    # Insert head record atomically
+                    try:
+                        with db.begin_nested():
+                            head = AuditChainHead(
+                                partition_key=partition_key,
+                                last_sequence_number=init_seq,
+                                last_event_hash=init_hash,
+                                last_event_timestamp=init_ts,
+                                updated_at=now,
+                            )
+                            db.add(head)
+                            db.flush()
+                    except IntegrityError:
+                        # Another process created the head row concurrently
+                        query = db.query(AuditChainHead).filter(AuditChainHead.partition_key == partition_key)
+                        if is_pg:
+                            query = query.with_for_update()
+                        head = query.first()
+
+                if not head:
+                    raise AuditPersistenceError(f"Failed to acquire audit chain head for partition '{partition_key}'.")
+
+                last_seq = head.last_sequence_number or 0
+                prev_hash = head.last_event_hash
                 next_seq = last_seq + 1
 
-                if last_event and last_event.timestamp:
-                    last_ts = last_event.timestamp
+                if head.last_event_timestamp:
+                    last_ts = head.last_event_timestamp
                     if last_ts.tzinfo is None:
                         last_ts = last_ts.replace(tzinfo=timezone.utc)
                     if last_ts >= now:
                         now = last_ts + timedelta(microseconds=1)
-            except Exception:
-                prev_hash = None
-                next_seq = 1
 
+            except Exception as e:
+                logger.error(f"Audit chain head serialization failure: {e}", exc_info=True)
+                if getattr(settings, "AUDIT_LOG_STRICT", True):
+                    raise AuditPersistenceError(f"Audit log write failed under strict security policy: failed to serialize audit chain: {e}") from e
+                raise e
+
+            # 2. Compute cryptographically bound hash
             event_hash = compute_audit_event_hash(
                 prev_hash=prev_hash,
                 timestamp=now,
@@ -134,6 +182,7 @@ class AuditService:
                 details=clean_details,
             )
 
+            # 3. Create AuditEvent and update AuditChainHead atomically
             try:
                 event = AuditEvent(
                     timestamp=now,
@@ -150,22 +199,27 @@ class AuditService:
                     prev_event_hash=prev_hash,
                     event_hash=event_hash,
                 )
-                db.add(event)
-                if db.in_nested_transaction():
+                with db.begin_nested():
+                    db.add(event)
+                    head.last_sequence_number = next_seq
+                    head.last_event_hash = event_hash
+                    head.last_event_timestamp = now
+                    head.updated_at = now
                     db.flush()
-                else:
+
+                if not db.in_nested_transaction():
                     db.commit()
                     db.refresh(event)
+
                 logger.info(
                     f"AUDIT: seq={next_seq} action={action} actor={actor_email or actor_id} target={target_type}:{target_id} outcome={outcome}"
                 )
                 return event
             except Exception as e:
-                db.rollback()
                 logger.error(f"AUDIT FAILURE: Could not record audit event {action}: {e}", exc_info=True)
-                if settings.AUDIT_LOG_STRICT:
-                    raise RuntimeError(f"Audit log write failed under strict security policy: {e}") from e
-                return None
+                if getattr(settings, "AUDIT_LOG_STRICT", True):
+                    raise AuditPersistenceError(f"Audit log write failed under strict security policy: {e}") from e
+                raise e
 
     @classmethod
     def log(
@@ -230,6 +284,21 @@ class AuditService:
                     f"Chain link broken at event '{evt.id}' (seq={evt.sequence_number}): "
                     f"expected prev_hash='{expected_prev_hash}', recorded='{evt.prev_event_hash}'"
                 )
+
+            # Sequence number monotonicity verification
+            if evt.sequence_number is None or evt.sequence_number <= 0:
+                valid = False
+                broken_count += 1
+                discrepancies.append(
+                    f"Invalid non-positive or null sequence number at event '{evt.id}': {evt.sequence_number}"
+                )
+            elif idx > 0 and events[idx - 1].sequence_number is not None:
+                if evt.sequence_number <= events[idx - 1].sequence_number:
+                    valid = False
+                    broken_count += 1
+                    discrepancies.append(
+                        f"Non-monotonic sequence order at event '{evt.id}': current={evt.sequence_number}, previous={events[idx - 1].sequence_number}"
+                    )
 
             recomputed = compute_audit_event_hash(
                 prev_hash=evt.prev_event_hash,

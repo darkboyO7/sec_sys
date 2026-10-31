@@ -159,3 +159,58 @@ def replay_dead_letter_job(
             detail=f"Dead-letter job '{job_id}' not found.",
         )
     return {"success": True, "job_id": job_id, "status": "QUEUED", "message": "Job re-queued successfully."}
+
+
+class WorkerRotateSessionRequest(BaseModel):
+    worker_id: str = Field(min_length=1, max_length=100)
+    old_session_token: str = Field(min_length=1, max_length=256)
+
+
+@router.post("/rotate-session")
+def rotate_worker_session(
+    req: WorkerRotateSessionRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Rotates a worker node session token transactionally.
+    """
+    try:
+        new_token = worker_registry.rotate_session(
+            worker_id=req.worker_id,
+            old_session_token=req.old_session_token,
+            db=db,
+        )
+        return {"success": True, "worker_id": req.worker_id, "session_token": new_token}
+    except WorkerAuthenticationError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
+
+@router.post("/{worker_id}/revoke-session")
+def revoke_worker_session(
+    worker_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_system_roles([SystemRole.ADMIN, SystemRole.SECURITY_LEAD])),
+):
+    """
+    Revokes worker node active session credentials immediately.
+    """
+    success = worker_registry.revoke_session(worker_id, db)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Worker '{worker_id}' not found.")
+    return {"success": True, "worker_id": worker_id, "message": "Worker session credentials revoked."}
+
+
+@router.post("/{worker_id}/deactivate")
+def deactivate_worker_node(
+    worker_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_system_roles([SystemRole.ADMIN, SystemRole.SECURITY_LEAD])),
+):
+    """
+    Deactivates a worker node, revokes credentials, and reclaims active jobs.
+    """
+    success = worker_registry.deactivate_worker(worker_id, db)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Worker '{worker_id}' not found.")
+    return {"success": True, "worker_id": worker_id, "message": "Worker node deactivated and active jobs reclaimed."}
+

@@ -1,6 +1,7 @@
 import logging
 import json
 import hashlib
+import hmac
 import math
 import random
 from datetime import datetime, timezone, timedelta
@@ -244,40 +245,7 @@ class AssessmentExecutionEngine:
         job.config = cfg
 
         # ----------------------------------------------------------------------
-        # CHECK 2: Scope Snapshot Tampering Verification
-        # ----------------------------------------------------------------------
-        if job.scope_snapshot and job.scope_snapshot_digest:
-            canonical_json = json.dumps(job.scope_snapshot, sort_keys=True, separators=(",", ":"))
-            computed_digest = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
-            if computed_digest != job.scope_snapshot_digest:
-                AssessmentStateMachine.transition(
-                    job=job,
-                    new_status=AssessmentStatus.REJECTED,
-                    error_message="Preflight integrity failure: Scope snapshot digest does not match recorded digest.",
-                    failure_category="SCOPE_SNAPSHOT_TAMPERING_DETECTED",
-                    now=now,
-                )
-                db.commit()
-
-                AuditService.record_event(
-                    db=db,
-                    action="ASSESSMENT_PREFLIGHT_INTEGRITY_VIOLATION",
-                    target_type="assessment_job",
-                    target_id=job.id,
-                    project_id=job.project_id,
-                    actor_id=job.created_by_id,
-                    outcome="DENIED",
-                    ip_address=client_ip,
-                    details={
-                        "failure_category": "SCOPE_SNAPSHOT_TAMPERING_DETECTED",
-                        "recorded_digest": job.scope_snapshot_digest,
-                        "computed_digest": computed_digest,
-                    },
-                )
-                return job
-
-        # ----------------------------------------------------------------------
-        # CHECK 3: Scanner Adapter Approval & Profile Capabilities
+        # CHECK 2: Scanner Adapter Approval & Profile Capabilities
         # ----------------------------------------------------------------------
         adapter = AdapterRegistry.get(job.adapter_name)
         if not adapter:
@@ -320,7 +288,7 @@ class AssessmentExecutionEngine:
             return job
 
         # ----------------------------------------------------------------------
-        # CHECK 4: Policy Version Compatibility
+        # CHECK 3: Policy Version Compatibility
         # ----------------------------------------------------------------------
         if job.policy_version != cls.SUPPORTED_POLICY_VERSION:
             AssessmentStateMachine.transition(
@@ -331,6 +299,63 @@ class AssessmentExecutionEngine:
                 now=now,
             )
             db.commit()
+            return job
+
+        # ----------------------------------------------------------------------
+        # CHECK 4: Scope Snapshot Integrity & Tampering Verification (Fail Closed)
+        # ----------------------------------------------------------------------
+        if not job.scope_snapshot or not job.scope_snapshot_digest:
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.REJECTED,
+                error_message="Preflight integrity failure: Missing immutable scope snapshot or digest. Execution aborted by security policy.",
+                failure_category="SCOPE_SNAPSHOT_MISSING",
+                now=now,
+            )
+            db.commit()
+            AuditService.record_event(
+                db=db,
+                action="ASSESSMENT_PREFLIGHT_INTEGRITY_VIOLATION",
+                target_type="assessment_job",
+                target_id=job.id,
+                project_id=job.project_id,
+                actor_id=job.created_by_id,
+                outcome="DENIED",
+                ip_address=client_ip,
+                details={
+                    "failure_category": "SCOPE_SNAPSHOT_MISSING",
+                    "reason": "Job is missing immutable scope snapshot or scope digest.",
+                },
+            )
+            return job
+
+        canonical_json = json.dumps(job.scope_snapshot, sort_keys=True, separators=(",", ":"))
+        computed_digest = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(computed_digest, job.scope_snapshot_digest):
+            AssessmentStateMachine.transition(
+                job=job,
+                new_status=AssessmentStatus.REJECTED,
+                error_message="Preflight integrity failure: Scope snapshot digest does not match recorded digest.",
+                failure_category="SCOPE_SNAPSHOT_TAMPERING_DETECTED",
+                now=now,
+            )
+            db.commit()
+
+            AuditService.record_event(
+                db=db,
+                action="ASSESSMENT_PREFLIGHT_INTEGRITY_VIOLATION",
+                target_type="assessment_job",
+                target_id=job.id,
+                project_id=job.project_id,
+                actor_id=job.created_by_id,
+                outcome="DENIED",
+                ip_address=client_ip,
+                details={
+                    "failure_category": "SCOPE_SNAPSHOT_TAMPERING_DETECTED",
+                    "recorded_digest": job.scope_snapshot_digest,
+                    "computed_digest": computed_digest,
+                },
+            )
             return job
 
         # Preflight passed -> READY -> RUNNING (Atomic worker claim using conditional update)

@@ -40,3 +40,18 @@ class AuditEvent(Base):
     # Cryptographic tamper-evident hash chaining (Phase 8)
     prev_event_hash = Column(String(64), nullable=True, index=True)
     event_hash = Column(String(64), nullable=True, index=True)
+
+
+class AuditChainHead(Base):
+    """
+    Dedicated partition chain-head and serialization record for audit event appending.
+    Guarantees deterministic multi-process serialization and prevents concurrent chain forks.
+    """
+    __tablename__ = "audit_chain_heads"
+
+    partition_key = Column(String(100), primary_key=True)  # project_id or '__GLOBAL__'
+    last_sequence_number = Column(Integer, default=0, nullable=False)
+    last_event_hash = Column(String(64), nullable=True)
+    last_event_timestamp = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+

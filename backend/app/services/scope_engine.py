@@ -316,6 +316,27 @@ class ScopeEngine:
         else:
             host_clean = host_clean.split("/")[0].split(":")[0].strip("[]")
 
+        # Normalize alternative number bases (hex, octal, dword)
+        if "." not in host_clean and ":" not in host_clean:
+            try:
+                val = int(host_clean, 8) if (host_clean.startswith("0") and len(host_clean) > 1 and not host_clean.startswith(("0x", "0o", "0X", "0O"))) else int(host_clean, 0)
+                if 0 <= val <= 0xFFFFFFFF:
+                    host_clean = str(ipaddress.IPv4Address(val))
+            except (ValueError, TypeError):
+                pass
+        elif "." in host_clean and ":" not in host_clean:
+            parts = host_clean.split(".")
+            if len(parts) == 4:
+                try:
+                    nums = [
+                        int(p, 8) if (p.startswith("0") and len(p) > 1 and not p.startswith(("0x", "0o", "0X", "0O"))) else int(p, 0)
+                        for p in parts
+                    ]
+                    if all(0 <= n <= 255 for n in nums):
+                        host_clean = ".".join(str(n) for n in nums)
+                except (ValueError, TypeError):
+                    pass
+
         # 1. Cloud metadata check
         if host_clean in DANGEROUS_METADATA_HOSTNAMES or host_clean in CLOUD_METADATA_IPS:
             return False, f"Prohibited cloud metadata destination '{host_clean}' blocked.", None

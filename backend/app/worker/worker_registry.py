@@ -5,6 +5,7 @@ heartbeat tracking, dead worker lease scavenging, and dead-letter queue routing.
 """
 import hmac
 import hashlib
+import secrets
 import time
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -40,59 +41,123 @@ class WorkerRegistry:
     """
 
     def __init__(self):
-        # Ephemeral session token store: worker_id -> session_token
+        # Ephemeral session token store: worker_id -> session_token (kept for compatibility)
         self._session_tokens: Dict[str, str] = {}
+        # In-memory session cache: worker_id -> {"token_hash": str, "expires_at": datetime}
+        self._session_cache: Dict[str, Dict[str, Any]] = {}
         # In-memory fast cache of active worker heartbeats: worker_id -> timestamp
         self._heartbeat_cache: Dict[str, float] = {}
+
+    def evict_cache(self, worker_id: str) -> None:
+        """Evicts worker credentials and heartbeats from in-memory caches."""
+        if worker_id in self._session_tokens:
+            del self._session_tokens[worker_id]
+        if worker_id in self._session_cache:
+            del self._session_cache[worker_id]
+        if worker_id in self._heartbeat_cache:
+            del self._heartbeat_cache[worker_id]
 
     def _get_signing_key(self) -> bytes:
         """Derives the HMAC signing secret for worker authentication."""
         secret = settings.WORKER_REGISTRATION_SECRET or settings.SECRET_KEY
         return secret.encode("utf-8")
 
-    def generate_token_hash(self, token: str) -> str:
-        """Computes SHA-256 digest of raw token for storage."""
-        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    def generate_token_hash(self, token: str, worker_id: Optional[str] = None) -> str:
+        """Computes SHA-256 digest of token optionally bound to worker_id for storage."""
+        if worker_id:
+            payload = f"{worker_id}:{token}".encode("utf-8")
+        else:
+            payload = token.encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
     def generate_session_token(self, worker_id: str) -> str:
-        """Generates an HMAC-authenticated session token for a worker."""
+        """Generates a cryptographically secure, HMAC-authenticated session token bound to worker identity."""
         key = self._get_signing_key()
-        msg = f"{worker_id}:{time.time()}".encode("utf-8")
-        return hmac.new(key, msg, hashlib.sha256).hexdigest()
+        entropy = secrets.token_hex(32)
+        msg = f"{worker_id}:{entropy}".encode("utf-8")
+        sig = hmac.new(key, msg, hashlib.sha256).hexdigest()
+        return f"wkr_sess_{entropy[:16]}_{sig}"
 
     def verify_registration_token(self, raw_token: str) -> bool:
         """
         Verifies that the raw registration token matches the cluster secret.
-        Fails closed on mismatch.
+        Fails closed on mismatch using constant-time comparison.
         """
         expected_secret = settings.WORKER_REGISTRATION_SECRET or settings.SECRET_KEY
         if not raw_token or not expected_secret:
             return False
         return hmac.compare_digest(raw_token.strip(), expected_secret.strip())
 
+    @staticmethod
+    def _is_expired(dt: Optional[datetime], now: datetime) -> bool:
+        if dt is None:
+            return True
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        return dt <= now
+
     def verify_session_token(self, worker_id: str, session_token: str, db: Optional[Session] = None) -> bool:
         """
-        Validates worker session token against memory cache and persisted database records.
-        Verifies session token hash and checks expiration.
+        Validates worker session token against persisted database records and cache.
+        Checks persisted token hash, expiry, worker identity, deactivation status, and validity.
+        Never accepts a session solely because it is present in memory without expiry validation.
         """
         if not worker_id or not session_token:
             return False
         now = utc_now()
-        token_hash = self.generate_token_hash(session_token)
+        token_hash_bound = self.generate_token_hash(session_token, worker_id=worker_id)
+        token_hash_legacy = self.generate_token_hash(session_token)
 
-        # 1. Check in-memory fast cache
-        cached = self._session_tokens.get(worker_id)
-        if cached and hmac.compare_digest(cached, session_token):
-            return True
-
-        # 2. Database-backed fallback (preserves session after process restarts or across nodes)
+        # 1. Authoritative Database Verification (Primary)
         if db is not None:
             node = db.query(WorkerNode).filter(WorkerNode.worker_id == worker_id).first()
-            if node and node.session_token_hash:
-                if hmac.compare_digest(node.session_token_hash, token_hash):
-                    if node.session_expires_at is None or node.session_expires_at > now:
-                        self._session_tokens[worker_id] = session_token
-                        return True
+            if not node:
+                self.evict_cache(worker_id)
+                return False
+            if getattr(node, "is_deactivated", False) or node.status in (WorkerStatus.DEAD, WorkerStatus.OFFLINE, WorkerStatus.DEACTIVATED):
+                self.evict_cache(worker_id)
+                return False
+            if self._is_expired(node.session_expires_at, now):
+                self.evict_cache(worker_id)
+                return False
+            if not node.session_token_hash:
+                self.evict_cache(worker_id)
+                return False
+
+            matches = hmac.compare_digest(node.session_token_hash, token_hash_bound) or hmac.compare_digest(node.session_token_hash, token_hash_legacy)
+            if not matches:
+                self.evict_cache(worker_id)
+                return False
+
+            # Update cache with authoritative expiration
+            self._session_tokens[worker_id] = session_token
+            self._session_cache[worker_id] = {
+                "token_hash": node.session_token_hash,
+                "expires_at": node.session_expires_at,
+            }
+            return True
+
+        # 2. In-Memory Cache Check (Only when db is None)
+        cached_info = self._session_cache.get(worker_id)
+        if cached_info:
+            exp = cached_info.get("expires_at")
+            if self._is_expired(exp, now):
+                self.evict_cache(worker_id)
+                return False
+            chash = cached_info.get("token_hash")
+            if chash and (hmac.compare_digest(chash, token_hash_bound) or hmac.compare_digest(chash, token_hash_legacy)):
+                return True
+
+        # Fallback cache check for _session_tokens
+        cached_tok = self._session_tokens.get(worker_id)
+        if cached_tok and hmac.compare_digest(cached_tok, session_token):
+            if cached_info and self._is_expired(cached_info.get("expires_at"), now):
+                self.evict_cache(worker_id)
+                return False
+            return True
+
         return False
 
     def register_worker(
@@ -103,16 +168,15 @@ class WorkerRegistry:
         """
         Registers a worker node after verifying its authentication token.
         Fails closed if the token is invalid.
-        Persists session token hash and expiration in the database.
+        Persists session token hash and expiration in the database BEFORE updating cache.
+        Failed database persistence cannot leave a valid in-memory session.
         """
         if not self.verify_registration_token(req.auth_token):
             logger.warning(f"Worker registration rejected: unauthorized token for worker_id='{req.worker_id}'")
             raise WorkerAuthenticationError("Unauthorized worker registration: invalid authentication token.")
 
         session_token = self.generate_session_token(req.worker_id)
-        session_token_hash = self.generate_token_hash(session_token)
-        self._session_tokens[req.worker_id] = session_token
-        self._heartbeat_cache[req.worker_id] = time.time()
+        session_token_hash = self.generate_token_hash(session_token, worker_id=req.worker_id)
 
         now = utc_now()
         session_ttl = max(settings.WORKER_HEARTBEAT_TIMEOUT_SECONDS * 10, 86400)
@@ -136,6 +200,7 @@ class WorkerRegistry:
                 auth_token_hash=token_hash,
                 session_token_hash=session_token_hash,
                 session_expires_at=session_expires_at,
+                is_deactivated=False,
                 metadata_json=req.metadata,
             )
             db.add(node)
@@ -149,10 +214,26 @@ class WorkerRegistry:
             node.auth_token_hash = token_hash
             node.session_token_hash = session_token_hash
             node.session_expires_at = session_expires_at
+            node.is_deactivated = False
             node.metadata_json = req.metadata
 
-        db.commit()
-        db.refresh(node)
+        # Database commit MUST succeed before in-memory cache is populated
+        try:
+            db.commit()
+            db.refresh(node)
+        except Exception as e:
+            db.rollback()
+            self.evict_cache(req.worker_id)
+            logger.error(f"Failed to persist worker registration in database: {e}")
+            raise e
+
+        # Populate cache ONLY after successful database commit
+        self._session_tokens[req.worker_id] = session_token
+        self._session_cache[req.worker_id] = {
+            "token_hash": session_token_hash,
+            "expires_at": session_expires_at,
+        }
+        self._heartbeat_cache[req.worker_id] = time.time()
 
         logger.info(f"Worker '{req.worker_id}' ({req.worker_type}) successfully registered on host '{req.hostname}'.")
         return WorkerRegistrationResponse(
@@ -164,6 +245,96 @@ class WorkerRegistry:
             message="Worker registered successfully.",
         )
 
+    def rotate_session(
+        self,
+        worker_id: str,
+        old_session_token: str,
+        db: Session,
+    ) -> str:
+        """
+        Transactionally rotates a worker's session token.
+        Requires verification of the current active session.
+        """
+        if not self.verify_session_token(worker_id, old_session_token, db=db):
+            raise WorkerAuthenticationError("Invalid or expired session token for session rotation.")
+
+        node = db.query(WorkerNode).filter(WorkerNode.worker_id == worker_id).first()
+        if not node or getattr(node, "is_deactivated", False) or node.status in (WorkerStatus.DEAD, WorkerStatus.OFFLINE, WorkerStatus.DEACTIVATED):
+            raise WorkerAuthenticationError("Cannot rotate session for inactive or deactivated worker.")
+
+        now = utc_now()
+        session_ttl = max(settings.WORKER_HEARTBEAT_TIMEOUT_SECONDS * 10, 86400)
+        session_expires_at = now + timedelta(seconds=session_ttl)
+
+        new_session_token = self.generate_session_token(worker_id)
+        new_token_hash = self.generate_token_hash(new_session_token, worker_id=worker_id)
+
+        node.session_token_hash = new_token_hash
+        node.session_expires_at = session_expires_at
+        node.last_heartbeat_at = now
+
+        try:
+            db.commit()
+            db.refresh(node)
+        except Exception as e:
+            db.rollback()
+            raise e
+
+        self._session_tokens[worker_id] = new_session_token
+        self._session_cache[worker_id] = {
+            "token_hash": new_token_hash,
+            "expires_at": session_expires_at,
+        }
+        self._heartbeat_cache[worker_id] = time.time()
+
+        logger.info(f"Worker '{worker_id}' session rotated successfully.")
+        return new_session_token
+
+    def revoke_session(self, worker_id: str, db: Session) -> bool:
+        """
+        Explicitly revokes worker session credentials and evicts in-memory cache.
+        """
+        node = db.query(WorkerNode).filter(WorkerNode.worker_id == worker_id).first()
+        if not node:
+            return False
+
+        node.session_token_hash = None
+        node.session_expires_at = None
+        self.evict_cache(worker_id)
+
+        db.commit()
+        logger.info(f"Worker '{worker_id}' session explicitly revoked.")
+        return True
+
+    def deactivate_worker(self, worker_id: str, db: Session) -> bool:
+        """
+        Deactivates a worker node, revokes its session, and reclaims any claimed jobs.
+        """
+        node = db.query(WorkerNode).filter(WorkerNode.worker_id == worker_id).first()
+        if not node:
+            return False
+
+        node.status = WorkerStatus.OFFLINE
+        node.is_deactivated = True
+        node.session_token_hash = None
+        node.session_expires_at = None
+        self.evict_cache(worker_id)
+
+        # Reclaim any jobs claimed by this worker
+        active_jobs = db.query(AssessmentJob).filter(
+            AssessmentJob.claimed_by == worker_id,
+            AssessmentJob.status.in_([AssessmentStatus.PREFLIGHT, AssessmentStatus.RUNNING]),
+        ).all()
+        for job in active_jobs:
+            job.status = AssessmentStatus.QUEUED
+            job.claimed_by = None
+            job.heartbeat_at = None
+            job.error_message = f"Worker '{worker_id}' deactivated. Re-queued for available workers."
+
+        db.commit()
+        logger.info(f"Worker '{worker_id}' deactivated and active jobs reclaimed.")
+        return True
+
     def record_heartbeat(
         self,
         req: WorkerHeartbeatRequest,
@@ -171,12 +342,20 @@ class WorkerRegistry:
     ) -> WorkerHeartbeatResponse:
         """
         Updates worker heartbeat timestamp and identifies canceled jobs.
+        Ensures an expired or revoked session cannot renew itself.
         """
         if not self.verify_session_token(req.worker_id, req.session_token, db=db):
             raise WorkerAuthenticationError("Invalid or expired worker session token.")
 
-        self._heartbeat_cache[req.worker_id] = time.time()
+        node = db.query(WorkerNode).filter(WorkerNode.worker_id == req.worker_id).first()
+        if not node or getattr(node, "is_deactivated", False) or node.status in (WorkerStatus.DEAD, WorkerStatus.OFFLINE, WorkerStatus.DEACTIVATED):
+            raise WorkerAuthenticationError(f"Worker '{req.worker_id}' is deactivated or not found.")
+
         now = utc_now()
+        if self._is_expired(node.session_expires_at, now):
+            raise WorkerAuthenticationError("Expired worker session cannot renew itself.")
+
+        self._heartbeat_cache[req.worker_id] = time.time()
         session_ttl = max(settings.WORKER_HEARTBEAT_TIMEOUT_SECONDS * 10, 86400)
 
         node = db.query(WorkerNode).filter(WorkerNode.worker_id == req.worker_id).first()
@@ -320,17 +499,20 @@ class WorkerRegistry:
         if job.status not in valid_active_states:
             return False, f"Invalid job state transition: job '{job_id}' is in terminal/inactive status '{job.status.value}'.", job
 
-        # Verify scope snapshot digest integrity if recorded
+        # Scope snapshot and digest MUST be present and MUST match (fail closed)
         digest = getattr(job, "scope_snapshot_digest", None) or getattr(job, "canonical_scope_digest", None)
         snapshot = getattr(job, "scope_snapshot", None) or getattr(job, "scope_snapshot_json", None)
-        if digest and snapshot:
-            import json
-            import hashlib
-            canonical_repr = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
-            computed_digest = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
-            if not hmac.compare_digest(digest, computed_digest):
-                logger.error(f"Scope snapshot digest mismatch on job '{job_id}'! Possible tampering detected.")
-                return False, "Scope integrity violation: recomputed scope snapshot digest does not match job contract.", job
+        if not digest or not snapshot:
+            logger.error(f"Missing scope snapshot or digest on job '{job_id}'! Execution rejected.")
+            return False, "Scope integrity violation: job is missing immutable scope snapshot or digest.", job
+
+        import json
+        import hashlib
+        canonical_repr = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+        computed_digest = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(digest, computed_digest):
+            logger.error(f"Scope snapshot digest mismatch on job '{job_id}'! Possible tampering detected.")
+            return False, "Scope integrity violation: recomputed scope snapshot digest does not match job contract.", job
 
         return True, None, job
 

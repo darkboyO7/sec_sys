@@ -19,6 +19,8 @@ from app.models.assessment import AssessmentJob, AssessmentStatus
 from app.worker.worker_registry import worker_registry
 from app.worker.execution_interface import WorkerRegistrationRequest, WorkerHeartbeatRequest
 import uuid
+import json
+import hashlib
 from app.core.config import settings
 
 
@@ -104,6 +106,8 @@ def test_job_execution_binding_enforces_ownership_and_fails_closed(client: TestC
     token2 = resp2.json()["session_token"]
 
     # Create a test job claimed exclusively by Worker 1
+    snap = {"target": "https://example.com"}
+    digest = hashlib.sha256(json.dumps(snap, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     job = AssessmentJob(
         project_id=test_project.id,
         status=AssessmentStatus.RUNNING,
@@ -116,6 +120,8 @@ def test_job_execution_binding_enforces_ownership_and_fails_closed(client: TestC
         authorization_reference="AUTH-REF-12345",
         authorization_status="AUTHORIZED",
         timeout_seconds=60,
+        scope_snapshot=snap,
+        scope_snapshot_digest=digest,
     )
     db.add(job)
     db.commit()

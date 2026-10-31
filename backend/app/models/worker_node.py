@@ -4,7 +4,7 @@ Tracks registered worker instances (local subprocesses and distributed worker no
 their capabilities, concurrency capacity, authentication token hashes, and heartbeat status.
 """
 import enum
-from sqlalchemy import Column, String, Integer, Enum, DateTime, JSON
+from sqlalchemy import Column, String, Integer, Enum, DateTime, JSON, Boolean
 from app.core.database import Base
 from app.models.base import TimestampMixin, generate_uuid, utc_now
 
@@ -20,6 +20,7 @@ class WorkerStatus(str, enum.Enum):
     DRAINING = "DRAINING"
     OFFLINE = "OFFLINE"
     DEAD = "DEAD"
+    DEACTIVATED = "DEACTIVATED"
 
 
 class WorkerNode(Base, TimestampMixin):
@@ -46,4 +47,5 @@ class WorkerNode(Base, TimestampMixin):
     auth_token_hash = Column(String(128), nullable=False)
     session_token_hash = Column(String(128), nullable=True, index=True)
     session_expires_at = Column(DateTime(timezone=True), nullable=True)
+    is_deactivated = Column(Boolean, default=False, nullable=False)
     metadata_json = Column(JSON, default=dict, nullable=False)

@@ -1,9 +1,9 @@
 from app.models.base import Base, TimestampMixin, generate_uuid, utc_now
 from app.models.organization import Organization
-from app.models.user import User, SystemRole
+from app.models.user import User, SystemRole, SystemBootstrapState
 from app.models.project import Project, ProjectMember, ProjectRole
 from app.models.scope import ScopeTarget, ScopeExclusion, TargetType, AuthorizationStatus
-from app.models.audit import AuditEvent
+from app.models.audit import AuditEvent, AuditChainHead
 from app.models.assessment import (
     AssessmentJob,
     AssessmentFinding,
@@ -466,4 +466,6 @@ __all__ = [
     "LegalHoldStatus",
     "LegalHoldRecord",
     "EvidenceTombstoneRecord",
+    "SystemBootstrapState",
+    "AuditChainHead",
 ]

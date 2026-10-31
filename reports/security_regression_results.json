@@ -1,6 +1,6 @@
 {
   "suite_id": "reg-suite-prompt47",
-  "generated_at": "2026-10-31T08:46:14.928789+00:00",
+  "generated_at": "2026-10-31T10:54:58.814283+00:00",
   "total_controls_mapped": 18,
   "total_tests_executed": 11,
   "passed_count": 11,
@@ -16,7 +16,7 @@
       "category": "GOVERNANCE_INVENTORY",
       "description": "Security control inventory completeness and machine-readable schema validation",
       "outcome": "PASSED",
-      "execution_time_ms": 0.8815999608486891,
+      "execution_time_ms": 0.9011999936774373,
       "evidence_digest": null,
       "notes": null
     },
@@ -26,7 +26,7 @@
       "category": "AUTHENTICATION",
       "description": "Rejection of missing, tampered, expired, and revoked session tokens",
       "outcome": "PASSED",
-      "execution_time_ms": 46.63070000242442,
+      "execution_time_ms": 47.71039995830506,
       "evidence_digest": null,
       "notes": null
     },
@@ -36,7 +36,7 @@
       "category": "AUTHORIZATION_RBAC",
       "description": "Enforcement of least privilege and rejection of privileged operations for VIEWER",
       "outcome": "PASSED",
-      "execution_time_ms": 51.705799996852875,
+      "execution_time_ms": 48.94650005735457,
       "evidence_digest": null,
       "notes": null
     },
@@ -46,7 +46,7 @@
       "category": "MULTI_TENANT_ISOLATION",
       "description": "Multi-tenant isolation and complete boundary encapsulation across projects",
       "outcome": "PASSED",
-      "execution_time_ms": 40.61240004375577,
+      "execution_time_ms": 40.02750001382083,
       "evidence_digest": null,
       "notes": null
     },
@@ -56,7 +56,7 @@
       "category": "EXCLUSIONS_PRECEDENCE",
       "description": "Exclusion precedence negative tests blocking direct dispatch and auto-expansion",
       "outcome": "PASSED",
-      "execution_time_ms": 2.498299931176007,
+      "execution_time_ms": 2.2923999931663275,
       "evidence_digest": null,
       "notes": null
     },
@@ -66,7 +66,7 @@
       "category": "WORKFLOW_GOVERNANCE",
       "description": "Server-side validation preventing illegal finding state transitions and UI bypasses",
       "outcome": "PASSED",
-      "execution_time_ms": 10.104799992404878,
+      "execution_time_ms": 10.072399978525937,
       "evidence_digest": null,
       "notes": null
     },
@@ -76,7 +76,7 @@
       "category": "EVIDENCE_INTEGRITY",
       "description": "Cryptographic evidence SHA-256 byte digest and monotonic audit chain integrity",
       "outcome": "PASSED",
-      "execution_time_ms": 1.1199999134987593,
+      "execution_time_ms": 1.3030999107286334,
       "evidence_digest": null,
       "notes": null
     },
@@ -86,7 +86,7 @@
       "category": "INPUT_VALIDATION_TRAVERSAL",
       "description": "Rejection of directory traversal sequences and oversized malformed inputs",
       "outcome": "PASSED",
-      "execution_time_ms": 20.696999970823526,
+      "execution_time_ms": 21.152399946004152,
       "evidence_digest": null,
       "notes": null
     },
@@ -96,7 +96,7 @@
       "category": "CONCURRENCY_IDEMPOTENCY",
       "description": "Idempotency enforcement and prevention of race conditions in resource creation",
       "outcome": "PASSED",
-      "execution_time_ms": 29.056700062938035,
+      "execution_time_ms": 30.15670005697757,
       "evidence_digest": null,
       "notes": null
     },
@@ -106,7 +106,7 @@
       "category": "MUTATION_ASSURANCE",
       "description": "AST-aware mutation drill achieving 100% kill ratio across defensive controls",
       "outcome": "PASSED",
-      "execution_time_ms": 0.07229996845126152,
+      "execution_time_ms": 0.0616998877376318,
       "evidence_digest": null,
       "notes": null
     },
@@ -116,7 +116,7 @@
       "category": "SIMULATION_TRANSPARENCY",
       "description": "Strict isolation and demarcation of simulated assessment data from production results",
       "outcome": "PASSED",
-      "execution_time_ms": 7.12510000448674,
+      "execution_time_ms": 6.687500048428774,
       "evidence_digest": null,
       "notes": null
     }

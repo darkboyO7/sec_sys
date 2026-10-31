@@ -549,11 +549,13 @@ class IntegrityService:
             if job.timeout_seconds <= 0 or job.attempt_count < 1:
                 corrupted_jobs.append(job.id)
                 continue
-            if job.scope_snapshot and job.scope_snapshot_digest:
-                canonical = json.dumps(job.scope_snapshot, sort_keys=True, separators=(",", ":"))
-                digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-                if digest != job.scope_snapshot_digest:
-                    corrupted_jobs.append(job.id)
+            if not job.scope_snapshot or not job.scope_snapshot_digest:
+                corrupted_jobs.append(job.id)
+                continue
+            canonical = json.dumps(job.scope_snapshot, sort_keys=True, separators=(",", ":"))
+            digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            if not hmac.compare_digest(digest, job.scope_snapshot_digest):
+                corrupted_jobs.append(job.id)
 
         # 2. Vulnerability Findings
         findings = db.query(VulnerabilityFinding).filter(VulnerabilityFinding.project_id == project_id).all()

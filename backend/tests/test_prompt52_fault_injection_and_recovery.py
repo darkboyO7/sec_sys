@@ -16,6 +16,8 @@ Validates:
 12. Operator-readable failure classifications with root-cause hypotheses and actionable playbooks.
 """
 import pytest
+import json
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 from fastapi.testclient import TestClient
@@ -86,6 +88,17 @@ def authorized_scope(db: Session, test_project: Project, lead_user: User) -> Sco
     return target
 
 
+def make_valid_snapshot(target: str):
+    snap = {
+        "normalized_target": target,
+        "status": "AUTHORIZED",
+        "policy_version": "2026.1",
+    }
+    canon = json.dumps(snap, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(canon.encode("utf-8")).hexdigest()
+    return snap, digest
+
+
 # ------------------------------------------------------------------------------
 # Test 1: Fail-Closed Security Guard
 # ------------------------------------------------------------------------------
@@ -133,6 +146,7 @@ def test_02_database_interruption_during_finding_persistence(
     db: Session, test_project: Project, lead_user: User, authorized_scope: ScopeTarget
 ):
     """Injected transient database failure during finding persistence must roll back cleanly."""
+    snap, digest = make_valid_snapshot(authorized_scope.target_value)
     job = AssessmentJob(
         project_id=test_project.id,
         target_input=authorized_scope.target_value,
@@ -140,6 +154,8 @@ def test_02_database_interruption_during_finding_persistence(
         status=AssessmentStatus.QUEUED,
         created_by_id=lead_user.id,
         timeout_seconds=30,
+        scope_snapshot=snap,
+        scope_snapshot_digest=digest,
     )
     db.add(job)
     db.commit()
@@ -175,6 +191,7 @@ def test_03_worker_abrupt_termination_and_supervisory_recovery(
     db: Session, test_project: Project, lead_user: User, authorized_scope: ScopeTarget
 ):
     """Injected worker termination leaves job stalled; recover_abandoned_jobs recovers it cleanly."""
+    snap, digest = make_valid_snapshot(authorized_scope.target_value)
     job = AssessmentJob(
         project_id=test_project.id,
         target_input=authorized_scope.target_value,
@@ -182,6 +199,8 @@ def test_03_worker_abrupt_termination_and_supervisory_recovery(
         status=AssessmentStatus.QUEUED,
         created_by_id=lead_user.id,
         timeout_seconds=10,
+        scope_snapshot=snap,
+        scope_snapshot_digest=digest,
     )
     db.add(job)
     db.commit()
@@ -224,6 +243,7 @@ def test_04_adapter_timeout_bounded_and_terminated(
     db: Session, test_project: Project, lead_user: User, authorized_scope: ScopeTarget
 ):
     """Injected adapter timeout must be caught, process terminated, and status set to TIMED_OUT."""
+    snap, digest = make_valid_snapshot(authorized_scope.target_value)
     job = AssessmentJob(
         project_id=test_project.id,
         target_input=authorized_scope.target_value,
@@ -231,6 +251,8 @@ def test_04_adapter_timeout_bounded_and_terminated(
         status=AssessmentStatus.QUEUED,
         created_by_id=lead_user.id,
         timeout_seconds=15,
+        scope_snapshot=snap,
+        scope_snapshot_digest=digest,
     )
     db.add(job)
     db.commit()
@@ -282,6 +304,7 @@ def test_05_secondary_provider_outage_preserves_critical_evidence(
     assert notif.retry_count == 1
 
     # 2. Secondary asset/graph integration failure during assessment execution
+    snap, digest = make_valid_snapshot(authorized_scope.target_value)
     job = AssessmentJob(
         project_id=test_project.id,
         target_input=authorized_scope.target_value,
@@ -289,6 +312,8 @@ def test_05_secondary_provider_outage_preserves_critical_evidence(
         status=AssessmentStatus.QUEUED,
         created_by_id=lead_user.id,
         timeout_seconds=30,
+        scope_snapshot=snap,
+        scope_snapshot_digest=digest,
     )
     db.add(job)
     db.commit()
@@ -343,6 +368,7 @@ def test_07_malformed_scanner_payload_rejected_at_execution_boundary(
     db: Session, test_project: Project, lead_user: User, authorized_scope: ScopeTarget
 ):
     """Worker returning corrupted or malformed payload must be rejected at execution boundary."""
+    snap, digest = make_valid_snapshot(authorized_scope.target_value)
     job = AssessmentJob(
         project_id=test_project.id,
         target_input=authorized_scope.target_value,
@@ -350,6 +376,8 @@ def test_07_malformed_scanner_payload_rejected_at_execution_boundary(
         status=AssessmentStatus.QUEUED,
         created_by_id=lead_user.id,
         timeout_seconds=30,
+        scope_snapshot=snap,
+        scope_snapshot_digest=digest,
     )
     db.add(job)
     db.commit()
