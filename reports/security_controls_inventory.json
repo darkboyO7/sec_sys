@@ -13,7 +13,7 @@
       "negative_test": "test_prompt24_api_security_and_contracts.py::test_02_standardized_error_format_on_unauthorized",
       "failure_behavior": "Fails closed with RFC 7807 problem detail error payload.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750945+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136307+00:00"
     },
     {
       "control_id": "SEC-RBAC-01",
@@ -25,7 +25,7 @@
       "negative_test": "test_prompt26_performance_workload_isolation.py::test_17_api_benchmark_and_scavenge_endpoints_rbac",
       "failure_behavior": "Returns HTTP 403 Forbidden without executing privileged side-effects.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750961+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136324+00:00"
     },
     {
       "control_id": "SEC-SCOPE-01",
@@ -37,7 +37,7 @@
       "negative_test": "test_phase6a_execution_boundary.py::test_unauthorized_target_rejected",
       "failure_behavior": "Transitions job to REJECTED with immutable audit log event.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750968+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136331+00:00"
     },
     {
       "control_id": "SEC-EXCL-01",
@@ -49,7 +49,7 @@
       "negative_test": "test_scope_engine.py::test_excluded_target_fails_closed",
       "failure_behavior": "Blocks assessment dispatch with OUT_OF_SCOPE error.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750972+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136338+00:00"
     },
     {
       "control_id": "SEC-EVID-01",
@@ -61,7 +61,7 @@
       "negative_test": "test_prompt23_disaster_recovery_and_restoration.py::test_09_missing_evidence_files_detected",
       "failure_behavior": "Flags evidence as TAMPERED and invalidates dependent downstream findings.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750977+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136343+00:00"
     },
     {
       "control_id": "SEC-AUDIT-01",
@@ -73,7 +73,7 @@
       "negative_test": "test_prompt23_disaster_recovery_and_restoration.py::test_08_broken_audit_chain_detected",
       "failure_behavior": "Raises AuditChainBrokenException and halts recovery drills.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750984+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136347+00:00"
     },
     {
       "control_id": "SEC-REMED-01",
@@ -85,7 +85,7 @@
       "negative_test": "test_phase13_remediation_governance.py::test_unapproved_remediation_blocked",
       "failure_behavior": "Prevents remediation execution; status remains REMEDIATION_PROPOSED.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750988+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136351+00:00"
     },
     {
       "control_id": "SEC-RETEST-01",
@@ -97,7 +97,7 @@
       "negative_test": "test_phase14_remediation_verification.py::test_retest_failure_reopens_finding",
       "failure_behavior": "Marks finding REOPENED if vulnerability is re-observed.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750992+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136358+00:00"
     },
     {
       "control_id": "SEC-DR-01",
@@ -109,7 +109,7 @@
       "negative_test": "test_prompt23_disaster_recovery_and_restoration.py::test_07_broken_foreign_keys_detected",
       "failure_behavior": "Aborts live recovery; rolls back to last-known-good backup.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.750999+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136362+00:00"
     },
     {
       "control_id": "SEC-SSRF-01",
@@ -121,7 +121,7 @@
       "negative_test": "test_prompt24_api_security_and_contracts.py::test_07_ssrf_destination_cloud_metadata_blocked",
       "failure_behavior": "Raises SSRFSecurityError and returns HTTP 400 Bad Request.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751005+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136366+00:00"
     },
     {
       "control_id": "SEC-SUPPLY-01",
@@ -133,7 +133,7 @@
       "negative_test": "test_prompt25_software_supply_chain_and_provenance.py::test_15_tampered_manifest_fails_cryptographic_signature",
       "failure_behavior": "Fails release gate; rejects deployment archive.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751009+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136370+00:00"
     },
     {
       "control_id": "SEC-PERF-01",
@@ -145,7 +145,7 @@
       "negative_test": "test_prompt26_performance_workload_isolation.py::test_08_workload_backpressure_rejection_when_saturated",
       "failure_behavior": "Raises WorkloadSaturatedError and defers or rejects task.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751013+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136374+00:00"
     },
     {
       "control_id": "SEC-AUTH-02",
@@ -157,7 +157,7 @@
       "negative_test": "test_prompt47_security_regression_and_control_verification.py::test_02_api_authentication_failures_and_token_revocation",
       "failure_behavior": "Raises HTTP 401 Unauthorized for revoked session tokens.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751017+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136378+00:00"
     },
     {
       "control_id": "SEC-TENANT-01",
@@ -169,7 +169,7 @@
       "negative_test": "test_prompt47_security_regression_and_control_verification.py::test_04_object_level_access_and_cross_project_isolation",
       "failure_behavior": "Returns HTTP 403 Forbidden without leaking cross-tenant data.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751021+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136382+00:00"
     },
     {
       "control_id": "SEC-SCOPE-02",
@@ -181,7 +181,7 @@
       "negative_test": "test_prompt47_security_regression_and_control_verification.py::test_05_exclusion_bypass_negative_tests",
       "failure_behavior": "Diverts unauthorized discovery to AssetInclusionProposal inbox; blocks active scanning.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751025+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136386+00:00"
     },
     {
       "control_id": "SEC-VAULT-01",
@@ -193,7 +193,7 @@
       "negative_test": "test_prompt45_secrets_management_and_credential_lifecycle.py::test_01_production_configuration_fails_closed_on_insecure_settings",
       "failure_behavior": "Rejects plaintext access and fails closed on corrupted encryption envelope.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751029+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136392+00:00"
     },
     {
       "control_id": "SEC-INPUT-01",
@@ -205,7 +205,7 @@
       "negative_test": "test_prompt47_security_regression_and_control_verification.py::test_08_input_validation_path_traversal_and_malformed_payloads",
       "failure_behavior": "Raises PathTraversalSecurityError or HTTP 400 Bad Request.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751036+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136395+00:00"
     },
     {
       "control_id": "SEC-CONCUR-01",
@@ -217,8 +217,8 @@
       "negative_test": "test_prompt47_security_regression_and_control_verification.py::test_09_concurrency_race_conditions_and_duplicate_job_defense",
       "failure_behavior": "Deduplicates in-flight jobs or returns HTTP 409 Conflict.",
       "is_verified": true,
-      "last_verified_at": "2026-10-31T04:16:37.751041+00:00"
+      "last_verified_at": "2026-10-31T08:46:13.136400+00:00"
     }
   ],
-  "catalog_updated_at": "2026-10-31T04:16:39.393275+00:00"
+  "catalog_updated_at": "2026-10-31T08:46:14.717824+00:00"
 }

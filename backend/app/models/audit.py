@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, JSON, Text, Index
+from sqlalchemy import Column, String, Integer, DateTime, JSON, Text, Index
 from app.core.database import Base
 from app.models.base import generate_uuid, utc_now
 
@@ -15,6 +15,7 @@ class AuditEvent(Base):
     )
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    sequence_number = Column(Integer, nullable=True, index=True)
     timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
     # Actor identity (actor_id can be null for anonymous unauthenticated attempts)

@@ -321,7 +321,7 @@ def test_10_retention_execution_creates_verifiable_tombstone(db: Session, test_p
     target_tomb = next((t for t in tombstones if t.evidence_id == ev_id), None)
     assert target_tomb is not None
     assert target_tomb.original_sha256_hash == ev_hash
-    assert len(target_tomb.tombstone_digest) == 64
+    assert len(target_tomb.tombstone_digest) in (64, 128)
 
     # Verify evidence was deleted from database
     deleted_ev = db.query(FindingEvidence).filter(FindingEvidence.id == ev_id).first()

@@ -11,6 +11,25 @@ DOMAIN_REGEX = re.compile(
     r"^(?:(?:\*|[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)\.)+[a-zA-Z]{2,}$"
 )
 
+CLOUD_METADATA_IPS = {
+    "169.254.169.254",   # AWS, GCP, Azure, DO, OpenStack IMDS
+    "169.254.0.2",       # Oracle Cloud IMDS link-local
+    "fd00:ec2::254",     # AWS IPv6 IMDS
+    "100.100.100.200",   # Alibaba Cloud IMDS
+    "147.75.204.1",      # Equinix Metal metadata
+}
+
+DANGEROUS_METADATA_HOSTNAMES = {
+    "metadata.google.internal",
+    "api.metadata.google.internal",
+    "metadata",
+    "instance-data",
+    "metadata.internal",
+    "kubernetes.default",
+    "kubernetes.default.svc",
+    "kubernetes.default.svc.cluster.local",
+}
+
 
 class ScopeTargetParseException(Exception):
     """Raised when candidate or registered target cannot be parsed or validated."""
@@ -119,7 +138,41 @@ class ScopeEngine:
         return False
 
     @classmethod
-    def target_matches_rule(cls, cand_type: TargetType, cand_val: str, rule_type: TargetType, rule_val: str) -> bool:
+    def is_cloud_metadata_destination(cls, target_str: str) -> bool:
+        """Checks if a candidate destination resolves or points to a cloud metadata service."""
+        clean = target_str.strip().lower()
+        if "://" in clean:
+            parsed = urlparse(clean)
+            host = (parsed.hostname or clean).strip("[]")
+        else:
+            host = clean.split("/")[0].split(":")[0].strip("[]")
+
+        if host in DANGEROUS_METADATA_HOSTNAMES or host in CLOUD_METADATA_IPS:
+            return True
+
+        try:
+            ip = ipaddress.ip_address(host)
+            if str(ip) in CLOUD_METADATA_IPS:
+                return True
+            if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+                if str(ip.ipv4_mapped) in CLOUD_METADATA_IPS:
+                    return True
+            if ip.is_link_local:
+                return True
+        except ValueError:
+            pass
+
+        return False
+
+    @classmethod
+    def target_matches_rule(
+        cls,
+        cand_type: TargetType,
+        cand_val: str,
+        rule_type: TargetType,
+        rule_val: str,
+        allow_dns_resolution: bool = False,
+    ) -> bool:
         """Evaluate if candidate target matches the specified rule."""
         if cand_type == TargetType.IP_ADDRESS:
             cand_ip = ipaddress.ip_address(cand_val)
@@ -137,15 +190,16 @@ class ScopeEngine:
             if rule_type == TargetType.DOMAIN:
                 return cls.matches_domain_rule(cand_val, rule_val)
             elif rule_type in (TargetType.IP_ADDRESS, TargetType.CIDR):
-                try:
-                    addr_info = socket.getaddrinfo(cand_val, None, proto=socket.IPPROTO_TCP)
-                    for entry in addr_info:
-                        entry_ip = ipaddress.ip_address(entry[4][0])
-                        if cls.matches_ip_rule(entry_ip, rule_type, rule_val):
-                            return True
-                except Exception:
-                    pass
-            return False
+                if allow_dns_resolution:
+                    try:
+                        addr_info = socket.getaddrinfo(cand_val, None, proto=socket.IPPROTO_TCP)
+                        for entry in addr_info:
+                            entry_ip = ipaddress.ip_address(entry[4][0])
+                            if cls.matches_ip_rule(entry_ip, rule_type, rule_val):
+                                return True
+                    except Exception:
+                        pass
+                return False
 
         elif cand_type == TargetType.URL:
             parsed = urlparse(cand_val)
@@ -168,20 +222,21 @@ class ScopeEngine:
                     host_ip = ipaddress.ip_address(cand_host)
                     return cls.matches_ip_rule(host_ip, rule_type, rule_val)
                 except ValueError:
-                    try:
-                        addr_info = socket.getaddrinfo(cand_host, None, proto=socket.IPPROTO_TCP)
-                        for entry in addr_info:
-                            entry_ip = ipaddress.ip_address(entry[4][0])
-                            if cls.matches_ip_rule(entry_ip, rule_type, rule_val):
-                                return True
-                    except Exception:
-                        pass
+                    if allow_dns_resolution:
+                        try:
+                            addr_info = socket.getaddrinfo(cand_host, None, proto=socket.IPPROTO_TCP)
+                            for entry in addr_info:
+                                entry_ip = ipaddress.ip_address(entry[4][0])
+                                if cls.matches_ip_rule(entry_ip, rule_type, rule_val):
+                                    return True
+                        except Exception:
+                            pass
                     return False
 
         return False
 
     @classmethod
-    def evaluate_target_ip_characteristics(cls, target_str: str) -> Dict[str, bool]:
+    def evaluate_target_ip_characteristics(cls, target_str: str, allow_dns_resolution: bool = False) -> Dict[str, bool]:
         """
         Determines if a target (URL, IP, CIDR, or Hostname) points to loopback or private IP ranges.
         Enables authorized internal network and staging environment assessments.
@@ -224,18 +279,99 @@ class ScopeEngine:
             except ValueError:
                 pass
 
-        try:
-            addr_info = socket.getaddrinfo(host_clean, None, proto=socket.IPPROTO_TCP)
-            for entry in addr_info:
-                entry_ip = ipaddress.ip_address(entry[4][0])
-                if entry_ip.is_loopback:
-                    is_loopback = True
-                if entry_ip.is_private or (entry_ip.version == 4 and entry_ip in cgnat_net) or not entry_ip.is_global:
-                    is_private = True
-        except Exception:
-            pass
+        if allow_dns_resolution:
+            try:
+                addr_info = socket.getaddrinfo(host_clean, None, proto=socket.IPPROTO_TCP)
+                for entry in addr_info:
+                    entry_ip = ipaddress.ip_address(entry[4][0])
+                    if entry_ip.is_loopback:
+                        is_loopback = True
+                    if entry_ip.is_private or (entry_ip.version == 4 and entry_ip in cgnat_net) or not entry_ip.is_global:
+                        is_private = True
+            except Exception:
+                pass
 
         return {"is_loopback": is_loopback, "is_private": is_private}
+
+    @classmethod
+    def revalidate_destination_before_connection(
+        cls,
+        destination_host: str,
+        allow_private: bool = False,
+        allow_loopback: bool = False,
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Pre-connection destination revalidation to prevent DNS rebinding, SSRF, and metadata access.
+        Normalizes obfuscated IP representations, resolves host, unwraps IPv4-mapped IPv6,
+        and verifies that the resolved destination IP is safe.
+        Returns: (is_safe, error_message, resolved_ip)
+        """
+        if not destination_host or not destination_host.strip():
+            return False, "Destination host cannot be empty.", None
+
+        host_clean = destination_host.strip().lower()
+        if "://" in host_clean:
+            parsed = urlparse(host_clean)
+            host_clean = (parsed.hostname or host_clean).strip("[]")
+        else:
+            host_clean = host_clean.split("/")[0].split(":")[0].strip("[]")
+
+        # 1. Cloud metadata check
+        if host_clean in DANGEROUS_METADATA_HOSTNAMES or host_clean in CLOUD_METADATA_IPS:
+            return False, f"Prohibited cloud metadata destination '{host_clean}' blocked.", None
+
+        # 2. Check if already an IP literal
+        try:
+            ip = ipaddress.ip_address(host_clean)
+            if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+                ip = ip.ipv4_mapped
+
+            ip_str = str(ip)
+            if ip_str in CLOUD_METADATA_IPS or ip.is_link_local:
+                return False, f"Prohibited metadata/link-local IP '{ip_str}' blocked.", None
+
+            if ip.is_loopback:
+                if allow_loopback:
+                    return True, None, ip_str
+                return False, f"Loopback address '{ip_str}' not authorized for assessment.", None
+
+            cgnat_net = ipaddress.ip_network("100.64.0.0/10")
+            if (ip.is_private or (ip.version == 4 and ip in cgnat_net) or not ip.is_global) and not allow_private:
+                return False, f"Private/reserved address '{ip_str}' not authorized for external assessment.", None
+
+            return True, None, ip_str
+        except ValueError:
+            pass
+
+        # 3. Resolve destination hostname immediately before connection
+        try:
+            addr_info = socket.getaddrinfo(host_clean, None, proto=socket.IPPROTO_TCP)
+            if not addr_info:
+                return False, f"DNS resolution failed for destination '{host_clean}'.", None
+
+            for entry in addr_info:
+                res_ip_str = entry[4][0]
+                res_ip = ipaddress.ip_address(res_ip_str)
+                if isinstance(res_ip, ipaddress.IPv6Address) and res_ip.ipv4_mapped:
+                    res_ip = res_ip.ipv4_mapped
+
+                ip_str = str(res_ip)
+                if ip_str in CLOUD_METADATA_IPS or res_ip.is_link_local:
+                    return False, f"DNS resolved to prohibited metadata/link-local address '{ip_str}'.", None
+
+                if res_ip.is_loopback:
+                    if not allow_loopback:
+                        return False, f"DNS resolved to loopback address '{ip_str}'.", None
+                else:
+                    cgnat_net = ipaddress.ip_network("100.64.0.0/10")
+                    if (res_ip.is_private or (res_ip.version == 4 and res_ip in cgnat_net) or not res_ip.is_global) and not allow_private:
+                        return False, f"DNS resolved to internal/private IP '{ip_str}' without authorization.", None
+
+            return True, None, addr_info[0][4][0]
+        except socket.gaierror as e:
+            return False, f"DNS resolution error for '{host_clean}': {e}", None
+        except Exception as e:
+            return False, f"Destination revalidation error: {e}", None
 
     @classmethod
     def validate_target_in_scope(
@@ -244,14 +380,27 @@ class ScopeEngine:
         project_id: str,
         target: str,
         now: Optional[datetime] = None,
+        allow_dns_resolution: bool = False,
     ) -> Dict[str, Any]:
         """
         Pure server-side scope authorization check.
-        1. Normalizes target.
-        2. Enforces exclusions: if any match -> immediately REJECT.
-        3. Scans authorized targets: must have AUTHORIZED status and non-expired time.
-        4. Fails closed with descriptive reason code.
+        1. Checks for prohibited cloud metadata destinations (fails closed).
+        2. Normalizes target.
+        3. Enforces exclusions: if any match -> immediately REJECT.
+        4. Scans authorized targets: must have AUTHORIZED status and non-expired time.
+        5. Fails closed with descriptive reason code.
         """
+        # Step 0: Check if prohibited cloud metadata destination
+        if cls.is_cloud_metadata_destination(target):
+            return {
+                "is_authorized": False,
+                "status": "PROHIBITED_METADATA",
+                "reason": "Target matches prohibited cloud metadata endpoint. Assessment rejected by security policy.",
+                "normalized_target": target,
+                "matched_rule": None,
+                "matched_exclusion": None,
+            }
+
         if now is None:
             now = datetime.now(timezone.utc)
         elif now.tzinfo is None:
@@ -270,10 +419,10 @@ class ScopeEngine:
                 "matched_exclusion": None,
             }
 
-        # Step 2: Check Exclusions first
+        # Step 2: Check Exclusions first (Exclusions strictly override inclusions)
         exclusions = db.query(ScopeExclusion).filter(ScopeExclusion.project_id == project_id).all()
         for excl in exclusions:
-            if cls.target_matches_rule(cand_type, cand_val, excl.target_type, excl.target_value):
+            if cls.target_matches_rule(cand_type, cand_val, excl.target_type, excl.target_value, allow_dns_resolution=allow_dns_resolution):
                 return {
                     "is_authorized": False,
                     "status": "EXCLUDED",
@@ -297,7 +446,7 @@ class ScopeEngine:
         matched_expired_rule = None
 
         for st in targets:
-            if cls.target_matches_rule(cand_type, cand_val, st.target_type, st.target_value):
+            if cls.target_matches_rule(cand_type, cand_val, st.target_type, st.target_value, allow_dns_resolution=allow_dns_resolution):
                 # Check expiration
                 is_expired = False
                 if st.expires_at:

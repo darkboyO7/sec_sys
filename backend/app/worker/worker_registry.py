@@ -70,13 +70,29 @@ class WorkerRegistry:
             return False
         return hmac.compare_digest(raw_token.strip(), expected_secret.strip())
 
-    def verify_session_token(self, worker_id: str, session_token: str) -> bool:
-        """Validates that the provided session token matches the active session."""
+    def verify_session_token(self, worker_id: str, session_token: str, db: Optional[Session] = None) -> bool:
+        """
+        Validates worker session token against memory cache and persisted database records.
+        Verifies session token hash and checks expiration.
+        """
         if not worker_id or not session_token:
             return False
+        now = utc_now()
+        token_hash = self.generate_token_hash(session_token)
+
+        # 1. Check in-memory fast cache
         cached = self._session_tokens.get(worker_id)
         if cached and hmac.compare_digest(cached, session_token):
             return True
+
+        # 2. Database-backed fallback (preserves session after process restarts or across nodes)
+        if db is not None:
+            node = db.query(WorkerNode).filter(WorkerNode.worker_id == worker_id).first()
+            if node and node.session_token_hash:
+                if hmac.compare_digest(node.session_token_hash, token_hash):
+                    if node.session_expires_at is None or node.session_expires_at > now:
+                        self._session_tokens[worker_id] = session_token
+                        return True
         return False
 
     def register_worker(
@@ -87,16 +103,20 @@ class WorkerRegistry:
         """
         Registers a worker node after verifying its authentication token.
         Fails closed if the token is invalid.
+        Persists session token hash and expiration in the database.
         """
         if not self.verify_registration_token(req.auth_token):
             logger.warning(f"Worker registration rejected: unauthorized token for worker_id='{req.worker_id}'")
             raise WorkerAuthenticationError("Unauthorized worker registration: invalid authentication token.")
 
         session_token = self.generate_session_token(req.worker_id)
+        session_token_hash = self.generate_token_hash(session_token)
         self._session_tokens[req.worker_id] = session_token
         self._heartbeat_cache[req.worker_id] = time.time()
 
         now = utc_now()
+        session_ttl = max(settings.WORKER_HEARTBEAT_TIMEOUT_SECONDS * 10, 86400)
+        session_expires_at = now + timedelta(seconds=session_ttl)
         token_hash = self.generate_token_hash(req.auth_token)
 
         node = db.query(WorkerNode).filter(WorkerNode.worker_id == req.worker_id).first()
@@ -114,6 +134,8 @@ class WorkerRegistry:
                 registered_at=now,
                 last_heartbeat_at=now,
                 auth_token_hash=token_hash,
+                session_token_hash=session_token_hash,
+                session_expires_at=session_expires_at,
                 metadata_json=req.metadata,
             )
             db.add(node)
@@ -125,6 +147,8 @@ class WorkerRegistry:
             node.capabilities = req.capabilities
             node.last_heartbeat_at = now
             node.auth_token_hash = token_hash
+            node.session_token_hash = session_token_hash
+            node.session_expires_at = session_expires_at
             node.metadata_json = req.metadata
 
         db.commit()
@@ -148,17 +172,19 @@ class WorkerRegistry:
         """
         Updates worker heartbeat timestamp and identifies canceled jobs.
         """
-        if not self.verify_session_token(req.worker_id, req.session_token):
+        if not self.verify_session_token(req.worker_id, req.session_token, db=db):
             raise WorkerAuthenticationError("Invalid or expired worker session token.")
 
         self._heartbeat_cache[req.worker_id] = time.time()
         now = utc_now()
+        session_ttl = max(settings.WORKER_HEARTBEAT_TIMEOUT_SECONDS * 10, 86400)
 
         node = db.query(WorkerNode).filter(WorkerNode.worker_id == req.worker_id).first()
         if not node:
             raise WorkerAuthenticationError(f"Worker '{req.worker_id}' not found in registry.")
 
         node.last_heartbeat_at = now
+        node.session_expires_at = now + timedelta(seconds=session_ttl)
         node.active_jobs_count = len(req.active_job_ids)
         if node.status == WorkerStatus.DEAD or node.status == WorkerStatus.OFFLINE:
             node.status = WorkerStatus.ONLINE
@@ -261,6 +287,52 @@ class WorkerRegistry:
             "dead_letter_count": dead_letter_count,
             "details": details,
         }
+
+    def verify_job_execution_binding(
+        self,
+        job_id: str,
+        worker_id: str,
+        session_token: str,
+        db: Session,
+    ) -> Tuple[bool, Optional[str], Optional[AssessmentJob]]:
+        """
+        Binds worker execution to a persisted, authorized job:
+        1. Validates worker session identity and token expiration.
+        2. Validates job claim ownership (claimed_by == worker_id).
+        3. Validates active execution state (PREFLIGHT or RUNNING).
+        4. Verifies immutable scope snapshot digest integrity.
+        5. Fails closed on any authorization, ownership, or status violation.
+        """
+        if not self.verify_session_token(worker_id, session_token, db=db):
+            return False, "Worker authentication failed: invalid or expired session token.", None
+
+        job = db.query(AssessmentJob).filter(AssessmentJob.id == job_id).first()
+        if not job:
+            return False, f"Job '{job_id}' does not exist.", None
+
+        if job.claimed_by != worker_id:
+            logger.warning(
+                f"Worker ownership violation: Worker '{worker_id}' attempted action on job '{job_id}' claimed by '{job.claimed_by}'"
+            )
+            return False, f"Worker ownership violation: job is not claimed by worker '{worker_id}'.", job
+
+        valid_active_states = [AssessmentStatus.PREFLIGHT, AssessmentStatus.RUNNING]
+        if job.status not in valid_active_states:
+            return False, f"Invalid job state transition: job '{job_id}' is in terminal/inactive status '{job.status.value}'.", job
+
+        # Verify scope snapshot digest integrity if recorded
+        digest = getattr(job, "scope_snapshot_digest", None) or getattr(job, "canonical_scope_digest", None)
+        snapshot = getattr(job, "scope_snapshot", None) or getattr(job, "scope_snapshot_json", None)
+        if digest and snapshot:
+            import json
+            import hashlib
+            canonical_repr = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+            computed_digest = hashlib.sha256(canonical_repr.encode("utf-8")).hexdigest()
+            if not hmac.compare_digest(digest, computed_digest):
+                logger.error(f"Scope snapshot digest mismatch on job '{job_id}'! Possible tampering detected.")
+                return False, "Scope integrity violation: recomputed scope snapshot digest does not match job contract.", job
+
+        return True, None, job
 
     def list_nodes(self, db: Session) -> List[WorkerNodeSummary]:
         """Returns summary of all registered worker nodes and their liveness."""

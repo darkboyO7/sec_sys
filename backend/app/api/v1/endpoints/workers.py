@@ -4,6 +4,7 @@ Supports authenticated worker node registration, heartbeat pings,
 lease scavenging, worker telemetry, and dead-letter job inspection/replay.
 """
 from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
@@ -56,6 +57,46 @@ def worker_heartbeat(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
         )
+
+
+class JobBindingVerifyRequest(BaseModel):
+    job_id: str = Field(min_length=1, max_length=100)
+    worker_id: str = Field(min_length=1, max_length=100)
+    session_token: str = Field(min_length=1, max_length=256)
+
+
+@router.post("/verify-job-binding")
+def verify_worker_job_binding(
+    req: JobBindingVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Enforces that:
+    1. The worker session token is authentic and not expired.
+    2. The target job was claimed exclusively by this worker.
+    3. The job is in an active execution state.
+    4. The job scope snapshot digest is valid and untampered.
+    Fails closed with 401 or 403 on any violation.
+    """
+    valid, err_msg, job = worker_registry.verify_job_execution_binding(
+        job_id=req.job_id,
+        worker_id=req.worker_id,
+        session_token=req.session_token,
+        db=db,
+    )
+    if not valid:
+        err_lower = (err_msg or "").lower()
+        if "ownership" in err_lower or "scope" in err_lower:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=err_msg)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=err_msg)
+
+    return {
+        "valid": True,
+        "job_id": req.job_id,
+        "worker_id": req.worker_id,
+        "status": job.status.value,
+        "message": "Worker job execution binding verified successfully.",
+    }
 
 
 @router.get("/nodes", response_model=List[WorkerNodeSummary])

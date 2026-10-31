@@ -44,4 +44,6 @@ class WorkerNode(Base, TimestampMixin):
     registered_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     last_heartbeat_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     auth_token_hash = Column(String(128), nullable=False)
+    session_token_hash = Column(String(128), nullable=True, index=True)
+    session_expires_at = Column(DateTime(timezone=True), nullable=True)
     metadata_json = Column(JSON, default=dict, nullable=False)

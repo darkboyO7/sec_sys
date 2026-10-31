@@ -27,6 +27,20 @@ class UserCreate(BaseModel):
         return validate_email_address(v)
 
 
+class AdminUserCreate(BaseModel):
+    """Administrative user provisioning schema for authorized platform administrators."""
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=2, max_length=255)
+    system_role: SystemRole = SystemRole.SECURITY_TESTER
+    is_active: bool = True
+
+    @field_validator("email")
+    @classmethod
+    def check_email(cls, v: str) -> str:
+        return validate_email_address(v)
+
+
 class UserResponse(BaseModel):
     id: str
     email: str

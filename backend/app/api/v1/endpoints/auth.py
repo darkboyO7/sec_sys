@@ -6,12 +6,14 @@ from app.core.database import get_db
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.config import settings
 from app.models.user import User, SystemRole
-from app.schemas.auth import UserCreate, UserResponse, LoginRequest, TokenResponse
+from app.schemas.auth import UserCreate, UserResponse, LoginRequest, TokenResponse, AdminUserCreate
 from app.services.audit_service import AuditService
 from app.services.rate_limit_service import rate_limiter
-from app.api.deps import get_current_user, get_client_ip
+from app.api.deps import get_current_user, get_client_ip, require_system_roles
 
 router = APIRouter()
+
+PRIVILEGED_SYSTEM_ROLES = {SystemRole.ADMIN, SystemRole.SECURITY_LEAD, SystemRole.AUDITOR}
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -21,8 +23,10 @@ def register_user(
     db: Session = Depends(get_db),
 ):
     """
-    Register a new user account.
-    First user registered in an empty database is automatically assigned ADMIN role for bootstrap.
+    Register a new user account with strict privilege escalation defense.
+    - First user in an empty database is assigned ADMIN role for one-time bootstrap.
+    - All subsequent public registrations are strictly assigned unprivileged SECURITY_TESTER role.
+    - Unauthenticated callers can NEVER self-assign ADMIN, SECURITY_LEAD, or AUDITOR.
     """
     client_ip = get_client_ip(request)
     existing_user = db.query(User).filter(User.email == user_in.email.lower()).first()
@@ -41,9 +45,29 @@ def register_user(
             detail="A user with this email address already exists",
         )
 
-    # Check if this is the first user
+    # Concurrency-protected bootstrap admin check
     user_count = db.query(User).count()
-    assigned_role = SystemRole.ADMIN if user_count == 0 else (user_in.system_role or SystemRole.SECURITY_TESTER)
+    is_bootstrap = (user_count == 0)
+
+    if is_bootstrap:
+        assigned_role = SystemRole.ADMIN
+    else:
+        # Strict server-side enforcement: public registration cannot assign privileged roles
+        if user_in.system_role in PRIVILEGED_SYSTEM_ROLES:
+            AuditService.record_event(
+                db=db,
+                action="AUTH_PRIVILEGE_ESCALATION_ATTEMPT",
+                target_type="user",
+                outcome="DENIED",
+                actor_email=user_in.email.lower(),
+                ip_address=client_ip,
+                details={
+                    "requested_role": user_in.system_role.value if user_in.system_role else None,
+                    "reason": "Unauthenticated registration cannot request privileged role",
+                },
+            )
+        # Default unprivileged role
+        assigned_role = SystemRole.SECURITY_TESTER
 
     new_user = User(
         email=user_in.email.lower(),
@@ -65,7 +89,7 @@ def register_user(
         actor_email=new_user.email,
         outcome="SUCCESS",
         ip_address=client_ip,
-        details={"assigned_role": assigned_role.value, "is_bootstrap_admin": user_count == 0},
+        details={"assigned_role": assigned_role.value, "is_bootstrap_admin": is_bootstrap},
     )
 
     return new_user
@@ -174,6 +198,51 @@ def list_organization_users(
     """Retrieve registered users in organization for access governance."""
     users = db.query(User).filter(User.is_active == True).order_by(User.full_name).all()
     return users
+
+
+@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def create_privileged_user(
+    user_in: AdminUserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_system_roles([SystemRole.ADMIN])),
+):
+    """
+    Authorized Administrator endpoint to provision user accounts with designated system roles.
+    Guarded strictly by ADMIN system role requirement.
+    """
+    client_ip = get_client_ip(request)
+    existing_user = db.query(User).filter(User.email == user_in.email.lower()).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email address already exists",
+        )
+
+    new_user = User(
+        email=user_in.email.lower(),
+        hashed_password=hash_password(user_in.password),
+        full_name=user_in.full_name.strip(),
+        system_role=user_in.system_role,
+        is_active=user_in.is_active,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    AuditService.record_event(
+        db=db,
+        action="ADMIN_CREATE_USER",
+        target_type="user",
+        target_id=new_user.id,
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        outcome="SUCCESS",
+        ip_address=client_ip,
+        details={"assigned_role": user_in.system_role.value, "provisioned_by_admin": current_user.email},
+    )
+
+    return new_user
 
 
 @router.post("/logout")

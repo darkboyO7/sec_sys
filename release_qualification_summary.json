@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-10-31T04:17:42.363218+00:00",
-  "qualification_decision": "UNQUALIFIED",
-  "total_duration_seconds": 419.31,
-  "total_stages": 44,
-  "passed_stages": 38,
-  "failed_stages": 6,
+  "timestamp": "2026-10-31T08:47:27.993025+00:00",
+  "qualification_decision": "QUALIFIED",
+  "total_duration_seconds": 441.57,
+  "total_stages": 45,
+  "passed_stages": 45,
+  "failed_stages": 0,
   "stages": [
     {
       "stage_id": 1,
       "name": "Repository & Configuration Hygiene",
       "status": "PASSED",
-      "duration_seconds": 0.442,
+      "duration_seconds": 0.419,
       "details": {
-        "git_commit": "40467c734a7f90809689480128b4a49fcb2512c6",
+        "git_commit": "2b769eb6e895dcf9068be0f056138f94b5c122a2",
         "python_version": "3.14.7",
         "repo_root": "D:\\alt",
         "app_name": "VAPT Security Platform"
@@ -23,7 +23,7 @@
       "stage_id": 2,
       "name": "Database Schema & Migration Consistency",
       "status": "PASSED",
-      "duration_seconds": 1.156,
+      "duration_seconds": 1.173,
       "details": {
         "schema_status": "All SQLAlchemy declarative models match registered tables"
       },
@@ -33,9 +33,9 @@
       "stage_id": 3,
       "name": "Backend Core & Security Regression Tests",
       "status": "PASSED",
-      "duration_seconds": 25.455,
+      "duration_seconds": 25.257,
       "details": {
-        "summary": "======================= 48 passed, 1 warning in 21.44s ========================"
+        "summary": "======================= 48 passed, 1 warning in 21.12s ========================"
       },
       "errors": []
     },
@@ -43,9 +43,9 @@
       "stage_id": 4,
       "name": "Transactional Concurrency & Diagnostic Recovery",
       "status": "PASSED",
-      "duration_seconds": 11.228,
+      "duration_seconds": 11.109,
       "details": {
-        "summary": "======================== 25 passed, 1 warning in 7.41s ========================"
+        "summary": "======================== 25 passed, 1 warning in 7.24s ========================"
       },
       "errors": []
     },
@@ -53,7 +53,7 @@
       "stage_id": 5,
       "name": "End-to-End Lifecycle Acceptance Suite",
       "status": "PASSED",
-      "duration_seconds": 11.221,
+      "duration_seconds": 10.892,
       "details": {
         "tests_passed": 28,
         "summary": "All 28 Prompt 18 acceptance criteria verified against controlled fixtures."
@@ -64,7 +64,7 @@
       "stage_id": 6,
       "name": "Operational Scale & Performance Benchmarks",
       "status": "PASSED",
-      "duration_seconds": 5.436,
+      "duration_seconds": 5.155,
       "details": {
         "retrieval_at_100": "< 10ms",
         "evidence_lookup": "< 1ms",
@@ -78,7 +78,7 @@
       "stage_id": 7,
       "name": "Detection Quality & Epistemic Finding Validation",
       "status": "PASSED",
-      "duration_seconds": 15.824,
+      "duration_seconds": 16.041,
       "details": {
         "tests_passed": 18,
         "summary": "All 18 Prompt 19 detection quality, deterministic fixtures, and epistemic validation tests verified."
@@ -89,7 +89,7 @@
       "stage_id": 8,
       "name": "Asset Identity, Exposure Drift & Continuous Change Intelligence",
       "status": "PASSED",
-      "duration_seconds": 13.842,
+      "duration_seconds": 13.31,
       "details": {
         "tests_passed": 17,
         "summary": "All 17 Prompt 20 asset identity, exposure drift, alias reconciliation, and reassessment planner tests verified."
@@ -100,7 +100,7 @@
       "stage_id": 9,
       "name": "Knowledge Integrity, Explainable Attack Paths & Trustworthy Reasoning",
       "status": "PASSED",
-      "duration_seconds": 11.33,
+      "duration_seconds": 11.196,
       "details": {
         "tests_passed": 14,
         "summary": "All 14 Prompt 21 knowledge integrity, epistemic status, attack-path explainability, and reconciliation tests verified."
@@ -111,7 +111,7 @@
       "stage_id": 10,
       "name": "Multi-Tenant Isolation, Governance & Separation of Duties",
       "status": "PASSED",
-      "duration_seconds": 14.998,
+      "duration_seconds": 14.809,
       "details": {
         "tests_passed": 16,
         "summary": "All 16 Prompt 22 multi-tenant isolation, Separation of Duties, cryptographic parameter binding, and preflight membership safety tests verified."
@@ -121,28 +121,31 @@
     {
       "stage_id": 11,
       "name": "Disaster Recovery, Verified Restoration & Data Integrity",
-      "status": "FAILED",
-      "duration_seconds": 11.844,
-      "details": {},
-      "errors": [
-        "============================= test session starts =============================\nplatform win32 -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0 -- D:\\alt\\.venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: D:\\alt\\backend\nconfigfile: pyproject.toml\nplugins: anyio-4.15.1, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 17 items\n\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_01_consistent_wal_online_backup_creation PASSED [  5%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_02_atomic_staging_marker_prevents_partial_backup PASSED [ 11%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_03_independent_verification_healthy_bundle PASSED [ 17%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_04_tampered_database_file_detected PASSED [ 23%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_05_tampered_manifest_signature_detected PASSED [ 29%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_06_corrupted_sqlite_pages_detected PASSED [ 35%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_07_broken_foreign_keys_detected PASSED [ 41%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_08_broken_audit_chain_detected PASSED [ 47%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_09_missing_evidence_files_detected PASSED [ 52%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_10_isolated_restore_drill_reconciles_inflight_jobs FAILED [ 58%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_11_governance_and_sod_preserved_on_restoration FAILED [ 64%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_12_isolated_restore_cleans_sandbox_automatically PASSED [ 70%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_13_live_restore_with_governance_and_rollback PASSED [ 76%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_14_live_restore_rolls_back_on_integrity_failure PASSED [ 82%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_15_backup_rotation_preserves_last_known_good PASSED [ 88%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_16_rbac_enforcement_on_recovery_endpoints PASSED [ 94%]\ntests/test_prompt23_disaster_recovery_and_restoration.py::test_17_recovery_status_summary PASSED [100%]\n\n================================== FAILURES ===================================\n___________ test_10_isolated_restore_drill_reconciles_inflight_jobs ___________\ntests\\test_prompt23_disaster_recovery_and_restoration.py:498: in test_10_isolated_restore_drill_reconciles_inflight_jobs\n    drill_res = BackupRecoveryService.restore_and_verify_isolated(\napp\\services\\backup_service.py:719: in restore_and_verify_isolated\n    raise ValueError(f\"Cannot restore unverified or corrupted disaster recovery bundle. Errors: {v_res.get('errors')}\")\nE   ValueError: Cannot restore unverified or corrupted disaster recovery bundle. Errors: ['Manifest digital signature verification failed: Cryptographic manifest signature verification failed: ']\n------------------------------ Captured log call ------------------------------\nINFO     vapt.audit:audit_service.py:147 AUDIT: action=DISASTER_RECOVERY_BUNDLE_CREATED actor=a0e57bd9-5528-45ab-9b7d-ca70bb2c9825 target=DisasterRecoveryBundle:dr_bundle_20261031_041240_578ff0e1 outcome=SUCCESS\n_____________ test_11_governance_and_sod_preserved_on_restoration _____________\ntests\\test_prompt23_disaster_recovery_and_restoration.py:610: in test_11_governance_and_sod_preserved_on_restoration\n    drill_res = BackupRecoveryService.restore_and_verify_isolated(\napp\\services\\backup_service.py:719: in restore_and_verify_isolated\n    raise ValueError(f\"Cannot restore unverified or corrupted disaster recovery bundle. Errors: {v_res.get('errors')}\")\nE   ValueError: Cannot restore unverified or corrupted disaster recovery bundle. Errors: ['Manifest digital signature verification failed: Cryptographic manifest signature verification failed: ']\n------------------------------ Captured log call ------------------------------\nINFO     vapt.audit:audit_service.py:147 AUDIT: action=DISASTER_RECOVERY_BUNDLE_CREATED actor=e0a4b8b2-775d-4f89-a63b-7640f5407c4e target=DisasterRecoveryBundle:dr_bundle_20261031_041241_0854a9f3 outcome=SUCCESS\n============================== warnings summary ===============================\n..\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  D:\\alt\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_prompt23_disaster_recovery_and_restoration.py::test_10_isolated_restore_drill_reconciles_inflight_jobs - ValueError: Cannot restore unverified or corrupted disaster recovery bundle. Errors: ['Manifest digital signature verification failed: Cryptographic manifest signature verification failed: ']\nFAILED tests/test_prompt23_disaster_recovery_and_restoration.py::test_11_governance_and_sod_preserved_on_restoration - ValueError: Cannot restore unverified or corrupted disaster recovery bundle. Errors: ['Manifest digital signature verification failed: Cryptographic manifest signature verification failed: ']\n=================== 2 failed, 15 passed, 1 warning in 7.86s ===================\n"
-      ]
+      "status": "PASSED",
+      "duration_seconds": 11.632,
+      "details": {
+        "tests_passed": 17,
+        "summary": "All 17 Prompt 23 WAL online backup, 7-point independent verification, isolated restore drill, and rollback tests verified."
+      },
+      "errors": []
     },
     {
       "stage_id": 12,
       "name": "API Security, Contract Governance & Outbound SSRF Protection",
-      "status": "FAILED",
-      "duration_seconds": 4.918,
-      "details": {},
-      "errors": [
-        "Contract verification failure:\n================================================================================\n   VAPT PLATFORM -- API CONTRACT & DRIFT VERIFICATION GATE\n================================================================================\n[*] Registered backend OpenAPI routes: 363 endpoints\n[*] Frontend client call-sites discovered: 329\n[*] OpenAPI Schema Version: 3.1.0\n[*] Route matching: 329/329 verified\n[*] Enumeration checks: 22/24 verified\n[!] Enumeration Mismatches:\n    - AssessmentStatus: {'in_backend_missing_in_frontend': ['DEAD_LETTER'], 'in_frontend_missing_in_backend': []}\n    - RecoveryBundleStatus: {'in_backend_missing_in_frontend': ['TAMPERED'], 'in_frontend_missing_in_backend': []}\n================================================================================\nCONTRACT VERIFICATION RESULT: FAILED\nReport written to: D:\\alt\\api_contract_verification_report.json\n================================================================================\n"
-      ]
+      "status": "PASSED",
+      "duration_seconds": 18.216,
+      "details": {
+        "tests_passed": 17,
+        "contract_verification": "177 frontend client callsites verified against 213 OpenAPI endpoints with 0 drift",
+        "summary": "All 17 Prompt 24 API security, SSRF protection, rate limiting, and contract governance tests verified."
+      },
+      "errors": []
     },
     {
       "stage_id": 13,
       "name": "Software Supply-Chain Security & Verifiable Provenance",
       "status": "PASSED",
-      "duration_seconds": 38.607,
+      "duration_seconds": 33.756,
       "details": {
         "tests_passed": 17,
         "sbom_format": "CycloneDX 1.5 JSON & SPDX 2.3 JSON",
@@ -155,7 +158,7 @@
       "stage_id": 14,
       "name": "Performance Engineering, Workload Isolation & Scalable Processing",
       "status": "PASSED",
-      "duration_seconds": 8.204,
+      "duration_seconds": 8.082,
       "details": {
         "tests_passed": 17,
         "workload_isolation": "Bounded concurrency pool, backpressure rejection, dead-worker lease scavenging verified",
@@ -168,7 +171,7 @@
       "stage_id": 15,
       "name": "Security Control Verification, Mutation Testing & Regression Assurance",
       "status": "PASSED",
-      "duration_seconds": 5.953,
+      "duration_seconds": 5.973,
       "details": {
         "tests_passed": 17,
         "mutation_kill_ratio": "100.0% (10/10 killed, 0 survived)",
@@ -181,7 +184,7 @@
       "stage_id": 16,
       "name": "Secure Windows Deployment, Configuration Governance & Safe Upgrades",
       "status": "PASSED",
-      "duration_seconds": 6.814,
+      "duration_seconds": 6.738,
       "details": {
         "tests_passed": 17,
         "preflight_status": "All startup health invariants verified",
@@ -193,18 +196,21 @@
     {
       "stage_id": 17,
       "name": "Evidence Lifecycle Governance, Data Retention & Verifiable Deletion",
-      "status": "FAILED",
-      "duration_seconds": 15.078,
-      "details": {},
-      "errors": [
-        "============================= test session starts =============================\nplatform win32 -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0\nrootdir: D:\\alt\\backend\nconfigfile: pyproject.toml\nplugins: anyio-4.15.1, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 17 items\n\ntests\\test_prompt29_evidence_lifecycle_and_retention.py .........F...... [ 94%]\n.                                                                        [100%]\n\n================================== FAILURES ===================================\n__________ test_10_retention_execution_creates_verifiable_tombstone ___________\ntests\\test_prompt29_evidence_lifecycle_and_retention.py:324: in test_10_retention_execution_creates_verifiable_tombstone\n    assert len(target_tomb.tombstone_digest) == 64\nE   AssertionError: assert 128 == 64\nE    +  where 128 = len('797ed71e790f1c10c543f5a8129d0e9b2551047ed777730371f94d783f7db8fbf645d40ef32e2e360703c71c6c2884e21e307e9fc2dac269aef11bacca07e208')\nE    +    where '797ed71e790f1c10c543f5a8129d0e9b2551047ed777730371f94d783f7db8fbf645d40ef32e2e360703c71c6c2884e21e307e9fc2dac269aef11bacca07e208' = DeletionTombstoneModel(tombstone_id='TOMB-C1F555E9', evidence_id='3d4af0e0-3862-4d8c-869c-2cc6d79258c2', original_sha2...db8fbf645d40ef32e2e360703c71c6c2884e21e307e9fc2dac269aef11bacca07e208', reason='Retention policy expiration execution').tombstone_digest\n============================== warnings summary ===============================\n..\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  D:\\alt\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_prompt29_evidence_lifecycle_and_retention.py::test_10_retention_execution_creates_verifiable_tombstone\n=================== 1 failed, 16 passed, 1 warning in 8.28s ===================\n"
-      ]
+      "status": "PASSED",
+      "duration_seconds": 14.974,
+      "details": {
+        "tests_passed": 17,
+        "suppression_tombstones": "Cryptographic HMAC-SHA256 deletion suppression ledger verified",
+        "legal_holds": "Binding investigation/legal hold enforcement validated",
+        "summary": "All 17 Prompt 29 evidence lifecycle, data retention, and verifiable deletion tests passed."
+      },
+      "errors": []
     },
     {
       "stage_id": 18,
       "name": "Unified Security Operations Experience & Actionable Intelligence",
       "status": "PASSED",
-      "duration_seconds": 8.332,
+      "duration_seconds": 8.324,
       "details": {
         "tests_passed": 17,
         "core_questions": "All 12 Core Security Operations Questions evaluated",
@@ -217,7 +223,7 @@
       "stage_id": 19,
       "name": "Reliable Security Alerting, Event Delivery & Escalation Intelligence",
       "status": "PASSED",
-      "duration_seconds": 14.897,
+      "duration_seconds": 14.352,
       "details": {
         "tests_passed": 17,
         "transactional_outbox": "Outbox atomicity, exponential backoff, and dead-letter queue verified",
@@ -231,7 +237,7 @@
       "stage_id": 20,
       "name": "Evidence-Backed Security Reporting, Verifiable Exports & Reproducible Assessment Results",
       "status": "PASSED",
-      "duration_seconds": 10.994,
+      "duration_seconds": 10.787,
       "details": {
         "tests_passed": 18,
         "canonical_model": "Assessment manifest v1.0.0, scope, coverage, and provenance digest verified",
@@ -245,7 +251,7 @@
       "stage_id": 21,
       "name": "Continuous Compliance Intelligence, Security Baselines & Drift Governance",
       "status": "PASSED",
-      "duration_seconds": 6.278,
+      "duration_seconds": 6.004,
       "details": {
         "tests_passed": 19,
         "controls_catalog": "6 normalized, versioned security controls verified",
@@ -260,7 +266,7 @@
       "stage_id": 22,
       "name": "Intelligent Assessment Scheduling, Risk-Based Prioritization & Resource-Aware Orchestration",
       "status": "PASSED",
-      "duration_seconds": 5.66,
+      "duration_seconds": 5.583,
       "details": {
         "tests_passed": 20,
         "priority_engine": "Multi-signal deterministic priority calculation with factor transparency verified",
@@ -275,18 +281,24 @@
     {
       "stage_id": 23,
       "name": "Evidence-Grounded Threat Intelligence and Vulnerability Correlation",
-      "status": "FAILED",
-      "duration_seconds": 5.688,
-      "details": {},
-      "errors": [
-        "============================= test session starts =============================\nplatform win32 -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0\nrootdir: D:\\alt\\backend\nconfigfile: pyproject.toml\nplugins: anyio-4.15.1, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 12 items\n\ntests\\test_prompt35_threat_intelligence.py ........F...                  [100%]\n\n================================== FAILURES ===================================\n________________________ test_project_correlation_run _________________________\ntests\\test_prompt35_threat_intelligence.py:429: in test_project_correlation_run\n    assert pan_corr.match_classification == MatchClassification.CONFIRMED_MATCH\nE   AssertionError: assert <MatchClassif...LICTING_DATA'> == <MatchClassif...FIRMED_MATCH'>\nE     \nE     - CONFIRMED_MATCH\nE     + CONFLICTING_DATA\n============================== warnings summary ===============================\n..\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  D:\\alt\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_prompt35_threat_intelligence.py::test_project_correlation_run\n=================== 1 failed, 11 passed, 1 warning in 1.59s ===================\n"
-      ]
+      "status": "PASSED",
+      "duration_seconds": 5.329,
+      "details": {
+        "tests_passed": 12,
+        "authoritative_feeds": "Normalized models for CISA KEV, NVD CVE 2.0, and FIRST EPSS verified",
+        "resemblance_rejection": "Strict rejection of fuzzy/substring product resemblance (Req 7) verified",
+        "non_destructive_enrichment": "Preservation of finding.severity with independent enriched risk score verified",
+        "conflicting_observations": "Explicit CONFLICTING_DATA handling with uncertainty preservation verified",
+        "offline_resilience": "Verified local fixtures, size limits, and 7-day staleness horizon verified",
+        "summary": "All 12 Prompt 35 threat intelligence and correlation tests passed."
+      },
+      "errors": []
     },
     {
       "stage_id": 24,
       "name": "Identity Security, Authorization Consistency and Privileged-Action Governance",
       "status": "PASSED",
-      "duration_seconds": 16.709,
+      "duration_seconds": 15.992,
       "details": {
         "tests_passed": 10,
         "rbac_matrix": "Centralized SystemRole & ProjectRole permissions catalog verified",
@@ -301,7 +313,7 @@
       "stage_id": 25,
       "name": "Asset Identity Resolution, Data Quality and Canonical Security Records",
       "status": "PASSED",
-      "duration_seconds": 11.218,
+      "duration_seconds": 11.115,
       "details": {
         "tests_passed": 9,
         "entity_resolution": "Exact canonical keys, cloud ARNs, and time-bounded alias matching verified",
@@ -316,7 +328,7 @@
       "stage_id": 26,
       "name": "Controlled Experiments, Model Evaluation and Defensible Adaptive Learning",
       "status": "PASSED",
-      "duration_seconds": 8.585,
+      "duration_seconds": 7.912,
       "details": {
         "tests_passed": 11,
         "learning_inventory": "5 core adaptive components cataloged with zero online self-tuning",
@@ -334,7 +346,7 @@
       "stage_id": 27,
       "name": "Evidence-Preserving Incident Investigation and Case Management",
       "status": "PASSED",
-      "duration_seconds": 8.237,
+      "duration_seconds": 7.643,
       "details": {
         "tests_passed": 9,
         "case_model": "IncidentCase and linked assets, findings, evidence snapshots verified",
@@ -351,7 +363,7 @@
       "stage_id": 28,
       "name": "Secure Integration Framework, Connector Contracts and Data Synchronization",
       "status": "PASSED",
-      "duration_seconds": 7.802,
+      "duration_seconds": 7.554,
       "details": {
         "tests_passed": 9,
         "connector_inventory": "Full 8-adapter catalog with truthful implementation statuses verified",
@@ -369,7 +381,7 @@
       "stage_id": 29,
       "name": "Evidence-Based Performance Engineering & Database Optimization",
       "status": "PASSED",
-      "duration_seconds": 7.607,
+      "duration_seconds": 7.257,
       "details": {
         "tests_passed": 9,
         "composite_indexes": "5 composite indexes verified via EXPLAIN QUERY PLAN",
@@ -384,28 +396,37 @@
     {
       "stage_id": 30,
       "name": "Automated Backup Scheduling, Failure Handling & Restoration Assurance",
-      "status": "FAILED",
-      "duration_seconds": 8.463,
-      "details": {},
-      "errors": [
-        "============================= test session starts =============================\nplatform win32 -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0\nrootdir: D:\\alt\\backend\nconfigfile: pyproject.toml\nplugins: anyio-4.15.1, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 9 items\n\ntests\\test_prompt42_automated_backup_scheduling_and_restoration_assurance.py . [ 11%]\n.....F..                                                                 [100%]\n\n================================== FAILURES ===================================\n_________ test_07_isolated_restoration_drill_reconciles_inflight_jobs _________\ntests\\test_prompt42_automated_backup_scheduling_and_restoration_assurance.py:340: in test_07_isolated_restoration_drill_reconciles_inflight_jobs\n    drill_res = BackupRecoveryService.restore_and_verify_isolated(\napp\\services\\backup_service.py:719: in restore_and_verify_isolated\n    raise ValueError(f\"Cannot restore unverified or corrupted disaster recovery bundle. Errors: {v_res.get('errors')}\")\nE   ValueError: Cannot restore unverified or corrupted disaster recovery bundle. Errors: ['Manifest digital signature verification failed: Cryptographic manifest signature verification failed: ']\n------------------------------ Captured log call ------------------------------\nINFO     vapt.audit:audit_service.py:147 AUDIT: action=DISASTER_RECOVERY_BUNDLE_CREATED actor=0b168091-01ce-469c-8ac6-ceea08d92b41 target=DisasterRecoveryBundle:dr_bundle_20261031_041603_1494c5c1 outcome=SUCCESS\n============================== warnings summary ===============================\n..\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  D:\\alt\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_prompt42_automated_backup_scheduling_and_restoration_assurance.py::test_07_isolated_restoration_drill_reconciles_inflight_jobs\n=================== 1 failed, 8 passed, 1 warning in 4.32s ====================\n"
-      ]
+      "status": "PASSED",
+      "duration_seconds": 7.991,
+      "details": {
+        "tests_passed": 9,
+        "disk_space_governance": "Pre-flight capacity validation and threshold checks verified",
+        "schedule_crud_and_polling": "Backup schedule creation, updating, and due batch execution verified",
+        "state_inventory": "Full state snapshot (WAL database, evidence, model artifacts, config) verified",
+        "cryptographic_assurance": "7-point verification and tampered archive rejection verified",
+        "isolated_drills": "Isolated sandbox restore drills and in-flight job reconciliation verified",
+        "summary": "All 9 Prompt 42 backup scheduling and restoration assurance tests passed."
+      },
+      "errors": []
     },
     {
       "stage_id": 31,
       "name": "Full-Stack Contract Integrity & End-to-End Workflow Assurance",
-      "status": "FAILED",
-      "duration_seconds": 5.166,
-      "details": {},
-      "errors": [
-        "Contract verification failed: ================================================================================\n   VAPT PLATFORM -- API CONTRACT & DRIFT VERIFICATION GATE\n================================================================================\n[*] Registered backend OpenAPI routes: 363 endpoints\n[*] Frontend client call-sites discovered: 329\n[*] OpenAPI Schema Version: 3.1.0\n[*] Route matching: 329/329 verified\n[*] Enumeration checks: 22/24 verified\n[!] Enumeration Mismatches:\n    - AssessmentStatus: {'in_backend_missing_in_frontend': ['DEAD_LETTER'], 'in_frontend_missing_in_backend': []}\n    - RecoveryBundleStatus: {'in_backend_missing_in_frontend': ['TAMPERED'], 'in_frontend_missing_in_backend': []}\n================================================================================\nCONTRACT VERIFICATION RESULT: FAILED\nReport written to: D:\\alt\\api_contract_verification_report.json\n================================================================================\n"
-      ]
+      "status": "PASSED",
+      "duration_seconds": 16.719,
+      "details": {
+        "contract_gate": "100% matched: 328 backend routes, 305 frontend call-sites, 24 domain enums",
+        "tests_passed": 10,
+        "workflows_verified": "Auth/Revocation, Scope Gate, Dispatch/Idempotency, Finding Lifecycle, Evidence Deferral, SoD Governance, Independent Retest, Reporting, Cancellation, Pagination",
+        "summary": "All 10 Prompt 43 full-stack workflow assurance and contract integrity tests passed."
+      },
+      "errors": []
     },
     {
       "stage_id": 32,
       "name": "Reproducible Releases, Upgrade Safety & Deployment Acceptance",
       "status": "PASSED",
-      "duration_seconds": 12.57,
+      "duration_seconds": 12.143,
       "details": {
         "tests_passed": 7,
         "dependency_reproducibility": "Strict pinned versioning (==) and runtime/dev manifest separation verified",
@@ -422,7 +443,7 @@
       "stage_id": 33,
       "name": "Secrets Management, Configuration Validation & Credential Lifecycle",
       "status": "PASSED",
-      "duration_seconds": 6.595,
+      "duration_seconds": 6.247,
       "details": {
         "fail_closed_production": "Verified strict rejection of default secrets, SQLite, and wildcard CORS in production",
         "secret_redaction": "Verified pattern scrubbing in text, logging filter, exceptions, and nested payloads",
@@ -437,7 +458,7 @@
       "stage_id": 34,
       "name": "Authorized Attack-Surface Inventory & Exposure Governance",
       "status": "PASSED",
-      "duration_seconds": 4.846,
+      "duration_seconds": 4.61,
       "details": {
         "preflight_scope_enforcement": "Strict authorization boundary verification on all asset observations",
         "anti_expansion_guard": "Automatic redirection of unauthorized targets to AssetInclusionProposal inbox",
@@ -453,7 +474,7 @@
       "stage_id": 35,
       "name": "Security Regression Suite, Authorization Tests & Control Verification",
       "status": "PASSED",
-      "duration_seconds": 5.812,
+      "duration_seconds": 5.46,
       "details": {
         "inventory_verification": "18 critical security controls mapped and verified",
         "authentication_and_revocation": "Rejection of missing, tampered, expired, and revoked JWT sessions verified",
@@ -472,7 +493,7 @@
       "stage_id": 36,
       "name": "Forensic Evidence Preservation, Chain of Custody & Investigation Integrity",
       "status": "PASSED",
-      "duration_seconds": 9.961,
+      "duration_seconds": 9.701,
       "details": {
         "raw_payload_preservation": "Untouched raw records strictly separated from derived normalized interpretations",
         "cryptographic_origin": "Asymmetric Ed25519 digital signatures verified distinct from checksums",
@@ -487,7 +508,7 @@
       "stage_id": 37,
       "name": "Environment Separation, Deployment Profiles & Safe Runtime Configuration",
       "status": "PASSED",
-      "duration_seconds": 4.236,
+      "duration_seconds": 4.082,
       "details": {
         "profile_taxonomy": "Explicit profiles verified: development, testing, staging, production",
         "production_hardening": "Strict fail-closed validation of secrets, DEBUG, SQLite, and CORS verified",
@@ -501,7 +522,7 @@
       "stage_id": 38,
       "name": "Explainable Security Recommendations and Remediation Prioritization",
       "status": "PASSED",
-      "duration_seconds": 10.023,
+      "duration_seconds": 9.73,
       "details": {
         "guidance_taxonomy": "Explicit distinction: VERIFIED_INSTRUCTION, GENERAL_GUIDANCE, UNVERIFIED_SUGGESTION",
         "prioritization_dimensions": "Separation of technical severity, business priority, confidence, urgency, and effort",
@@ -516,7 +537,7 @@
       "stage_id": 39,
       "name": "Fault Injection, Graceful Degradation and Recovery Verification",
       "status": "PASSED",
-      "duration_seconds": 8.706,
+      "duration_seconds": 8.444,
       "details": {
         "fail_closed_guard": "Prohibits fault injection registration and execution in production and staging.",
         "injected_fault_scenarios": "7/7 deterministic scenarios verified (DB interruption, worker termination, adapter timeout, provider outage, disk write failure, malformed response, background task interruption).",
@@ -532,7 +553,7 @@
       "stage_id": 40,
       "name": "Frontend Unit & Contract Acceptance Tests",
       "status": "PASSED",
-      "duration_seconds": 3.025,
+      "duration_seconds": 2.933,
       "details": {
         "summary": "All frontend vitest test cases passed."
       },
@@ -542,7 +563,7 @@
       "stage_id": 41,
       "name": "Frontend Production Distribution Build",
       "status": "PASSED",
-      "duration_seconds": 8.765,
+      "duration_seconds": 8.017,
       "details": {
         "dist_directory": "D:\\alt\\frontend\\dist",
         "total_files": 5,
@@ -554,9 +575,9 @@
       "stage_id": 42,
       "name": "Secret, Credential & Sensitive Data Hygiene Scan",
       "status": "PASSED",
-      "duration_seconds": 1.717,
+      "duration_seconds": 1.626,
       "details": {
-        "total_scanned_files": 577,
+        "total_scanned_files": 578,
         "violations_count": 0,
         "summary": "Zero hardcoded private keys, tokens, or dangerous VITE_* variables discovered."
       },
@@ -566,10 +587,10 @@
       "stage_id": 43,
       "name": "Release Packaging & Clean Artifact Inspection",
       "status": "PASSED",
-      "duration_seconds": 4.15,
+      "duration_seconds": 3.404,
       "details": {
-        "archive_size_kb": 22354.03,
-        "total_archived_files": 834,
+        "archive_size_kb": 22966.15,
+        "total_archived_files": 874,
         "hygiene_verified": "No .venv, .git, node_modules, or test databases included in release archive."
       },
       "errors": []
@@ -578,12 +599,26 @@
       "stage_id": 44,
       "name": "Enterprise Infrastructure, Scalability & Distributed Execution",
       "status": "PASSED",
-      "duration_seconds": 10.921,
+      "duration_seconds": 10.687,
       "details": {
         "output_summary": "All 13 enterprise infrastructure and distributed worker tests passed.",
         "dual_dialect": "PostgreSQL & SQLite dual-dialect DDL and indexes verified with 0 errors.",
         "worker_isolation": "Zero-secret boundary and authenticated worker registration verified.",
         "capacity_management": "Backpressure (429) and concurrency bounds verified."
+      },
+      "errors": []
+    },
+    {
+      "stage_id": 45,
+      "name": "Forensic Storage, Backup, Disaster Recovery & Data Governance",
+      "status": "PASSED",
+      "duration_seconds": 13.188,
+      "details": {
+        "output_summary": "All 12 forensic storage and disaster recovery tests passed.",
+        "storage_adapters": "LocalStorageAdapter and S3CompatibleStorageAdapter verified with WORM truthfulness.",
+        "lifecycle_governance": "Legal holds (409) and authorized deletion with signed tombstones verified.",
+        "disaster_recovery": "Isolated drills, job reconciliation, rollback snapshots, and duplicate fencing verified.",
+        "data_portability": "Zip Slip traversal rejection and Ed25519 archive attestation verified."
       },
       "errors": []
     }

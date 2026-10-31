@@ -1,7 +1,7 @@
 import json
 import hashlib
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, List
 from datetime import datetime, timezone, timedelta
 import logging
 from sqlalchemy.orm import Session
@@ -94,14 +94,24 @@ class AuditService:
 
         with cls._chain_lock:
             # Fetch previous audit event in chain for this project (or globally)
+            # Transactional database coordination: supports with_for_update on PostgreSQL
             try:
                 query = db.query(AuditEvent)
                 if proj_str:
                     query = query.filter(AuditEvent.project_id == proj_str)
                 else:
                     query = query.filter(AuditEvent.project_id.is_(None))
+
+                # Apply row-level locking where dialect supports it (PostgreSQL)
+                bind = db.get_bind()
+                if bind and bind.dialect.name == "postgresql":
+                    query = query.with_for_update()
+
                 last_event = query.order_by(AuditEvent.timestamp.desc(), AuditEvent.id.desc()).first()
                 prev_hash = last_event.event_hash if last_event else None
+                last_seq = last_event.sequence_number if (last_event and last_event.sequence_number is not None) else 0
+                next_seq = last_seq + 1
+
                 if last_event and last_event.timestamp:
                     last_ts = last_event.timestamp
                     if last_ts.tzinfo is None:
@@ -110,6 +120,7 @@ class AuditService:
                         now = last_ts + timedelta(microseconds=1)
             except Exception:
                 prev_hash = None
+                next_seq = 1
 
             event_hash = compute_audit_event_hash(
                 prev_hash=prev_hash,
@@ -126,6 +137,7 @@ class AuditService:
             try:
                 event = AuditEvent(
                     timestamp=now,
+                    sequence_number=next_seq,
                     actor_id=actor_id,
                     actor_email=actor_email,
                     action=action,
@@ -145,7 +157,7 @@ class AuditService:
                     db.commit()
                     db.refresh(event)
                 logger.info(
-                    f"AUDIT: action={action} actor={actor_email or actor_id} target={target_type}:{target_id} outcome={outcome}"
+                    f"AUDIT: seq={next_seq} action={action} actor={actor_email or actor_id} target={target_type}:{target_id} outcome={outcome}"
                 )
                 return event
             except Exception as e:
@@ -153,7 +165,7 @@ class AuditService:
                 logger.error(f"AUDIT FAILURE: Could not record audit event {action}: {e}", exc_info=True)
                 if settings.AUDIT_LOG_STRICT:
                     raise RuntimeError(f"Audit log write failed under strict security policy: {e}") from e
-            raise
+                return None
 
     @classmethod
     def log(
@@ -189,13 +201,15 @@ class AuditService:
         project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Walks the audit ledger and validates hash chain continuity.
+        Walks the audit ledger and validates hash chain continuity and cryptographic integrity.
         Verifies that every event's prev_event_hash matches the previous event's event_hash,
+        recomputes SHA-256 event hashes from details payload to detect in-place tampering,
         and ensures zero tampering, zero forks, and monotonic ordering.
         """
+        proj_str = str(project_id) if project_id is not None else None
         query = db.query(AuditEvent)
-        if project_id is not None:
-            query = query.filter(AuditEvent.project_id == project_id)
+        if proj_str is not None:
+            query = query.filter(AuditEvent.project_id == proj_str)
         else:
             query = query.filter(AuditEvent.project_id.is_(None))
 
@@ -204,6 +218,7 @@ class AuditService:
         valid = True
         broken_count = 0
         expected_prev_hash = None
+        discrepancies: List[str] = []
 
         for idx, evt in enumerate(events):
             if idx == 0:
@@ -211,6 +226,30 @@ class AuditService:
             if evt.prev_event_hash != expected_prev_hash:
                 valid = False
                 broken_count += 1
+                discrepancies.append(
+                    f"Chain link broken at event '{evt.id}' (seq={evt.sequence_number}): "
+                    f"expected prev_hash='{expected_prev_hash}', recorded='{evt.prev_event_hash}'"
+                )
+
+            recomputed = compute_audit_event_hash(
+                prev_hash=evt.prev_event_hash,
+                timestamp=evt.timestamp,
+                actor_id=evt.actor_id,
+                action=evt.action,
+                target_type=evt.target_type,
+                target_id=evt.target_id,
+                project_id=evt.project_id,
+                outcome=evt.outcome,
+                details=evt.details,
+            )
+            if recomputed != evt.event_hash:
+                valid = False
+                broken_count += 1
+                discrepancies.append(
+                    f"Hash integrity failed at event '{evt.id}' (seq={evt.sequence_number}): "
+                    f"recorded='{evt.event_hash}', recomputed='{recomputed}'"
+                )
+
             expected_prev_hash = evt.event_hash
 
         return {
@@ -218,4 +257,5 @@ class AuditService:
             "total_events": len(events),
             "broken_links": broken_count,
             "forks": 0 if valid else broken_count,
+            "discrepancies": discrepancies,
         }

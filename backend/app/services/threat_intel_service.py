@@ -559,7 +559,13 @@ class ThreatIntelService:
             confidence_score = 0.35
             evidence_grounding["conflict_details"] = finding.contradiction_notes or ["Conflicting scan adapter evidence reported on target"]
         elif is_direct_cve:
-            if observed_version:
+            has_bounds = bool(
+                intel.version_start_including
+                or intel.version_end_excluding
+                or intel.version_end_including
+                or intel.affected_versions_list
+            )
+            if observed_version and has_bounds:
                 in_range = check_version_match(observed_version, intel)
                 if in_range:
                     match_classification = MatchClassification.CONFIRMED_MATCH
@@ -578,13 +584,22 @@ class ThreatIntelService:
                         "status": "VERSION_OUTSIDE_VULNERABLE_RANGE",
                     }
             else:
-                # Direct CVE, but version evidence unconfirmed
-                match_classification = MatchClassification.POSSIBLE_MATCH
-                confidence_score = 0.75
-                evidence_grounding["version_evidence"] = {
-                    "observed_version": None,
-                    "status": "VERSION_UNSPECIFIED_IN_EVIDENCE",
-                }
+                # Direct CVE, but version bounds not defined on intel, or observed_version unconfirmed
+                if getattr(intel, "is_known_exploited", False):
+                    match_classification = MatchClassification.CONFIRMED_MATCH
+                    confidence_score = 0.95
+                    evidence_grounding["version_evidence"] = {
+                        "observed_version": observed_version,
+                        "in_range": True,
+                        "status": "KEV_EXPLOITED_CVE_DIRECT_MATCH",
+                    }
+                else:
+                    match_classification = MatchClassification.POSSIBLE_MATCH
+                    confidence_score = 0.75
+                    evidence_grounding["version_evidence"] = {
+                        "observed_version": observed_version,
+                        "status": "VERSION_UNSPECIFIED_IN_EVIDENCE" if not observed_version else "VERSION_BOUNDS_UNSPECIFIED_IN_INTEL",
+                    }
         elif obs_p_norm and obs_p_norm == intel_p_norm:
             if observed_version:
                 in_range = check_version_match(observed_version, intel)
